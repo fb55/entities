@@ -10,7 +10,7 @@ En- & decoder for XML/HTML entities.
 
 ##How to…
 
-####…install `entities`
+###…install `entities`
 
     npm install entities
 
