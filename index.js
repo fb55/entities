@@ -49,13 +49,6 @@ module.exports = {
 	encode: function(data, level){
 		if(!modes[level]) level = 0;
 		return module.exports["encode" +modes[level]](data);
-	},
-	decodeXML: function(data){
-		return data
-		    .replace(regex, func)
-		    .replace(re_strictHex, strictHex_func)
-		    .replace(re_strictCharCode, strictNum_func);
-
 	}
 };
 
