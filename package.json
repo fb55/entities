@@ -1,6 +1,6 @@
 {
     "name": "entities",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Encode & decode XML/HTML entities with ease",
     "author": "Felix Boehm <me@feedic.com>",
     "keywords": ["html", "xml", "entity", "encoding"],
