@@ -1,3 +1,4 @@
+[![build status](https://secure.travis-ci.org/fb55/node-entities.png)](http://travis-ci.org/fb55/node-entities)
 #entities
 
 En- & decoder for XML/HTML entities.
