@@ -82,14 +82,12 @@ modes.forEach(function(name) {
 
     tmp = obj.obj;
 
-    if (!module.exports["decode" + name]) {
-        module.exports["decode" + name] = function(data) {
-            return data
-                .replace(regex, func)
-                .replace(re_hex, hex_func)
-                .replace(re_charCode, num_func);
-        };
-    }
+    module.exports["decode" + name] = function(data) {
+        return data
+            .replace(regex, func)
+            .replace(re_hex, hex_func)
+            .replace(re_charCode, num_func);
+    };
 
     var reverse = getReverse(obj.obj),
         reverse_re = reverse.re,
