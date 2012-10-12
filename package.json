@@ -8,5 +8,6 @@
     "repository": {
 		  "type": "git"
 		, "url": "git://github.com/fb55/node-entities.git"
-	}
+	},
+	"license": "BSD-like"
 }
