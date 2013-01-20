@@ -10,9 +10,8 @@ var re_hex = /&#x[\da-f]+;?/gi,
 	strictHex_func = function(num){return fromCharCode(parseInt(num.slice(3, -1), 16));},
 	charCode_func = function(c){ return "&#" +c.charCodeAt(0) +";";};
 
-var readFile = require("fs").readFileSync;
 var fetch = function(filename, inherits){
-	var obj = JSON.parse(readFile(__dirname +"/entities/" +filename +".json", "utf8"));
+	var obj = require("./entities/" +filename +".json");
 	
 	if(inherits) for(var name in inherits) obj[name] = inherits[name];
 	
