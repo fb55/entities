@@ -20,9 +20,8 @@ var re_hex = /&#x[\da-f]+;?/gi,
         return "&#" + c.charCodeAt(0) + ";";
     };
 
-var readFile = require("fs").readFileSync;
 var fetch = function(filename, inherits) {
-    var obj = JSON.parse(readFile(__dirname + "/entities/" + filename + ".json", "utf8"));
+    var obj = require("./entities/" + filename + ".json");
 
     if (inherits) for (var name in inherits) obj[name] = inherits[name];
 
