@@ -2,7 +2,7 @@ var re_hex = /&#x[\da-f]+;?/gi,
 	re_strictHex = /&#x[\da-f]+;/gi,
 	re_charCode = /&#\d+;?/g,
 	re_strictCharCode = /&#\d+;/g,
-	re_notUTF8 = /[\u0000-\u001f\u007f-\uffff]/g,
+	re_notUTF8 = /[\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u02ff\u0370-\u037d\u037f-\u1fff\u200c\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]/g,
 	fromCharCode = String.fromCharCode,
 	num_func = function(num){return fromCharCode(parseInt(num.substr(2), 10));},
 	hex_func = function(hex){return fromCharCode(parseInt(hex.substr(3), 16));},
@@ -35,7 +35,7 @@ var getReverse = function(obj){
 	return {
 		func: function(name){ return "&" +reverse[name]; },
 		re: new RegExp("\\" +Object.keys(reverse).sort().join("|\\"), "g")
-	}	
+	};
 };
 
 var modes = ["XML", "HTML4", "HTML5"];
