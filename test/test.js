@@ -1,7 +1,7 @@
 var assert = require('assert');
 var entities = require('../');
 
-describe("Encode/decode test", function() {
+describe("Encode->decode test", function() {
     var testcases = [
         { input: "asdf & ÿ ü '",
           xml: "asdf &amp; &#255; &#252; &apos;",
@@ -33,6 +33,33 @@ describe("Encode/decode test", function() {
         });
         it('should HTML5 decode '+encodedHTML5, function() {
             assert.equal(entities.decodeHTML5(encodedHTML5), tc.input);
+        });
+    });
+});
+
+describe("Decode test", function() {
+    var testcases = [
+	{ input: '&amp;amp;',  output: '&amp;' },
+	{ input: '&amp;#38;',  output: '&#38;' },
+	{ input: '&amp;#x26;', output: '&#x26;' },
+	{ input: '&amp;#X26;', output: '&#X26;' },
+	{ input: '&#38;#38;',  output: '&#38;' },
+	{ input: '&#x26;#38;', output: '&#38;' },
+	{ input: '&#X26;#38;', output: '&#38;' },
+	{ input: '&#x3a;',     output: ':' },
+	{ input: '&#x3A;',     output: ':' },
+	{ input: '&#X3a;',     output: ':' },
+	{ input: '&#X3A;',     output: ':' }
+    ];
+    testcases.forEach(function(tc) {
+        it('should XML decode '+tc.input, function() {
+            assert.equal(entities.decodeXML(tc.input), tc.output);
+        });
+        it('should HTML4 decode '+tc.input, function() {
+            assert.equal(entities.decodeHTML4(tc.input), tc.output);
+        });
+        it('should HTML5 decode '+tc.input, function() {
+            assert.equal(entities.decodeHTML5(tc.input), tc.output);
         });
     });
 });
