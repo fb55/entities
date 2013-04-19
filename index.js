@@ -1,4 +1,4 @@
-var re_hex = /&#x[\da-f]+;?/gi,
+var re_hex = /&#[xX][\da-fA-F]+;?/g,
     re_strictHex = /&#x[\da-f]+;/gi,
     re_charCode = /&#\d+;?/g,
     re_strictCharCode = /&#\d+;/g,
@@ -29,9 +29,17 @@ var fetch = function(filename, inherits) {
         .sort()
         .join("|")
         .replace(/(\w+)\|\1;/g, "$1;?");
+    // add regex for hex and char codes
+    re += "|" + re_hex.source.substr(1) + "|" + re_charCode.source.substr(1);
 
     return {
         func: function(name) {
+            if (name.charAt(1) === "#") {
+                if (name.charAt(2).toLowerCase() === "x") {
+                    return hex_func(name);
+                }
+                return num_func(name);
+            }
             return obj[name.substr(1)];
         },
         re: new RegExp("&(?:" + re + ")", "g"),
@@ -82,10 +90,7 @@ modes.forEach(function(name) {
     tmp = obj.obj;
 
     module.exports["decode" + name] = function(data) {
-        return data
-            .replace(regex, func)
-            .replace(re_hex, hex_func)
-            .replace(re_charCode, num_func);
+        return data.replace(regex, func);
     };
 
     var reverse = getReverse(obj.obj),
