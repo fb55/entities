@@ -1,21 +1,4 @@
-var re_hex = /&#[xX][\da-fA-F]+;?/g,
-    re_strictHex = /&#x[\da-f]+;/gi,
-    re_charCode = /&#\d+;?/g,
-    re_strictCharCode = /&#\d+;/g,
-    re_notUTF8 = /[\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u02ff\u0370-\u037d\u037f-\u1fff\u200c\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]/g,
-    fromCharCode = String.fromCharCode,
-    num_func = function(num) {
-        return fromCharCode(parseInt(num.substr(2), 10));
-    },
-    hex_func = function(hex) {
-        return fromCharCode(parseInt(hex.substr(3), 16));
-    },
-    strictNum_func = function(num) {
-        return fromCharCode(num.slice(2, -1));
-    },
-    strictHex_func = function(num) {
-        return fromCharCode(parseInt(num.slice(3, -1), 16));
-    },
+var re_notUTF8 = /[\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u02ff\u0370-\u037d\u037f-\u1fff\u200c\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]/g,
     charCode_func = function(c) {
         return "&#" + c.charCodeAt(0) + ";";
     };
@@ -29,16 +12,17 @@ var fetch = function(filename, inherits) {
         .sort()
         .join("|")
         .replace(/(\w+)\|\1;/g, "$1;?");
-    // add regex for hex and char codes
-    re += "|" + re_hex.source.substr(1) + "|" + re_charCode.source.substr(1);
+
+    // also match hex and char codes
+    re += "|#[xX][0-9a-fA-F]+;?|#\\d+;?";
 
     return {
         func: function(name) {
             if (name.charAt(1) === "#") {
                 if (name.charAt(2).toLowerCase() === "x") {
-                    return hex_func(name);
+                    return String.fromCharCode(parseInt(name.substr(3), 16));
                 }
-                return num_func(name);
+                return String.fromCharCode(parseInt(name.substr(2), 10));
             }
             return obj[name.substr(1)];
         },
