@@ -6,8 +6,8 @@ describe("Encode->decode test", function() {
         {
             input: "asdf & ÿ ü '",
             xml: "asdf &amp; &#255; &#252; &apos;",
-            html4: "asdf &amp; &yuml &uuml &apos;",
-            html5: "asdf &amp; &yuml &uuml &apos;"
+            html4: "asdf &amp; &yuml; &uuml; &apos;",
+            html5: "asdf &amp; &yuml; &uuml; &apos;"
         },
         {
             input: "&#38;",
