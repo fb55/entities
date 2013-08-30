@@ -84,10 +84,26 @@ function getStrictReplacer(obj) {
     }
 }
 
-var re_nonUTF8 = /[\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u02ff\u0370-\u037d\u037f-\u1fff\u200c\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd]/g;
+var re_nonASCII = /[^\0-\x7F]/g,
+    re_astralSymbols = /[\uD800-\uDBFF][\uDC00-\uDFFF]/g;
 
 function nonUTF8Replacer(c) {
-    return "&#" + c.charCodeAt(0) + ";";
+    return (
+        "&#x" +
+        c
+            .charCodeAt(0)
+            .toString(16)
+            .toUpperCase() +
+        ";"
+    );
+}
+
+function astralReplacer(c) {
+    // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
+    var high = c.charCodeAt(0);
+    var low = c.charCodeAt(1);
+    var codePoint = (high - 0xd800) * 0x400 + low - 0xdc00 + 0x10000;
+    return "&#x" + codePoint.toString(16).toUpperCase() + ";";
 }
 
 function getReverse(obj) {
@@ -113,7 +129,10 @@ function getReverse(obj) {
     }
 
     return function(data) {
-        return data.replace(regex, func).replace(re_nonUTF8, nonUTF8Replacer);
+        return data
+            .replace(regex, func)
+            .replace(re_astralSymbols, astralReplacer)
+            .replace(re_nonASCII, nonUTF8Replacer);
     };
 }
 
