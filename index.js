@@ -113,7 +113,7 @@ function getReverse(obj){
 	}
 
 	return function(data){
-		return data
+		return (data + "")
 				.replace(regex, func)
 				.replace(re_astralSymbols, astralReplacer)
 				.replace(re_nonASCII, nonUTF8Replacer);
@@ -122,6 +122,7 @@ function getReverse(obj){
 
 function genReplaceFunc(regex, func){
 	return function(data){
-		return data.replace(regex, func);
+		return (data + "")
+				.replace(regex, func);
 	};
 }
