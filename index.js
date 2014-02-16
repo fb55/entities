@@ -25,7 +25,7 @@ var decode = levels.map(function(l) {
     decodeStrict = levels.map(function(l) {
         return l.strict;
     }),
-    inverse = levels.map(function(l) {
+    encode = levels.map(function(l) {
         return l.inverse;
     });
 
