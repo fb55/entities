@@ -40,12 +40,16 @@ function getReplacer(obj){
 	return function normalReplacer(name){
 		if(name.charAt(1) === "#"){
 			if(name.charAt(2).toLowerCase() === "x"){
-				return String.fromCharCode(parseInt(name.substr(3), 16));
+				return codePointToSymbol(parseInt(name.substr(3), 16));
 			}
-			return String.fromCharCode(parseInt(name.substr(2), 10));
+			return codePointToSymbol(parseInt(name.substr(2), 10));
 		}
 		return obj[name.substr(1)];
 	};
+}
+
+function codePointToSymbol(entity){
+	return String.fromCharCode(entity); //TODO
 }
 
 function getStrictReplacer(obj){
