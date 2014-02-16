@@ -1,51 +1,49 @@
-var modes = ["XML", "HTML4", "HTML5"];
+var compiled = require("./compile.js"),
+    modes = ["XML", "HTML4", "HTML5"];
 
-module.exports = {
-    decode: function(data, level) {
-        if (!modes[level]) level = 0;
-        return module.exports["decode" + modes[level]](data);
-    },
-    decodeStrict: function(data, level) {
-        if (!modes[level]) level = 0;
-        return module.exports["decode" + modes[level] + "Strict"](data);
-    },
-    encode: function(data, level) {
-        if (!modes[level]) level = 0;
-        return module.exports["encode" + modes[level]](data);
-    }
+var levels = modes.map(function(name, i) {
+    var obj = compiled[name],
+        strict = genReplaceFunc(obj.strict, getStrictReplacer(obj.obj)),
+        //there is no non-strict mode for XML
+        normal = i === 0 ? strict : genReplaceFunc(obj.normal, getReplacer(obj.obj)),
+        inverse = getInverse(obj.inverseObj, obj.inverse);
+
+    exports["decode" + name + "Strict"] = strict;
+    exports["decode" + name] = normal;
+    exports["encode" + name] = inverse;
+
+    return {
+        strict: strict,
+        normal: normal,
+        inverse: inverse
+    };
+});
+
+var decode = levels.map(function(l) {
+        return l.normal;
+    }),
+    decodeStrict = levels.map(function(l) {
+        return l.strict;
+    }),
+    inverse = levels.map(function(l) {
+        return l.inverse;
+    });
+
+exports.decode = function(data, level) {
+    if (!(level >= 0 && level < 3)) level = 0;
+    return decode[level](data);
+};
+exports.decodeStrict = function(data, level) {
+    if (!(level >= 0 && level < 3)) level = 0;
+    return decodeStrict[level](data);
+};
+exports.encode = function(data, level) {
+    if (!(level >= 0 && level < 3)) level = 0;
+    return encode[level](data);
 };
 
-modes.reduce(function(prev, name) {
-    var obj = require("./entities/" + name.toLowerCase() + ".json");
-
-    if (prev) {
-        Object.keys(prev).forEach(function(name) {
-            obj[name] = prev[name];
-        });
-    }
-
-    module.exports["decode" + name + "Strict"] = getStrictReplacer(obj);
-
-    if (name === "XML") {
-        //there is no non-strict mode for XML
-        module.exports.decodeXML = module.exports.decodeXMLStrict;
-    } else {
-        module.exports["decode" + name] = getReplacer(obj);
-    }
-
-    module.exports["encode" + name] = getReverse(obj);
-
-    return obj;
-}, null);
-
 function getReplacer(obj) {
-    var keys = Object.keys(obj).sort();
-    var re = keys.join("|").replace(/(\w+)\|\1;/g, "$1;?");
-
-    // also match hex and char codes
-    re += "|#[xX][\\da-fA-F]+;?|#\\d+;?";
-
-    return genReplaceFunc(new RegExp("&(?:" + re + ")", "g"), function func(name) {
+    return function normalReplacer(name) {
         if (name.charAt(1) === "#") {
             if (name.charAt(2).toLowerCase() === "x") {
                 return String.fromCharCode(parseInt(name.substr(3), 16));
@@ -53,27 +51,11 @@ function getReplacer(obj) {
             return String.fromCharCode(parseInt(name.substr(2), 10));
         }
         return obj[name.substr(1)];
-    });
+    };
 }
 
 function getStrictReplacer(obj) {
-    var keys = Object.keys(obj)
-        .sort()
-        .filter(RegExp.prototype.test, /;$/);
-    var re = keys
-        .map(function(name) {
-            return name.slice(0, -1); //remove trailing semicolon
-        })
-        .join("|");
-
-    // also match hex and char codes
-    re += "|#[xX][\\da-fA-F]+|#\\d+";
-
-    var expr = new RegExp("&(?:" + re + ");", "g");
-
-    return genReplaceFunc(expr, func);
-
-    function func(name) {
+    return function strictReplacer(name) {
         if (name.charAt(1) === "#") {
             if (name.charAt(2).toLowerCase() === "x") {
                 return String.fromCharCode(parseInt(name.substr(3), 16));
@@ -81,7 +63,7 @@ function getStrictReplacer(obj) {
             return String.fromCharCode(parseInt(name.substr(2), 10));
         }
         return obj[name.substr(1)];
-    }
+    };
 }
 
 var re_nonASCII = /[^\0-\x7F]/g,
@@ -106,31 +88,14 @@ function astralReplacer(c) {
     return "&#x" + codePoint.toString(16).toUpperCase() + ";";
 }
 
-function getReverse(obj) {
-    var reverse = Object.keys(obj)
-        .filter(function(name) {
-            //prefer identifiers with a semicolon
-            return name.substr(-1) === ";" || obj[name + ";"] !== obj[name];
-        })
-        .reduce(function(reverse, name) {
-            reverse[obj[name]] = name;
-            return reverse;
-        }, {});
-
-    var regex = new RegExp(
-        "\\" +
-            Object.keys(reverse)
-                .sort()
-                .join("|\\"),
-        "g"
-    );
+function getInverse(inverse, re) {
     function func(name) {
-        return "&" + reverse[name];
+        return "&" + inverse[name];
     }
 
     return function(data) {
-        return (data + "")
-            .replace(regex, func)
+        return data
+            .replace(re, func)
             .replace(re_astralSymbols, astralReplacer)
             .replace(re_nonASCII, nonUTF8Replacer);
     };
@@ -138,6 +103,6 @@ function getReverse(obj) {
 
 function genReplaceFunc(regex, func) {
     return function(data) {
-        return (data + "").replace(regex, func);
+        return data.replace(regex, func);
     };
 }
