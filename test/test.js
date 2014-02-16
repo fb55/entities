@@ -1,5 +1,5 @@
-var assert = require("assert");
-var entities = require("../");
+var assert = require("assert"),
+    entities = require("../");
 
 describe("Encode->decode test", function() {
     var testcases = [
