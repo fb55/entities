@@ -21,7 +21,7 @@ var levels = modes.map(function(name, i){
 
 var decode = levels.map(function(l){ return l.normal; }),
     decodeStrict = levels.map(function(l){ return l.strict; }),
-    inverse = levels.map(function(l){ return l.inverse; });
+    encode = levels.map(function(l){ return l.inverse; });
 
 exports.decode = function(data, level){
 	if(!(level >= 0 && level < 3)) level = 0;
