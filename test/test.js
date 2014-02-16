@@ -5,7 +5,7 @@ describe("Encode->decode test", function() {
     var testcases = [
         {
             input: "asdf & ÿ ü '",
-            xml: "asdf &amp; &#255; &#252; &apos;",
+            xml: "asdf &amp; &#xFF; &#xFC; &apos;",
             html4: "asdf &amp; &yuml; &uuml; &apos;",
             html5: "asdf &amp; &yuml; &uuml; &apos;"
         },
