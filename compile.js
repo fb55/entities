@@ -23,9 +23,13 @@ modes.reduce(function(prev, name, i) {
     return obj;
 }, null);
 
+function sortDesc(a, b) {
+    return a < b ? 1 : -1;
+}
+
 function getReplacer(obj) {
-    var keys = Object.keys(obj).sort();
-    var re = keys.join("|").replace(/(\w+)\|\1;/g, "$1;?");
+    var keys = Object.keys(obj).sort(sortDesc);
+    var re = keys.join("|"); //.replace(/(\w+);\|\1/g, "$1;?");
 
     // also match hex and char codes
     re += "|#[xX][\\da-fA-F]+;?|#\\d+;?";
@@ -35,7 +39,7 @@ function getReplacer(obj) {
 
 function getStrictReplacer(obj) {
     var keys = Object.keys(obj)
-        .sort()
+        .sort(sortDesc)
         .filter(RegExp.prototype.test, /;$/);
     var re = keys
         .map(function(name) {
