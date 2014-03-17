@@ -1,5 +1,5 @@
-var encode = require("./compile.js"),
-    decode = require("./decode.js");
+var encode = require("./lib/compile.js"),
+    decode = require("./lib/decode.js");
 
 exports.decode = function(data, level){
 	return (!level || level <= 0 ? decode.XML : decode.HTML)(data);
