@@ -1,6 +1,6 @@
 var assert = require("assert"),
     path = require("path"),
-    entities = require('../');
+    entities = require("../");
 
 describe("Encode->decode test", function(){
 	var testcases = [
