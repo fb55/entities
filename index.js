@@ -1,4 +1,4 @@
-var encode = require("./lib/compile.js"),
+var encode = require("./lib/encode.js"),
     decode = require("./lib/decode.js");
 
 exports.decode = function(data, level){
