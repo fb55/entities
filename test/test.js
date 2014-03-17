@@ -75,7 +75,7 @@ var levels = ["xml", "entities"];
 describe("Documents", function() {
     levels
         .map(function(n) {
-            return path.join("..", "entities", n);
+            return path.join("..", "maps", n);
         })
         .map(require)
         .forEach(function(doc, i) {
@@ -110,7 +110,7 @@ describe("Documents", function() {
             });
         });
 
-    var legacy = require("../entities/legacy.json");
+    var legacy = require("../maps/legacy.json");
 
     describe("Legacy", function() {
         it("should decode", runLegacy);
@@ -128,13 +128,25 @@ var astral = {
     "1D11E": "\uD834\uDD1E"
 };
 
+var astralSpecial = {
+    "80": "\u20AC",
+    "110000": "\uFFFD"
+};
+
 describe("Astral entities", function() {
     Object.keys(astral).forEach(function(c) {
-        /*it("should decode " + astral[c], function(){
-			assert.equal(entities.decode("&#x" + c + ";"), astral[c]);
-		});*/
+        it("should decode " + astral[c], function() {
+            assert.equal(entities.decode("&#x" + c + ";"), astral[c]);
+        });
+
         it("should encode " + astral[c], function() {
             assert.equal(entities.encode(astral[c]), "&#x" + c + ";");
+        });
+    });
+
+    Object.keys(astralSpecial).forEach(function(c) {
+        it("special should decode \\u" + c, function() {
+            assert.equal(entities.decode("&#x" + c + ";"), astralSpecial[c]);
         });
     });
 });
