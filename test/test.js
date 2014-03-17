@@ -7,13 +7,11 @@ describe("Encode->decode test", function(){
 		{
 			input: "asdf & ÿ ü '",
 			xml: "asdf &amp; &#xFF; &#xFC; &apos;",
-			html4: "asdf &amp; &yuml; &uuml; &apos;",
-			html5: "asdf &amp; &yuml; &uuml; &apos;"
+			html: "asdf &amp; &yuml; &uuml; &apos;"
 		}, {
 			input: "&#38;",
 			xml: "&amp;#38;",
-			html4: "&amp;#38;",
-			html5: "&amp;&num;38&semi;"
+			html: "&amp;&num;38&semi;"
 		},
 	];
 	testcases.forEach(function(tc) {
@@ -34,20 +32,12 @@ describe("Encode->decode test", function(){
 			assert.equal(entities.decodeStrict(encodedXML), tc.input);
 		});
 
-		var encodedHTML4 = entities.encodeHTML4(tc.input);
-		it("should HTML4 encode " + tc.input, function(){
-			assert.equal(encodedHTML4, tc.html4);
-		});
-		it("should HTML4 decode " + encodedHTML4, function(){
-			assert.equal(entities.decodeHTML4(encodedHTML4), tc.input);
-		});
-
 		var encodedHTML5 = entities.encodeHTML5(tc.input);
 		it("should HTML5 encode " + tc.input, function(){
-			assert.equal(encodedHTML5, tc.html5);
+			assert.equal(encodedHTML5, tc.html);
 		});
 		it("should HTML5 decode " + encodedHTML5, function(){
-			assert.equal(entities.decodeHTML5(encodedHTML5), tc.input);
+			assert.equal(entities.decodeHTML(encodedHTML5), tc.input);
 		});
 	});
 });
@@ -71,15 +61,15 @@ describe("Decode test", function(){
 			assert.equal(entities.decodeXML(tc.input), tc.output);
 		});
 		it("should HTML4 decode " + tc.input, function(){
-			assert.equal(entities.decodeHTML4(tc.input), tc.output);
+			assert.equal(entities.decodeHTML(tc.input), tc.output);
 		});
 		it("should HTML5 decode " + tc.input, function(){
-			assert.equal(entities.decodeHTML5(tc.input), tc.output);
+			assert.equal(entities.decodeHTML(tc.input), tc.output);
 		});
 	});
 });
 
-var levels = ["xml", "html4", "html5"];
+var levels = ["xml", "entities"];
 
 describe("Documents", function(){
 	levels
@@ -90,7 +80,7 @@ describe("Documents", function(){
 			it(levels[i], function(){
 				Object.keys(doc).forEach(function(e){
 					for(var l = i; l < levels.length; l++){
-						assert.equal(entities.decode("&" + e, l), doc[e]);
+						assert.equal(entities.decode("&" + e + ";", l), doc[e]);
 					}
 				});
 			});
@@ -99,12 +89,8 @@ describe("Documents", function(){
 		describe("Decode strict", function(){
 			it(levels[i], function(){
 				Object.keys(doc).forEach(function(e){
-					if(e.substr(-1) !== ";"){
-						assert.equal(entities.decodeStrict("&" + e, i), "&" + e);
-						return;
-					}
 					for(var l = i; l < levels.length; l++){
-						assert.equal(entities.decodeStrict("&" + e, l), doc[e]);
+						assert.equal(entities.decodeStrict("&" + e + ";", l), doc[e]);
 					}
 				});
 			});
@@ -113,7 +99,6 @@ describe("Documents", function(){
 		describe("Encode", function(){
 			it(levels[i], function(){
 				Object.keys(doc).forEach(function(e){
-					if(e.substr(-1) !== ";") return;
 					for(var l = i; l < levels.length; l++){
 						assert.equal(entities.decode(entities.encode(doc[e], l), l), doc[e]);
 					}
@@ -121,6 +106,18 @@ describe("Documents", function(){
 			});
 		});
 	});
+
+	var legacy = require("../entities/legacy.json");
+
+	describe("Legacy", function(){
+		it("should decode", runLegacy);
+	});
+
+	function runLegacy(){
+		Object.keys(legacy).forEach(function(e){
+			assert.equal(entities.decodeHTML("&" + e), legacy[e]);
+		});
+	}
 });
 
 var astral = {
