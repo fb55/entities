@@ -1,66 +1,18 @@
-var modes = ["XML", "HTML4", "HTML5"];
+var inverseXML = getInverseObj(require("./entities/xml.json")),
+    xmlReplacer = getInverseReplacer(inverseXML);
 
-modes.reduce(function(prev, name, i) {
-    var obj = require("./entities/" + name.toLowerCase() + ".json");
+exports.XML = getInverse(inverseXML, xmlReplacer);
 
-    if (prev) {
-        Object.keys(prev).forEach(function(name) {
-            obj[name] = prev[name];
-        });
-    }
+var inverseHTML = getInverseObj(require("./entities/entities.json")),
+    htmlReplacer = getInverseReplacer(inverseHTML);
 
-    var inverse = getInverse(obj);
+exports.HTML = getInverse(inverseHTML, htmlReplacer);
 
-    module.exports[name] = {
-        strict: getStrictReplacer(obj),
-        //there is no non-strict mode for XML
-        normal: i === 0 ? null : getReplacer(obj),
-        inverse: getInverseReplacer(inverse),
-        inverseObj: inverse,
-        obj: obj
-    };
-
-    return obj;
-}, null);
-
-function sortDesc(a, b) {
-    return a < b ? 1 : -1;
-}
-
-function getReplacer(obj) {
-    var keys = Object.keys(obj).sort(sortDesc);
-    var re = keys.join("|"); //.replace(/(\w+);\|\1/g, "$1;?");
-
-    // also match hex and char codes
-    re += "|#[xX][\\da-fA-F]+;?|#\\d+;?";
-
-    return new RegExp("&(?:" + re + ")", "g");
-}
-
-function getStrictReplacer(obj) {
-    var keys = Object.keys(obj)
-        .sort(sortDesc)
-        .filter(RegExp.prototype.test, /;$/);
-    var re = keys
-        .map(function(name) {
-            return name.slice(0, -1); //remove trailing semicolon
-        })
-        .join("|");
-
-    // also match hex and char codes
-    re += "|#[xX][\\da-fA-F]+|#\\d+";
-
-    return new RegExp("&(?:" + re + ");", "g");
-}
-
-function getInverse(obj) {
+function getInverseObj(obj) {
     return Object.keys(obj)
-        .filter(function(name) {
-            //prefer identifiers with a semicolon
-            return name.substr(-1) === ";" || obj[name + ";"] !== obj[name];
-        })
+        .sort()
         .reduce(function(inverse, name) {
-            inverse[obj[name]] = name;
+            inverse[obj[name]] = name + ";";
             return inverse;
         }, {});
 }
@@ -73,4 +25,39 @@ function getInverseReplacer(inverse) {
                 .join("|\\"),
         "g"
     );
+}
+
+var re_nonASCII = /[^\0-\x7F]/g,
+    re_astralSymbols = /[\uD800-\uDBFF][\uDC00-\uDFFF]/g;
+
+function nonUTF8Replacer(c) {
+    return (
+        "&#x" +
+        c
+            .charCodeAt(0)
+            .toString(16)
+            .toUpperCase() +
+        ";"
+    );
+}
+
+function astralReplacer(c) {
+    // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
+    var high = c.charCodeAt(0);
+    var low = c.charCodeAt(1);
+    var codePoint = (high - 0xd800) * 0x400 + low - 0xdc00 + 0x10000;
+    return "&#x" + codePoint.toString(16).toUpperCase() + ";";
+}
+
+function getInverse(inverse, re) {
+    function func(name) {
+        return "&" + inverse[name];
+    }
+
+    return function(data) {
+        return data
+            .replace(re, func)
+            .replace(re_astralSymbols, astralReplacer)
+            .replace(re_nonASCII, nonUTF8Replacer);
+    };
 }
