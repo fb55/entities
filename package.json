@@ -1,6 +1,6 @@
 {
   "name": "entities",
-  "version": "0.5.0",
+  "version": "1.0.0",
   "description": "Encode & decode XML/HTML entities with ease",
   "author": "Felix Boehm <me@feedic.com>",
   "keywords": [
@@ -17,7 +17,7 @@
     "mocha": "1",
     "mocha-lcov-reporter": "*",
     "coveralls": "*",
-    "istanbul":  "*",
+    "istanbul": "*",
     "jshint": "2"
   },
   "scripts": {
