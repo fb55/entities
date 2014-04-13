@@ -142,11 +142,24 @@ describe("Astral entities", function() {
         it("should encode " + astral[c], function() {
             assert.equal(entities.encode(astral[c]), "&#x" + c + ";");
         });
+
+        it("should escape " + astral[c], function() {
+            assert.equal(entities.escape(astral[c]), "&#x" + c + ";");
+        });
     });
 
     Object.keys(astralSpecial).forEach(function(c) {
         it("special should decode \\u" + c, function() {
             assert.equal(entities.decode("&#x" + c + ";"), astralSpecial[c]);
         });
+    });
+});
+
+describe("Escape", function() {
+    it("should always decode ASCII chars", function() {
+        for (var i = 0; i < 0x7f; i++) {
+            var c = String.fromCharCode(i);
+            assert.equal(entities.decodeXML(entities.escape(c)), c);
+        }
     });
 });
