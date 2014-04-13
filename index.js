@@ -22,3 +22,5 @@ exports.decodeXML = exports.decodeXMLStrict = decode.XML;
 exports.decodeHTML4 = exports.decodeHTML5 = exports.decodeHTML = decode.HTML;
 
 exports.decodeHTML4Strict = exports.decodeHTML5Strict = exports.decodeHTMLStrict = decode.HTMLStrict;
+
+exports.escape = encode.escape;
