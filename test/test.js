@@ -41,6 +41,11 @@ describe("Encode->decode test", function() {
             assert.equal(entities.decodeHTML(encodedHTML5), tc.input);
         });
     });
+
+    it("should encode data URIs (issue 16)", function() {
+        var data = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAALAAABAAEAAAIBRAA7";
+        assert.equal(entities.decode(entities.encode(data)), data);
+    });
 });
 
 describe("Decode test", function() {
