@@ -7,7 +7,7 @@
     "html",
     "xml",
     "entity",
-    "decoding"
+    "decoding",
     "encoding"
   ],
   "main": "./index.js",
