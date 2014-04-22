@@ -7,6 +7,7 @@
     "html",
     "xml",
     "entity",
+    "decoding"
     "encoding"
   ],
   "main": "./index.js",
@@ -28,7 +29,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/fb55/node-entities.git"
+    "url": "git://github.com/fb55/entities.git"
   },
   "license": "BSD-like",
   "jshintConfig": {
