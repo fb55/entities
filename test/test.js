@@ -5,9 +5,9 @@ var assert = require("assert"),
 describe("Encode->decode test", function(){
 	var testcases = [
 		{
-			input: "asdf & ÿ ü '",
-			xml: "asdf &amp; &#xFF; &#xFC; &apos;",
-			html: "asdf &amp; &yuml; &uuml; &apos;"
+			input: "asdf & ÿ ü ' ",
+			xml: "asdf &amp; &#xFF; &#xFC; &apos;&nbsp;",
+			html: "asdf &amp; &yuml; &uuml; &apos;&nbsp;"
 		}, {
 			input: "&#38;",
 			xml: "&amp;#38;",
