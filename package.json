@@ -31,7 +31,7 @@
     "type": "git",
     "url": "git://github.com/fb55/entities.git"
   },
-  "license": "BSD-like",
+  "license": "BSD-2-Clause",
   "jshintConfig": {
     "eqeqeq": true,
     "freeze": true,
