@@ -7,11 +7,13 @@ describe("Encode->decode test", function(){
 		{
 			input: "asdf & ÿ ü '",
 			xml: "asdf &amp; &#xFF; &#xFC; &apos;",
-			html: "asdf &amp; &yuml; &uuml; &apos;"
+			html: "asdf &amp; &yuml; &uuml; &apos;",
+			html4: "asdf &amp; &yuml; &uuml; &#39;"
 		}, {
 			input: "&#38;",
 			xml: "&amp;#38;",
-			html: "&amp;&num;38&semi;"
+			html: "&amp;&num;38&semi;",
+			html4: "&amp;&num;38&semi;"
 		},
 	];
 	testcases.forEach(function(tc) {
@@ -38,6 +40,14 @@ describe("Encode->decode test", function(){
 		});
 		it("should HTML5 decode " + encodedHTML5, function(){
 			assert.equal(entities.decodeHTML(encodedHTML5), tc.input);
+		});
+
+		var encodedHTML4 = entities.encodeHTML4(tc.input);
+		it("should HTML4 encode " + tc.input, function(){
+			assert.equal(encodedHTML4, tc.html4);
+		});
+		it("should HTML4 decode " + encodedHTML4, function(){
+			assert.equal(entities.decodeHTML(encodedHTML4), tc.input);
 		});
 	});
 

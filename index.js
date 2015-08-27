@@ -15,7 +15,7 @@ exports.encode = function(data, level){
 
 exports.encodeXML = encode.XML;
 
-exports.encodeHTML4 =
+exports.encodeHTML4 = encode.HTML4;
 exports.encodeHTML5 =
 exports.encodeHTML  = encode.HTML;
 
