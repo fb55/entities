@@ -112,7 +112,7 @@ describe("Documents", function(){
 		});
 	});
 
-	var legacy = require("../maps/legacy.json");
+	var legacy = require("../maps/legacy");
 
 	describe("Legacy", function(){
 		it("should decode", runLegacy);
