@@ -24,4 +24,4 @@ entities.decodeHTML("asdf &amp; &yuml; &uuml; &apos;"); // "asdf & ÿ ü '"
 
 ---
 
-License: BSD-like
+License: BSD-2-Clause
