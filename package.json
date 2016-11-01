@@ -15,7 +15,7 @@
     "test": "test"
   },
   "devDependencies": {
-    "mocha": "1",
+    "mocha": "^3.1.2",
     "mocha-lcov-reporter": "*",
     "coveralls": "*",
     "istanbul": "*",
