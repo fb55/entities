@@ -37,7 +37,7 @@
     "freeze": true,
     "latedef": "nofunc",
     "noarg": true,
-    "nonbsp": true,
+    "nonbsp": false,
     "quotmark": "double",
     "undef": true,
     "unused": true,
