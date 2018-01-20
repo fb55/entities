@@ -1,6 +1,5 @@
+sudo: true
 language: node_js
 node_js:
-  - 0.12
-  - iojs
-
+  - 8
 script: npm run coveralls
