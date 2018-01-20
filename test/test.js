@@ -5,13 +5,17 @@ var assert = require("assert"),
 describe("Encode->decode test", function(){
 	var testcases = [
 		{
-			input: "asdf & ÿ ü '",
-			xml: "asdf &amp; &#xFF; &#xFC; &apos;",
-			html: "asdf &amp; &yuml; &uuml; &apos;"
+			input: "asdf & ÿ ü ' \"",
+			xml: "asdf &amp; &#xFF; &#xFC; &apos; &quot;",
+			html: "asdf &amp; &yuml; &uuml; &apos; &quot;",
+			special: "asdf &amp; ÿ ü ' \"",
+			specialQuot: "asdf &amp; ÿ ü &apos; &quot;"
 		}, {
 			input: "&#38;",
 			xml: "&amp;#38;",
-			html: "&amp;&num;38&semi;"
+			html: "&amp;&num;38&semi;",
+			special: "&amp;#38;",
+			specialQuot: "&amp;#38;"
 		},
 	];
 	testcases.forEach(function(tc) {
@@ -145,10 +149,6 @@ describe("Astral entities", function(){
 		it("should encode " + astral[c], function(){
 			assert.equal(entities.encode(astral[c]), "&#x" + c + ";");
 		});
-
-		it("should escape " + astral[c], function(){
-			assert.equal(entities.escape(astral[c]), "&#x" + c + ";");
-		});
 	});
 
 	Object.keys(astralSpecial).forEach(function(c){
@@ -162,7 +162,23 @@ describe("Escape", function(){
 	it("should always decode ASCII chars", function(){
 		for(var i = 0; i < 0x7F; i++){
 			var c = String.fromCharCode(i);
-			assert.equal(entities.decodeXML(entities.escape(c)), c);
+			assert.equal(entities.decodeXML(entities.escape(c, true, true, true)), c);
 		}
+	});
+
+	it("should not escape \" if escQuot is false", function(){
+		assert.equal(entities.decodeXML(entities.escape("\"", false, true, true)), "\"");
+	});
+
+	it("should not escape ' if escApos is false", function(){
+		assert.equal(entities.decodeXML(entities.escape("'", true, false, true)), "'");
+	});
+
+	it("should not escape non-ASCII if outputUtf8 is true", function(){
+		assert.equal(entities.decodeXML(entities.escape("ÿ ü", true, true, true)), "ÿ ü");
+	});
+
+	it("should escape non-ASCII if outputUtf8 is false", function(){
+		assert.equal(entities.decodeXML(entities.escape("ÿ ü", true, true, false)), "&#xFF; &#xFC;");
 	});
 });
