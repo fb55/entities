@@ -14,8 +14,10 @@ exports.encode = function(data, level) {
 };
 
 exports.encodeXML = encode.XML;
+exports.encodeXMLKeepNonAscii = encode.XMLKeepNonAscii;
 
 exports.encodeHTML4 = exports.encodeHTML5 = exports.encodeHTML = encode.HTML;
+exports.encodeHTMLKeepNonAscii = encode.HTMLKeepNonAscii;
 
 exports.decodeXML = exports.decodeXMLStrict = decode.XML;
 
