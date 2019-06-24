@@ -25,3 +25,10 @@ entities.decodeHTML("asdf &amp; &yuml; &uuml; &apos;"); // "asdf & ÿ ü '"
 ---
 
 License: BSD-2-Clause
+
+[Get supported entities with the Tidelift Subscription](https://tidelift.com/subscription/pkg/npm-entities?utm_source=npm-entities&utm_medium=referral&utm_campaign=readme)
+
+## Security contact information
+
+To report a security vulnerability, please use the [Tidelift security contact](https://tidelift.com/security).
+Tidelift will coordinate the fix and disclosure.
