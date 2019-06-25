@@ -169,7 +169,7 @@ describe("Escape", function() {
     });
 });
 
-descripbe("Keep non ascii", function() {
+describe("Keep non ascii", function() {
     var input = "#> 你好，'世界' & ÿ ü >",
         html = "&num;&gt; 你好，&apos;世界&apos; &amp; &yuml; &uuml; &gt;",
         xml = "#&gt; 你好，&apos;世界&apos; &amp; ÿ ü &gt;";
