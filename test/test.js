@@ -7,7 +7,7 @@ describe("Encode->decode test", function() {
         {
             input: "asdf & ÿ ü '",
             xml: "asdf &amp; &#xFF; &#xFC; &apos;",
-            html: "asdf &amp; &yuml; &uuml; &apos;"
+            html: "asdf &amp; &yuml; &uuml; &apos;",
         },
         {
             input: "&#38;",
@@ -166,5 +166,17 @@ describe("Escape", function() {
             var c = String.fromCharCode(i);
             assert.equal(entities.decodeXML(entities.escape(c)), c);
         }
+    });
+});
+
+descripbe("Keep non ascii", function() {
+    var input = "#> 你好，'世界' & ÿ ü >",
+        html = "&num;&gt; 你好，&apos;世界&apos; &amp; &yuml; &uuml; &gt;",
+        xml = "#&gt; 你好，&apos;世界&apos; &amp; ÿ ü &gt;";
+    it("should keep non ASCII when encode with HTMLKeepNonAscii", function() {
+        assert.equal(entities.encodeHTMLKeepNonAscii(input), html);
+    });
+    it("should keep non ASCII when encode with XMLKeepNonAscii", function() {
+        assert.equal(entities.encodeXMLKeepNonAscii(input), xml);
     });
 });
