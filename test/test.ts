@@ -18,32 +18,32 @@ describe("Encode->decode test", () => {
     ];
     testcases.forEach(tc => {
         const encodedXML = entities.encodeXML(tc.input);
-        it("should XML encode " + tc.input, () => {
+        it(`should XML encode ${tc.input}`, () => {
             assert.equal(encodedXML, tc.xml);
         });
-        it("should default to XML encode " + tc.input, () => {
+        it(`should default to XML encode ${tc.input}`, () => {
             assert.equal(entities.encode(tc.input), tc.xml);
         });
-        it("should XML decode " + encodedXML, () => {
+        it(`should XML decode ${encodedXML}`, () => {
             assert.equal(entities.decodeXML(encodedXML), tc.input);
         });
-        it("should default to XML encode " + encodedXML, () => {
+        it(`should default to XML encode ${encodedXML}`, () => {
             assert.equal(entities.decode(encodedXML), tc.input);
         });
-        it("should default strict to XML encode " + encodedXML, () => {
+        it(`should default strict to XML encode ${encodedXML}`, () => {
             assert.equal(entities.decodeStrict(encodedXML), tc.input);
         });
 
         const encodedHTML5 = entities.encodeHTML5(tc.input);
-        it("should HTML5 encode " + tc.input, () => {
+        it(`should HTML5 encode ${tc.input}`, () => {
             assert.equal(encodedHTML5, tc.html);
         });
-        it("should HTML5 decode " + encodedHTML5, () => {
+        it(`should HTML5 decode ${encodedHTML5}`, () => {
             assert.equal(entities.decodeHTML(encodedHTML5), tc.input);
         });
     });
 
-    it("should encode data URIs (issue 16)", () => {
+    it("should encode data URIs (issue #16)", () => {
         const data =
             "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAALAAABAAEAAAIBRAA7";
         assert.equal(entities.decode(entities.encode(data)), data);
@@ -65,13 +65,13 @@ describe("Decode test", () => {
         { input: "&#X3A;", output: ":" }
     ];
     testcases.forEach(tc => {
-        it("should XML decode " + tc.input, () => {
+        it(`should XML decode ${tc.input}`, () => {
             assert.equal(entities.decodeXML(tc.input), tc.output);
         });
-        it("should HTML4 decode " + tc.input, () => {
+        it(`should HTML4 decode ${tc.input}`, () => {
             assert.equal(entities.decodeHTML(tc.input), tc.output);
         });
-        it("should HTML5 decode " + tc.input, () => {
+        it(`should HTML5 decode ${tc.input}`, () => {
             assert.equal(entities.decodeHTML(tc.input), tc.output);
         });
     });
@@ -88,10 +88,7 @@ describe("Documents", () => {
                 it(levels[i], () => {
                     Object.keys(doc).forEach(e => {
                         for (let l = i; l < levels.length; l++) {
-                            assert.equal(
-                                entities.decode("&" + e + ";", l),
-                                doc[e]
-                            );
+                            assert.equal(entities.decode(`&${e};`, l), doc[e]);
                         }
                     });
                 });
@@ -102,7 +99,7 @@ describe("Documents", () => {
                     Object.keys(doc).forEach(e => {
                         for (let l = i; l < levels.length; l++) {
                             assert.equal(
-                                entities.decodeStrict("&" + e + ";", l),
+                                entities.decodeStrict(`&${e};`, l),
                                 doc[e]
                             );
                         }
