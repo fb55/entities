@@ -52,6 +52,9 @@
             ".tsx"
         ],
         "exclude": [
+            "coverage/",
+            "lib/",
+            "test/",
             "**/*.d.ts"
         ],
         "reporter": [
