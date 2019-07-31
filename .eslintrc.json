@@ -7,7 +7,8 @@
         "prettier/@typescript-eslint"
     ],
     "env": {
-        "node": true
+        "node": true,
+        "es6": true
     },
     "rules": {
         "eqeqeq": 2,
@@ -15,6 +16,9 @@
         "dot-notation": 2,
         "no-var": 2,
         "prefer-const": 2,
+        "prefer-arrow-callback": 2,
+        "arrow-body-style": [2, "as-needed"],
+        "object-shorthand": 2,
 
         "@typescript-eslint/explicit-function-return-type": 0,
         "@typescript-eslint/no-use-before-define": [2, { "functions": false }]
