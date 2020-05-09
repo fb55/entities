@@ -5,6 +5,8 @@ import htmlEscaper from "html-escaper";
 import parseEntities from "parse-entities";
 import * as htmlEntities from "html-entities";
 
+const RUNS = 1e7;
+
 const encoders: [string, (str: string) => string][] = [
     ["entities", (str: string) => entities.encodeHTML(str)],
     ["he", (str: string) => he.encode(str)],
@@ -28,6 +30,8 @@ const decoders: [string, (str: string) => string][] = [
     ],
 ];
 
+// Note: Not shown on the README, as `entities` differs in behavior from other libraries.
+// `entities` produces ASCII output, while other libraries only escape characters.
 const escapers: [string, (str: string) => string][] = [
     ["entities", (str: string) => entities.encodeXML(str)],
     ["he", (str: string) => he.escape(str)],
@@ -59,7 +63,7 @@ console.log(
 
 for (const [name, escape] of escapers) {
     console.time(`Escaping ${name}`);
-    for (let i = 0; i < 3e6; i++) {
+    for (let i = 0; i < RUNS; i++) {
         escape(textToEncode);
     }
     console.timeEnd(`Escaping ${name}`);
@@ -67,7 +71,7 @@ for (const [name, escape] of escapers) {
 
 for (const [name, encode] of encoders) {
     console.time(`Encoding ${name}`);
-    for (let i = 0; i < 3e6; i++) {
+    for (let i = 0; i < RUNS; i++) {
         encode(textToEncode);
     }
     console.timeEnd(`Encoding ${name}`);
@@ -75,7 +79,7 @@ for (const [name, encode] of encoders) {
 
 for (const [name, decode] of decoders) {
     console.time(`Decoding ${name}`);
-    for (let i = 0; i < 3e6; i++) {
+    for (let i = 0; i < RUNS; i++) {
         decode(textToDecode);
     }
     console.timeEnd(`Decoding ${name}`);
