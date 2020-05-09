@@ -54,7 +54,8 @@ export const decodeHTML = (function () {
 function getReplacer(map: MapType) {
     return function replace(str: string): string {
         if (str.charAt(1) === "#") {
-            if (str.charAt(2) === "X" || str.charAt(2) === "x") {
+            const secondChar = str.charAt(2);
+            if (secondChar === "X" || secondChar === "x") {
                 return decodeCodePoint(parseInt(str.substr(3), 16));
             }
             return decodeCodePoint(parseInt(str.substr(2), 10));

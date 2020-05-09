@@ -7,9 +7,10 @@ const levels = ["xml", "entities"];
 describe("Documents", () => {
     const levelDocs = levels
         .map((n) => path.join("..", "src", "maps", n))
-        .map(require);
+        .map(require)
+        .map((doc, i) => [i, doc]);
 
-    for (const [i, doc] of levelDocs.entries()) {
+    for (const [i, doc] of levelDocs) {
         describe("Decode", () => {
             test(levels[i], () => {
                 for (const e of Object.keys(doc)) {
@@ -46,25 +47,26 @@ describe("Documents", () => {
     describe("Legacy", () => {
         test("should decode", () => {
             for (const e of Object.keys(legacy)) {
-                expect(entities.decodeHTML(`&${e}`)).toBe(legacy[e]);
+                expect(entities.decodeHTML(`&${e}`)).toBe(
+                    (legacy as Record<string, string>)[e]
+                );
             }
         });
     });
 });
 
-const astral = {
-    "1D306": "\uD834\uDF06",
-    "1D11E": "\uD834\uDD1E",
-};
+const astral = [
+    ["1D306", "\uD834\uDF06"],
+    ["1D11E", "\uD834\uDD1E"],
+];
 
-const astralSpecial = {
-    "80": "\u20AC",
-    "110000": "\uFFFD",
-};
+const astralSpecial = [
+    ["80", "\u20AC"],
+    ["110000", "\uFFFD"],
+];
 
 describe("Astral entities", () => {
-    for (const c of Object.keys(astral)) {
-        const value: string = astral[c];
+    for (const [c, value] of astral) {
         test(`should decode ${value}`, () =>
             expect(entities.decode(`&#x${c};`)).toBe(value));
 
@@ -75,9 +77,9 @@ describe("Astral entities", () => {
             expect(entities.escape(value)).toBe(`&#x${c};`));
     }
 
-    for (const c of Object.keys(astralSpecial)) {
+    for (const [c, value] of astralSpecial) {
         test(`special should decode \\u${c}`, () =>
-            expect(entities.decode(`&#x${c};`)).toBe(astralSpecial[c]));
+            expect(entities.decode(`&#x${c};`)).toBe(value));
     }
 });
 

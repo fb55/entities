@@ -37,33 +37,42 @@ function getInverseReplacer(inverse: MapType): RegExp {
         }
     }
 
-    //TODO add ranges
+    // Add ranges to single characters.
+    single.sort();
+    for (let start = 0; start < single.length - 1; start++) {
+        // Find the end of a run of characters
+        let end = start;
+        while (
+            end < single.length - 1 &&
+            single[end].charCodeAt(1) + 1 === single[end + 1].charCodeAt(1)
+        ) {
+            end += 1;
+        }
+
+        const count = 1 + end - start;
+
+        // We want to replace at least three characters
+        if (count < 3) continue;
+
+        single.splice(start, count, `${single[start]}-${single[end]}`);
+    }
+
     multiple.unshift(`[${single.join("")}]`);
 
     return new RegExp(multiple.join("|"), "g");
 }
 
-const reNonASCII = /[^\0-\x7F]/g;
-const reAstralSymbols = /[\uD800-\uDBFF][\uDC00-\uDFFF]/g;
+const reNonASCII = /[^\0-\x7F]/gu;
 
 function singleCharReplacer(c: string): string {
-    return `&#x${c.charCodeAt(0).toString(16).toUpperCase()};`;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
-function astralReplacer(c: string, _: any): string {
-    // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
-    const high = c.charCodeAt(0);
-    const low = c.charCodeAt(1);
-    const codePoint = (high - 0xd800) * 0x400 + low - 0xdc00 + 0x10000;
-    return `&#x${codePoint.toString(16).toUpperCase()};`;
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    return `&#x${c.codePointAt(0)!.toString(16).toUpperCase()};`;
 }
 
 function getInverse(inverse: MapType, re: RegExp) {
     return (data: string) =>
         data
             .replace(re, (name) => inverse[name])
-            .replace(reAstralSymbols, astralReplacer)
             .replace(reNonASCII, singleCharReplacer);
 }
 
@@ -72,6 +81,5 @@ const reXmlChars = getInverseReplacer(inverseXML);
 export function escape(data: string) {
     return data
         .replace(reXmlChars, singleCharReplacer)
-        .replace(reAstralSymbols, astralReplacer)
         .replace(reNonASCII, singleCharReplacer);
 }
