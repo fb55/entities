@@ -23,7 +23,7 @@ function getStrictDecoder(map: MapType) {
 
 const sorter = (a: string, b: string) => (a < b ? 1 : -1);
 
-export const decodeHTML = (function() {
+export const decodeHTML = (function () {
     const legacy = Object.keys(legacyMap).sort(sorter);
     const keys = Object.keys(entityMap).sort(sorter);
 

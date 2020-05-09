@@ -7,8 +7,7 @@ export default function decodeCodePoint(codePoint: number) {
     }
 
     if (codePoint in decodeMap) {
-        // @ts-ignore
-        codePoint = decodeMap[codePoint];
+        codePoint = (decodeMap as Record<string, number>)[codePoint];
     }
 
     let output = "";

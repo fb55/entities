@@ -27,13 +27,15 @@ function getInverseReplacer(inverse: MapType): RegExp {
     const single: string[] = [];
     const multiple: string[] = [];
 
-    Object.keys(inverse).forEach(k =>
-        k.length === 1
-            ? // Add value to single array
-              single.push(`\\${k}`)
-            : // Add value to multiple array
-              multiple.push(k)
-    );
+    for (const k of Object.keys(inverse)) {
+        if (k.length === 1) {
+            // Add value to single array
+            single.push(`\\${k}`);
+        } else {
+            // Add value to multiple array
+            multiple.push(k);
+        }
+    }
 
     //TODO add ranges
     multiple.unshift(`[${single.join("")}]`);
@@ -45,10 +47,7 @@ const reNonASCII = /[^\0-\x7F]/g;
 const reAstralSymbols = /[\uD800-\uDBFF][\uDC00-\uDFFF]/g;
 
 function singleCharReplacer(c: string): string {
-    return `&#x${c
-        .charCodeAt(0)
-        .toString(16)
-        .toUpperCase()};`;
+    return `&#x${c.charCodeAt(0).toString(16).toUpperCase()};`;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
@@ -63,7 +62,7 @@ function astralReplacer(c: string, _: any): string {
 function getInverse(inverse: MapType, re: RegExp) {
     return (data: string) =>
         data
-            .replace(re, name => inverse[name])
+            .replace(re, (name) => inverse[name])
             .replace(reAstralSymbols, astralReplacer)
             .replace(reNonASCII, singleCharReplacer);
 }

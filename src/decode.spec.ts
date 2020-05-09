@@ -12,15 +12,15 @@ describe("Decode test", () => {
         { input: "&#x3a;", output: ":" },
         { input: "&#x3A;", output: ":" },
         { input: "&#X3a;", output: ":" },
-        { input: "&#X3A;", output: ":" }
+        { input: "&#X3A;", output: ":" },
     ];
 
-    testcases.forEach(({ input, output }) => {
+    for (const { input, output } of testcases) {
         test(`should XML decode ${input}`, () =>
             expect(entities.decodeXML(input)).toBe(output));
         test(`should HTML4 decode ${input}`, () =>
             expect(entities.decodeHTML(input)).toBe(output));
         test(`should HTML5 decode ${input}`, () =>
             expect(entities.decodeHTML(input)).toBe(output));
-    });
+    }
 });

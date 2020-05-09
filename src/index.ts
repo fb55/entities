@@ -19,7 +19,7 @@ export {
     escape,
     // Legacy aliases
     encodeHTML as encodeHTML4,
-    encodeHTML as encodeHTML5
+    encodeHTML as encodeHTML5,
 } from "./encode";
 
 export {
@@ -31,5 +31,5 @@ export {
     decodeHTML as decodeHTML5,
     decodeHTMLStrict as decodeHTML4Strict,
     decodeHTMLStrict as decodeHTML5Strict,
-    decodeXML as decodeXMLStrict
+    decodeXML as decodeXMLStrict,
 } from "./decode";

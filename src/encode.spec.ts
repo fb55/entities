@@ -5,16 +5,16 @@ describe("Encode->decode test", () => {
         {
             input: "asdf & ÿ ü '",
             xml: "asdf &amp; &#xFF; &#xFC; &apos;",
-            html: "asdf &amp; &yuml; &uuml; &apos;"
+            html: "asdf &amp; &yuml; &uuml; &apos;",
         },
         {
             input: "&#38;",
             xml: "&amp;#38;",
-            html: "&amp;&num;38&semi;"
-        }
+            html: "&amp;&num;38&semi;",
+        },
     ];
 
-    testcases.forEach(({ input, xml, html }) => {
+    for (const { input, xml, html } of testcases) {
         const encodedXML = entities.encodeXML(input);
         test(`should XML encode ${input}`, () => expect(encodedXML).toBe(xml));
         test(`should default to XML encode ${input}`, () =>
@@ -31,7 +31,7 @@ describe("Encode->decode test", () => {
             expect(encodedHTML5).toBe(html));
         test(`should HTML5 decode ${encodedHTML5}`, () =>
             expect(entities.decodeHTML(encodedHTML5)).toBe(input));
-    });
+    }
 
     test("should encode data URIs (issue #16)", () => {
         const data =
