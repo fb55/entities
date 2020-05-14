@@ -1,3 +1,4 @@
+import XRegExp from "xregexp";
 import xmlMap from "./maps/xml.json";
 
 const inverseXML = getInverseObj(xmlMap);
@@ -62,7 +63,7 @@ function getInverseReplacer(inverse: MapType): RegExp {
     return new RegExp(multiple.join("|"), "g");
 }
 
-const reNonASCII = /[^\0-\x7F]/gu;
+const reNonASCII = XRegExp(/[^\0-\x7F]/gu);
 
 function singleCharReplacer(c: string): string {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
