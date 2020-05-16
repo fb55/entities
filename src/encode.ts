@@ -62,7 +62,7 @@ function getInverseReplacer(inverse: MapType): RegExp {
     return new RegExp(multiple.join("|"), "g");
 }
 
-const reNonASCII = /[^\0-\x7F]/gu;
+const reNonASCII = /(?:[\x80-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF])/g;
 
 function singleCharReplacer(c: string): string {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
