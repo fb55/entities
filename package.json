@@ -21,6 +21,10 @@
         "lib/**/*"
     ],
     "devDependencies": {
+        "@babel/cli": "^7.10.1",
+        "@babel/core": "^7.10.1",
+        "@babel/preset-env": "^7.10.1",
+        "@babel/preset-typescript": "^7.10.1",
         "@types/jest": "^25.1.4",
         "@types/node": "^14.0.6",
         "@typescript-eslint/eslint-plugin": "^2.31.0",
@@ -38,7 +42,9 @@
         "coverage": "cat coverage/lcov.info | coveralls",
         "lint": "eslint --ext=js,ts src",
         "format": "prettier --write **/*.{ts,md}",
-        "build": "tsc",
+        "build": "npm run build:types && npm run build:js",
+        "build:types": "tsc --emitDeclarationOnly",
+        "build:js": "babel src --out-dir lib --copy-files --extensions \".ts,.tsx\" --compact",
         "prepare": "npm run build"
     },
     "repository": {
