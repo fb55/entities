@@ -1,6 +1,6 @@
 import decodeMap from "./maps/decode.json";
 
-// modified version of https://github.com/mathiasbynens/he/blob/master/src/he.js#L94-L119
+// Modified version of https://github.com/mathiasbynens/he/blob/master/src/he.js#L94-L119
 export default function decodeCodePoint(codePoint: number) {
     if ((codePoint >= 0xd800 && codePoint <= 0xdfff) || codePoint > 0x10ffff) {
         return "\uFFFD";

@@ -47,7 +47,7 @@ export const decodeHTML = (function () {
         return replace(str);
     }
 
-    //TODO consider creating a merged map
+    // TODO consider creating a merged map
     return (str: string) => String(str).replace(re, replacer);
 })();
 
