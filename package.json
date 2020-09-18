@@ -3,6 +3,7 @@
     "version": "2.0.3",
     "description": "Encode & decode XML and HTML entities with ease",
     "author": "Felix Boehm <me@feedic.com>",
+    "funding": "https://github.com/fb55/htmlparser2?sponsor=1",
     "sideEffects": false,
     "keywords": [
         "entity",
