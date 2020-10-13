@@ -26,6 +26,7 @@
         "@types/node": "^14.0.6",
         "@typescript-eslint/eslint-plugin": "^2.31.0",
         "@typescript-eslint/parser": "^2.31.0",
+        "copyfiles": "^2.4.0",
         "coveralls": "*",
         "eslint": "^7.0.0",
         "eslint-config-prettier": "^6.0.0",
@@ -45,7 +46,7 @@
         "format:es": "npm run lint:es -- --fix",
         "format:prettier": "npm run prettier -- --write",
         "prettier": "prettier '**/*.{ts,md,json,yml}'",
-        "build": "tsc",
+        "build": "tsc && copyfiles -f src/maps/*.json lib/maps",
         "prepare": "npm run build"
     },
     "repository": {
