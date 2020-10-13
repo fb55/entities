@@ -1,5 +1,5 @@
 {
-    "extends": ["eslint:recommended", "prettier"],
+    "extends": ["eslint:recommended", "plugin:node/recommended", "prettier"],
     "env": {
         "node": true,
         "es6": true
@@ -21,7 +21,12 @@
         "spaced-comment": 2,
         "yoda": [2, "never"],
         "curly": [2, "multi-line"],
-        "no-else-return": 2
+        "no-else-return": 2,
+
+        "node/no-unsupported-features/es-syntax": [
+            2,
+            { "ignores": ["modules"] }
+        ]
     },
     "overrides": [
         {
@@ -34,6 +39,11 @@
             "parserOptions": {
                 "sourceType": "module",
                 "project": "./tsconfig.eslint.json"
+            },
+            "settings": {
+                "node": {
+                    "tryExtensions": [".js", ".json", ".node", ".ts"]
+                }
             },
             "rules": {
                 "@typescript-eslint/prefer-for-of": 0,

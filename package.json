@@ -29,6 +29,7 @@
         "coveralls": "*",
         "eslint": "^7.0.0",
         "eslint-config-prettier": "^6.0.0",
+        "eslint-plugin-node": "^11.1.0",
         "jest": "^26.0.1",
         "prettier": "^2.0.5",
         "ts-jest": "^26.1.0",
@@ -37,8 +38,13 @@
     "scripts": {
         "test": "jest --coverage && npm run lint",
         "coverage": "cat coverage/lcov.info | coveralls",
-        "lint": "eslint --ext=js,ts src",
-        "format": "prettier --write **/*.{ts,md}",
+        "lint": "npm run lint:es && npm run lint:prettier",
+        "lint:es": "eslint .",
+        "lint:prettier": "npm run prettier -- --check",
+        "format": "npm run format:es && npm run format:prettier",
+        "format:es": "npm run lint:es -- --fix",
+        "format:prettier": "npm run prettier -- --write",
+        "prettier": "prettier '**/*.{ts,md,json,yml}'",
         "build": "tsc",
         "prepare": "npm run build"
     },
