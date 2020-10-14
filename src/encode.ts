@@ -78,7 +78,7 @@ function getInverse(inverse: MapType, re: RegExp) {
 
 const reXmlChars = getInverseReplacer(inverseXML);
 
-export function escape(data: string) {
+export function escape(data: string): string {
     return data
         .replace(reXmlChars, singleCharReplacer)
         .replace(reNonASCII, singleCharReplacer);

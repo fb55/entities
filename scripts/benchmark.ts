@@ -1,7 +1,6 @@
+/* eslint-disable node/no-missing-import */
 import * as entities from "../";
 import he from "he";
-// @ts-ignore
-import htmlEscaper from "html-escaper";
 import parseEntities from "parse-entities";
 import * as htmlEntities from "html-entities";
 
@@ -10,8 +9,6 @@ const RUNS = 1e7;
 const encoders: [string, (str: string) => string][] = [
     ["entities", (str: string) => entities.encodeHTML(str)],
     ["he", (str: string) => he.encode(str)],
-    // Only escapes the source.
-    // ["html-escaper", (str: string) => htmlEscaper.escape(str)],
     [
         "html-entities",
         (str: string) => htmlEntities.AllHtmlEntities.encode(str),
@@ -21,8 +18,6 @@ const encoders: [string, (str: string) => string][] = [
 const decoders: [string, (str: string) => string][] = [
     ["entities", (str: string) => entities.decodeHTML(str)],
     ["he", (str: string) => he.decode(str)],
-    // html-escaper does not produce correct output
-    // ["html-escaper", (str: string) => htmlEscaper.unescape(str)],
     ["parse-entities", (str: string) => parseEntities(str)],
     [
         "html-entities",
@@ -30,13 +25,14 @@ const decoders: [string, (str: string) => string][] = [
     ],
 ];
 
-// Note: Not shown on the README, as `entities` differs in behavior from other libraries.
-// `entities` produces ASCII output, while other libraries only escape characters.
+/*
+ * Note: Not shown on the README, as `entities` differs in behavior from other libraries.
+ * `entities` produces ASCII output, while other libraries only escape characters.
+ */
 const escapers: [string, (str: string) => string][] = [
     ["entities", (str: string) => entities.encodeXML(str)],
     ["he", (str: string) => he.escape(str)],
-    ["html-escaper", (str: string) => htmlEscaper.escape(str)],
-    // html-entities cannot escape, so we use its simplest mode.
+    // Html-entities cannot escape, so we use its simplest mode.
     ["html-entities", (str: string) => htmlEntities.XmlEntities.encode(str)],
 ];
 
