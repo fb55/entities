@@ -1,4 +1,5 @@
 # entities [![NPM version](http://img.shields.io/npm/v/entities.svg)](https://npmjs.org/package/entities) [![Downloads](https://img.shields.io/npm/dm/entities.svg)](https://npmjs.org/package/entities) [![Build Status](http://img.shields.io/travis/fb55/entities.svg)](http://travis-ci.org/fb55/entities) [![Coverage](http://img.shields.io/coveralls/fb55/entities.svg)](https://coveralls.io/r/fb55/entities)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Ffb55%2Fentities.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Ffb55%2Fentities?ref=badge_shield)
 
 Encode & decode HTML & XML entities with ease & speed.
 
@@ -48,3 +49,7 @@ Tidelift will coordinate the fix and disclosure.
 Available as part of the Tidelift Subscription
 
 The maintainers of `entities` and thousands of other packages are working with Tidelift to deliver commercial support and maintenance for the open source dependencies you use to build your applications. Save time, reduce risk, and improve code health, while paying the maintainers of the exact dependencies you use. [Learn more.](https://tidelift.com/subscription/pkg/npm-entities?utm_source=npm-entities&utm_medium=referral&utm_campaign=enterprise&utm_term=repo)
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Ffb55%2Fentities.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Ffb55%2Fentities?ref=badge_large)
