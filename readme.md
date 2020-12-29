@@ -29,10 +29,10 @@ This is how `entities` compares to other libraries on a very basic benchmark (se
 
 | Library        | `decode` performance | `encode` performance | Bundle size                                                                |
 | -------------- | -------------------- | -------------------- | -------------------------------------------------------------------------- |
-| entities       | 10.809s              | 17.683s              | ![npm bundle size](https://img.shields.io/bundlephobia/min/entities)       |
-| html-entities  | 14.029s              | 22.670s              | ![npm bundle size](https://img.shields.io/bundlephobia/min/html-entities)  |
-| he             | 16.163s              | 44.010s              | ![npm bundle size](https://img.shields.io/bundlephobia/min/he)             |
-| parse-entities | 28.507s              | N/A                  | ![npm bundle size](https://img.shields.io/bundlephobia/min/parse-entities) |
+| entities       | 8.326s               | 9.584s               | ![npm bundle size](https://img.shields.io/bundlephobia/min/entities)       |
+| html-entities  | 6.575s               | 8.031s               | ![npm bundle size](https://img.shields.io/bundlephobia/min/html-entities)  |
+| he             | 11.059s              | 20.820s              | ![npm bundle size](https://img.shields.io/bundlephobia/min/he)             |
+| parse-entities | 24.082s              | N/A                  | ![npm bundle size](https://img.shields.io/bundlephobia/min/parse-entities) |
 
 ---
 
