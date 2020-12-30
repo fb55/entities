@@ -7,24 +7,25 @@ import * as htmlEntities from "html-entities";
 const RUNS = 1e7;
 
 const htmlEntitiesHtml5EncodeOptions: htmlEntities.EncodeOptions = {
-    level: 'html5',
-    mode: 'nonAsciiPrintable'
+    level: "html5",
+    mode: "nonAsciiPrintable",
 };
 
-const heEscapeOptions = {useNamedReferences: true};
+const heEscapeOptions = { useNamedReferences: true };
 
 const encoders: [string, (str: string) => string][] = [
     ["entities", (str: string) => entities.encodeHTML(str)],
     ["he", (str: string) => he.encode(str, heEscapeOptions)],
     [
         "html-entities",
-        (str: string) => htmlEntities.encode(str, htmlEntitiesHtml5EncodeOptions),
+        (str: string) =>
+            htmlEntities.encode(str, htmlEntitiesHtml5EncodeOptions),
     ],
 ];
 
 const htmlEntitiesHtml5DecodeOptions: htmlEntities.DecodeOptions = {
-    level: 'html5',
-    scope: 'body'
+    level: "html5",
+    scope: "body",
 };
 
 const decoders: [string, (str: string) => string][] = [
@@ -33,13 +34,14 @@ const decoders: [string, (str: string) => string][] = [
     ["parse-entities", (str: string) => parseEntities(str)],
     [
         "html-entities",
-        (str: string) => htmlEntities.decode(str, htmlEntitiesHtml5DecodeOptions),
+        (str: string) =>
+            htmlEntities.decode(str, htmlEntitiesHtml5DecodeOptions),
     ],
 ];
 
 const htmlEntitiesXmlEncodeOptions: htmlEntities.EncodeOptions = {
-    level: 'html5',
-    mode: 'specialChars'
+    level: "html5",
+    mode: "specialChars",
 };
 
 /*
@@ -52,7 +54,7 @@ const escapers: [string, (str: string) => string][] = [
     // Html-entities cannot escape, so we use its simplest mode.
     [
         "html-entities",
-        (str: string) => htmlEntities.encode(str, htmlEntitiesXmlEncodeOptions)
+        (str: string) => htmlEntities.encode(str, htmlEntitiesXmlEncodeOptions),
     ],
 ];
 
