@@ -3,22 +3,16 @@ import legacyMap from "./maps/legacy.json";
 import xmlMap from "./maps/xml.json";
 import decodeCodePoint from "./decode_codepoint";
 
+const strictEntityRe = /&(?:[a-zA-Z0-9]+|#[xX][\da-fA-F]+|#\d+);/g;
+
 export const decodeXML = getStrictDecoder(xmlMap);
 export const decodeHTMLStrict = getStrictDecoder(entityMap);
 
-export interface MapType {
-    [key: string]: string;
-}
+export type MapType = Record<string, string>;
 
 function getStrictDecoder(map: MapType) {
-    let keys = Object.keys(map).join("|");
     const replace = getReplacer(map);
-
-    keys += "|#[xX][\\da-fA-F]+|#\\d+";
-
-    const re = new RegExp(`&(?:${keys});`, "g");
-
-    return (str: string) => String(str).replace(re, replace);
+    return (str: string) => String(str).replace(strictEntityRe, replace);
 }
 
 const sorter = (a: string, b: string) => (a < b ? 1 : -1);
@@ -60,6 +54,7 @@ function getReplacer(map: MapType) {
             }
             return decodeCodePoint(parseInt(str.substr(2), 10));
         }
-        return map[str.slice(1, -1)];
+        // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+        return map[str.slice(1, -1)] || str;
     };
 }
