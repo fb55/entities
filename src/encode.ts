@@ -64,9 +64,20 @@ function getInverseReplacer(inverse: MapType): RegExp {
 
 const reNonASCII = /(?:[\x80-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF])/g;
 
+const getCodePoint =
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    String.prototype.codePointAt != null
+        ? // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          (str: string): number => str.codePointAt(0)!
+        : // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
+          (c: string): number =>
+              (c.charCodeAt(0) - 0xd800) * 0x400 +
+              c.charCodeAt(1) -
+              0xdc00 +
+              0x10000;
+
 function singleCharReplacer(c: string): string {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    return `&#x${c.codePointAt(0)!.toString(16).toUpperCase()};`;
+    return `&#x${getCodePoint(c).toString(16).toUpperCase()};`;
 }
 
 function getInverse(inverse: MapType, re: RegExp) {
