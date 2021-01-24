@@ -88,9 +88,11 @@ function getInverse(inverse: MapType, re: RegExp) {
 }
 
 const reXmlChars = getInverseReplacer(inverseXML);
+const reEscapeChars = new RegExp(
+    `${reXmlChars.source}|${reNonASCII.source}`,
+    "g"
+);
 
 export function escape(data: string): string {
-    return data
-        .replace(reXmlChars, singleCharReplacer)
-        .replace(reNonASCII, singleCharReplacer);
+    return data.replace(reEscapeChars, singleCharReplacer);
 }
