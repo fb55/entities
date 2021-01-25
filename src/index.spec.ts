@@ -12,7 +12,7 @@ describe("Documents", () => {
 
     for (const [i, doc] of levelDocs) {
         describe("Decode", () => {
-            test(levels[i], () => {
+            it(levels[i], () => {
                 for (const e of Object.keys(doc)) {
                     for (let l = i; l < levels.length; l++) {
                         expect(entities.decode(`&${e};`, l)).toBe(doc[e]);
@@ -22,7 +22,7 @@ describe("Documents", () => {
         });
 
         describe("Decode strict", () => {
-            test(levels[i], () => {
+            it(levels[i], () => {
                 for (const e of Object.keys(doc)) {
                     for (let l = i; l < levels.length; l++) {
                         expect(entities.decodeStrict(`&${e};`, l)).toBe(doc[e]);
@@ -32,7 +32,7 @@ describe("Documents", () => {
         });
 
         describe("Encode", () => {
-            test(levels[i], () => {
+            it(levels[i], () => {
                 for (const e of Object.keys(doc)) {
                     for (let l = i; l < levels.length; l++) {
                         expect(
@@ -45,7 +45,7 @@ describe("Documents", () => {
     }
 
     describe("Legacy", () => {
-        test("should decode", () => {
+        it("should decode", () => {
             for (const e of Object.keys(legacy)) {
                 expect(entities.decodeHTML(`&${e}`)).toBe(
                     (legacy as Record<string, string>)[e]
@@ -67,24 +67,24 @@ const astralSpecial = [
 
 describe("Astral entities", () => {
     for (const [c, value] of astral) {
-        test(`should decode ${value}`, () =>
+        it(`should decode ${value}`, () =>
             expect(entities.decode(`&#x${c};`)).toBe(value));
 
-        test(`should encode ${value}`, () =>
+        it(`should encode ${value}`, () =>
             expect(entities.encode(value)).toBe(`&#x${c};`));
 
-        test(`should escape ${value}`, () =>
+        it(`should escape ${value}`, () =>
             expect(entities.escape(value)).toBe(`&#x${c};`));
     }
 
     for (const [c, value] of astralSpecial) {
-        test(`special should decode \\u${c}`, () =>
+        it(`should decode special \\u${c}`, () =>
             expect(entities.decode(`&#x${c};`)).toBe(value));
     }
 });
 
 describe("Escape", () => {
-    test("should always decode ASCII chars", () => {
+    it("should always decode ASCII chars", () => {
         for (let i = 0; i < 0x7f; i++) {
             const c = String.fromCharCode(i);
             expect(entities.decodeXML(entities.escape(c))).toBe(c);

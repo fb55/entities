@@ -16,11 +16,11 @@ describe("Decode test", () => {
     ];
 
     for (const { input, output } of testcases) {
-        test(`should XML decode ${input}`, () =>
+        it(`should XML decode ${input}`, () =>
             expect(entities.decodeXML(input)).toBe(output));
-        test(`should HTML4 decode ${input}`, () =>
+        it(`should HTML4 decode ${input}`, () =>
             expect(entities.decodeHTML(input)).toBe(output));
-        test(`should HTML5 decode ${input}`, () =>
+        it(`should HTML5 decode ${input}`, () =>
             expect(entities.decodeHTML(input)).toBe(output));
     }
 });
