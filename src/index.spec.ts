@@ -75,9 +75,6 @@ describe("Astral entities", () => {
 
         test(`should escape ${value}`, () =>
             expect(entities.escape(value)).toBe(`&#x${c};`));
-
-        test(`should escapeUTF8 ${value}`, () =>
-            expect(entities.escapeUTF8(value)).toBe(`&#x${c};`));
     }
 
     for (const [c, value] of astralSpecial) {
@@ -93,4 +90,7 @@ describe("Escape", () => {
             expect(entities.decodeXML(entities.escape(c))).toBe(c);
         }
     });
+
+    it("should keep UTF8 characters", () =>
+        expect(entities.escapeUTF8('ß < "ü"')).toBe(`ß &#x3C; &#x22;ü&#x22;`));
 });
