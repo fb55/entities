@@ -34,6 +34,7 @@ export function encode(data: string, level?: number): string {
 export {
     encodeXML,
     encodeHTML,
+    encodeNonAsciiHTML,
     escape,
     // Legacy aliases
     encodeHTML as encodeHTML4,

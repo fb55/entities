@@ -39,3 +39,11 @@ describe("Encode->decode test", () => {
         expect(entities.decode(entities.encode(data))).toBe(data);
     });
 });
+
+describe("encodeNonAsciiHTML", () => {
+    it("should encode all non-ASCII characters", () => {
+        expect(entities.encodeNonAsciiHTML("<test> #123! übermaßen")).toBe(
+            "&lt;test&gt; #123! &uuml;berma&szlig;en"
+        );
+    });
+});

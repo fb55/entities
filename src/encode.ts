@@ -11,6 +11,7 @@ const inverseHTML = getInverseObj(htmlMap);
 const htmlReplacer = getInverseReplacer(inverseHTML);
 
 export const encodeHTML = getInverse(inverseHTML, htmlReplacer);
+export const encodeNonAsciiHTML = getASCIIEncoder(inverseHTML);
 
 import { MapType } from "./decode";
 
@@ -95,4 +96,9 @@ const reEscapeChars = new RegExp(
 
 export function escape(data: string): string {
     return data.replace(reEscapeChars, singleCharReplacer);
+}
+
+function getASCIIEncoder(obj: MapType) {
+    return (data: string) =>
+        data.replace(reEscapeChars, (c) => obj[c] || singleCharReplacer(c));
 }
