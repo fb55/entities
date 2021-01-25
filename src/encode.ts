@@ -103,7 +103,9 @@ const getCodePoint =
               0x10000;
 
 function singleCharReplacer(c: string): string {
-    return `&#x${getCodePoint(c).toString(16).toUpperCase()};`;
+    return `&#x${(c.length > 1 ? getCodePoint(c) : c.charCodeAt(0))
+        .toString(16)
+        .toUpperCase()};`;
 }
 
 function getInverse(inverse: MapType, re: RegExp) {
