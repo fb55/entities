@@ -37,6 +37,7 @@ export {
     encodeNonAsciiHTML,
     escape,
     // Legacy aliases
+    escapeUTF8,
     encodeHTML as encodeHTML4,
     encodeHTML as encodeHTML5,
 } from "./encode";

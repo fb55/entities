@@ -98,6 +98,18 @@ export function escape(data: string): string {
     return data.replace(reEscapeChars, singleCharReplacer);
 }
 
+/**
+ * Encodes all characters not valid in XML documents using numeric hexadecimal
+ * reference (eg. `&#xfc;`).
+ *
+ * Note that the output will be character-set dependent.
+ *
+ * @param data String to escape.
+ */
+export function escapeUTF8(data: string): string {
+    return data.replace(xmlReplacer, singleCharReplacer);
+}
+
 function getASCIIEncoder(obj: MapType) {
     return (data: string) =>
         data.replace(reEscapeChars, (c) => obj[c] || singleCharReplacer(c));
