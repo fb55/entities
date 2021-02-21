@@ -28,7 +28,7 @@
         "@typescript-eslint/parser": "^4.4.1",
         "coveralls": "*",
         "eslint": "^7.11.0",
-        "eslint-config-prettier": "^7.0.0",
+        "eslint-config-prettier": "^8.0.0",
         "eslint-plugin-node": "^11.1.0",
         "jest": "^26.5.3",
         "prettier": "^2.0.5",
