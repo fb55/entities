@@ -88,7 +88,8 @@ function getInverseReplacer(inverse: MapType): RegExp {
 }
 
 // /[^\0-\x7F]/gu
-const reNonASCII = /(?:[\x80-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF])/g;
+const reNonASCII =
+    /(?:[\x80-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF])/g;
 
 const getCodePoint =
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
