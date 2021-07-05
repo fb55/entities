@@ -37,7 +37,7 @@ export const encodeHTML = getInverse(inverseHTML, htmlReplacer);
  */
 export const encodeNonAsciiHTML = getASCIIEncoder(inverseHTML);
 
-import { MapType } from "./decode";
+type MapType = Record<string, string>;
 
 function getInverseObj(obj: MapType): MapType {
     return Object.keys(obj)

@@ -23,10 +23,7 @@
         "curly": [2, "multi-line"],
         "no-else-return": 2,
 
-        "node/no-unsupported-features/es-syntax": [
-            2,
-            { "ignores": ["modules"] }
-        ]
+        "node/no-unsupported-features/es-syntax": 0
     },
     "overrides": [
         {

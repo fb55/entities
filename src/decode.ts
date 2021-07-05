@@ -3,58 +3,121 @@ import legacyMap from "./maps/legacy.json";
 import xmlMap from "./maps/xml.json";
 import decodeCodePoint from "./decode_codepoint";
 
-const strictEntityRe = /&(?:[a-zA-Z0-9]+|#[xX][\da-fA-F]+|#\d+);/g;
-
-export const decodeXML = getStrictDecoder(xmlMap);
-export const decodeHTMLStrict = getStrictDecoder(entityMap);
-
-export type MapType = Record<string, string>;
-
-function getStrictDecoder(map: MapType) {
-    const replace = getReplacer(map);
-    return (str: string) => String(str).replace(strictEntityRe, replace);
+interface TrieNode {
+    value?: string;
+    legacy?: boolean;
+    next?: Map<string, TrieNode>;
 }
 
-const sorter = (a: string, b: string) => (a < b ? 1 : -1);
+const numStart: TrieNode = (function () {
+    type RecursiveMap = Map<string, TrieNode>;
+    const numStart: RecursiveMap = new Map();
 
-export const decodeHTML = (function () {
-    const legacy = Object.keys(legacyMap).sort(sorter);
-    const keys = Object.keys(entityMap).sort(sorter);
+    const numRecurse: RecursiveMap = new Map();
+    const numValue = { next: numRecurse, legacy: true };
 
-    for (let i = 0, j = 0; i < keys.length; i++) {
-        if (legacy[j] === keys[i]) {
-            keys[i] += ";?";
-            j++;
-        } else {
-            keys[i] += ";";
-        }
+    for (let i = 0; i <= 9; i++) {
+        numStart.set(i.toString(10), numValue);
+        numRecurse.set(i.toString(10), numValue);
     }
 
-    const re = new RegExp(
-        `&(?:${keys.join("|")}|#[xX][\\da-fA-F]+;?|#\\d+;?)`,
-        "g"
-    );
-    const replace = getReplacer(entityMap);
-
-    function replacer(str: string): string {
-        if (str.substr(-1) !== ";") str += ";";
-        return replace(str);
+    const hexRecurse: RecursiveMap = new Map();
+    const hexValue = { next: hexRecurse, legacy: true };
+    for (let i = 0; i <= 15; i++) {
+        hexRecurse.set(i.toString(16), hexValue);
+        hexRecurse.set(i.toString(16).toUpperCase(), hexValue);
     }
 
-    // TODO consider creating a merged map
-    return (str: string) => String(str).replace(re, replacer);
+    const hexStartValue = { next: hexRecurse };
+    numStart.set("x", hexStartValue);
+    numStart.set("X", hexStartValue);
+
+    return { next: numStart };
 })();
 
-function getReplacer(map: MapType) {
-    return function replace(str: string): string {
-        if (str.charAt(1) === "#") {
-            const secondChar = str.charAt(2);
-            if (secondChar === "X" || secondChar === "x") {
-                return decodeCodePoint(parseInt(str.substr(3), 16));
+function getTrieReplacer(trie: Map<string, TrieNode>, legacyEntities: boolean) {
+    return (str: string) => {
+        let ret = "";
+        let lastIdx = 0;
+        let idx = 0;
+        while ((idx = str.indexOf("&", idx)) >= 0) {
+            const start = idx;
+            let trieNode: TrieNode | undefined = { next: trie };
+            let prevMap: TrieNode = trieNode;
+            while (trieNode?.next) {
+                prevMap = trieNode;
+                trieNode = trieNode.next.get(str.charAt(++idx));
             }
-            return decodeCodePoint(parseInt(str.substr(2), 10));
+            if (trieNode === undefined) {
+                const isTerminated = str.charAt(idx) === ";";
+                if (
+                    str.charAt(start + 1) === "#" &&
+                    (legacyEntities || isTerminated)
+                ) {
+                    const secondChar = str.charAt(start + 2);
+                    const codePoint =
+                        secondChar === "x" || secondChar === "X"
+                            ? parseInt(str.slice(start + 3, idx), 16)
+                            : parseInt(str.slice(start + 2, idx), 10);
+                    ret +=
+                        str.slice(lastIdx, start) + decodeCodePoint(codePoint);
+                    lastIdx = idx += Number(isTerminated);
+                } else if ((legacyEntities && prevMap.legacy) || isTerminated) {
+                    ret += str.slice(lastIdx, start) + prevMap.value;
+                    lastIdx = idx += Number(isTerminated);
+                }
+                continue;
+            }
+
+            ret += str.slice(lastIdx, start) + trieNode.value;
+            lastIdx = idx += 2;
         }
-        // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-        return map[str.slice(1, -1)] || str;
+
+        return ret + str.slice(lastIdx);
     };
+}
+
+export const decodeXML = getTrieReplacer(getTrie(xmlMap), false);
+const htmlTrie = markLegacyEntries(getTrie(entityMap), legacyMap);
+export const decodeHTMLStrict = getTrieReplacer(htmlTrie, false);
+export const decodeHTML = getTrieReplacer(htmlTrie, true);
+
+function getTrie(map: Record<string, string>) {
+    const trie = new Map<string, TrieNode>();
+
+    for (const key of Object.keys(map)) {
+        // Resolve the key
+        let lastMap = trie;
+        for (const char of key.slice(0, -1)) {
+            const next = lastMap.get(char) ?? {};
+            lastMap.set(char, next);
+            lastMap = next.next ??= new Map<string, TrieNode>();
+        }
+        const val = lastMap.get(key.slice(-1)) ?? {};
+        val.value = map[key];
+        lastMap.set(key.slice(-1), val);
+    }
+
+    // Add numeric values
+    trie.set("#", numStart);
+
+    return trie;
+}
+
+function markLegacyEntries(
+    trie: Map<string, TrieNode>,
+    legacy: Record<string, string>
+) {
+    for (const key of Object.keys(legacy)) {
+        // Resolve the key
+        let lastMap: TrieNode = { next: trie };
+        for (const char of key) {
+            const next = lastMap.next?.get(char);
+            if (!next) throw new Error(`Could not find ${key} at ${char}`);
+            lastMap = next;
+        }
+        lastMap.legacy = true;
+    }
+
+    return trie;
 }
