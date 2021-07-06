@@ -18,9 +18,10 @@ describe("Decode test", () => {
     for (const { input, output } of testcases) {
         it(`should XML decode ${input}`, () =>
             expect(entities.decodeXML(input)).toBe(output));
-        it(`should HTML4 decode ${input}`, () =>
-            expect(entities.decodeHTML(input)).toBe(output));
-        it(`should HTML5 decode ${input}`, () =>
+        it(`should HTML decode ${input}`, () =>
             expect(entities.decodeHTML(input)).toBe(output));
     }
+
+    it("should HTML decode partial legacy entity", () =>
+        expect(entities.decodeHTML("&timesbar")).toBe("×bar"));
 });

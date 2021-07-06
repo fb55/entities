@@ -14,7 +14,7 @@ const numStart: TrieNode = (function () {
     const numStart: RecursiveMap = new Map();
 
     const numRecurse: RecursiveMap = new Map();
-    const numValue = { next: numRecurse, legacy: true };
+    const numValue = { next: numRecurse };
 
     for (let i = 0; i <= 9; i++) {
         numStart.set(i.toString(10), numValue);
@@ -22,66 +22,73 @@ const numStart: TrieNode = (function () {
     }
 
     const hexRecurse: RecursiveMap = new Map();
-    const hexValue = { next: hexRecurse, legacy: true };
+    const hexValue = { next: hexRecurse };
     for (let i = 0; i <= 15; i++) {
         hexRecurse.set(i.toString(16), hexValue);
         hexRecurse.set(i.toString(16).toUpperCase(), hexValue);
     }
 
-    const hexStartValue = { next: hexRecurse };
-    numStart.set("x", hexStartValue);
-    numStart.set("X", hexStartValue);
+    numStart.set("x", hexValue);
+    numStart.set("X", hexValue);
 
     return { next: numStart };
 })();
 
 function getTrieReplacer(trie: Map<string, TrieNode>, legacyEntities: boolean) {
+    const trieStart = { next: trie };
     return (str: string) => {
         let ret = "";
         let lastIdx = 0;
         let idx = 0;
         while ((idx = str.indexOf("&", idx)) >= 0) {
             const start = idx;
-            let trieNode: TrieNode | undefined = { next: trie };
-            let prevMap: TrieNode = trieNode;
-            while (trieNode?.next) {
-                prevMap = trieNode;
-                trieNode = trieNode.next.get(str.charAt(++idx));
-            }
-            if (trieNode === undefined) {
-                const isTerminated = str.charAt(idx) === ";";
-                if (
-                    str.charAt(start + 1) === "#" &&
-                    (legacyEntities || isTerminated)
-                ) {
-                    const secondChar = str.charAt(start + 2);
-                    const codePoint =
-                        secondChar === "x" || secondChar === "X"
-                            ? parseInt(str.slice(start + 3, idx), 16)
-                            : parseInt(str.slice(start + 2, idx), 10);
-                    ret +=
-                        str.slice(lastIdx, start) + decodeCodePoint(codePoint);
-                    lastIdx = idx += Number(isTerminated);
-                } else if (
-                    (legacyEntities && prevMap.legacy) ||
-                    (isTerminated && prevMap.value !== undefined)
-                ) {
-                    ret += str.slice(lastIdx, start) + prevMap.value;
-                    lastIdx = idx += Number(isTerminated);
+            let trieNode: TrieNode | undefined = trieStart;
+            let legacyMap: TrieNode | undefined;
+            let legacyIndex = 0;
+            while (
+                ++idx < str.length &&
+                trieNode?.next &&
+                str.charAt(idx) !== ";"
+            ) {
+                trieNode = trieNode.next.get(str.charAt(idx));
+                if (legacyEntities && trieNode?.legacy) {
+                    legacyMap = trieNode;
+                    legacyIndex = idx;
                 }
-                continue;
             }
 
-            ret += str.slice(lastIdx, start) + trieNode.value;
-            lastIdx = idx += 2;
+            const isTerminated = idx < str.length && str.charAt(idx) === ";";
+
+            if (
+                (legacyEntities || isTerminated) &&
+                str.charAt(start + 1) === "#"
+            ) {
+                const secondChar = str.charAt(start + 2);
+                const codePoint =
+                    secondChar === "x" || secondChar === "X"
+                        ? parseInt(str.substring(start + 3, idx), 16)
+                        : parseInt(str.substring(start + 2, idx), 10);
+                ret +=
+                    str.substring(lastIdx, start) + decodeCodePoint(codePoint);
+                lastIdx = idx += Number(isTerminated);
+            } else if (isTerminated) {
+                if (trieNode?.value) {
+                    ret += str.substring(lastIdx, start) + trieNode.value;
+                    lastIdx = idx += 1;
+                }
+            } else if (legacyMap) {
+                ret += str.substring(lastIdx, start) + legacyMap.value;
+                lastIdx = idx = legacyIndex + 1;
+            }
         }
 
-        return ret + str.slice(lastIdx);
+        return ret + str.substr(lastIdx);
     };
 }
 
-export const decodeXML = getTrieReplacer(getTrie(xmlMap), false);
-const htmlTrie = markLegacyEntries(getTrie(entityMap), legacyMap);
+export const xmlTrie = getTrie(xmlMap);
+export const decodeXML = getTrieReplacer(xmlTrie, false);
+export const htmlTrie = markLegacyEntries(getTrie(entityMap), legacyMap);
 export const decodeHTMLStrict = getTrieReplacer(htmlTrie, false);
 export const decodeHTML = getTrieReplacer(htmlTrie, true);
 
