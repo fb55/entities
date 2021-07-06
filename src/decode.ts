@@ -62,7 +62,10 @@ function getTrieReplacer(trie: Map<string, TrieNode>, legacyEntities: boolean) {
                     ret +=
                         str.slice(lastIdx, start) + decodeCodePoint(codePoint);
                     lastIdx = idx += Number(isTerminated);
-                } else if ((legacyEntities && prevMap.legacy) || isTerminated) {
+                } else if (
+                    (legacyEntities && prevMap.legacy) ||
+                    (isTerminated && prevMap.value !== undefined)
+                ) {
                     ret += str.slice(lastIdx, start) + prevMap.value;
                     lastIdx = idx += Number(isTerminated);
                 }
