@@ -13,6 +13,7 @@ describe("Decode test", () => {
         { input: "&#x3A;", output: ":" },
         { input: "&#X3a;", output: ":" },
         { input: "&#X3A;", output: ":" },
+        { input: "id=770&#anchor", output: "id=770&#anchor" },
     ];
 
     for (const { input, output } of testcases) {
@@ -24,4 +25,9 @@ describe("Decode test", () => {
 
     it("should HTML decode partial legacy entity", () =>
         expect(entities.decodeHTML("&timesbar")).toBe("×bar"));
+
+    it("should HTML decode legacy entities according to spec", () =>
+        expect(entities.decodeHTML("?&image_uri=1&ℑ=2&image=3")).toBe(
+            "?&image_uri=1&ℑ=2&image=3"
+        ));
 });

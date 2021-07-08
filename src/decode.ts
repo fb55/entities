@@ -3,9 +3,10 @@ import legacyMap from "./maps/legacy.json";
 import xmlMap from "./maps/xml.json";
 import decodeCodePoint from "./decode_codepoint";
 
-interface TrieNode {
+export interface TrieNode {
     value?: string;
     legacy?: boolean;
+    base?: number;
     next?: Map<string, TrieNode>;
 }
 
@@ -14,7 +15,7 @@ const numStart: TrieNode = (function () {
     const numStart: RecursiveMap = new Map();
 
     const numRecurse: RecursiveMap = new Map();
-    const numValue = { next: numRecurse };
+    const numValue = { next: numRecurse, base: 10 };
 
     for (let i = 0; i <= 9; i++) {
         numStart.set(i.toString(10), numValue);
@@ -22,63 +23,75 @@ const numStart: TrieNode = (function () {
     }
 
     const hexRecurse: RecursiveMap = new Map();
-    const hexValue = { next: hexRecurse };
+    const hexValue = { next: hexRecurse, base: 16 };
     for (let i = 0; i <= 15; i++) {
         hexRecurse.set(i.toString(16), hexValue);
         hexRecurse.set(i.toString(16).toUpperCase(), hexValue);
     }
 
-    numStart.set("x", hexValue);
-    numStart.set("X", hexValue);
+    const hexStart = { next: hexRecurse };
+    numStart.set("x", hexStart);
+    numStart.set("X", hexStart);
 
     return { next: numStart };
 })();
 
-function getTrieReplacer(trie: Map<string, TrieNode>, legacyEntities: boolean) {
-    const trieStart = { next: trie };
+function getTrieReplacer(trieStart: TrieNode, legacyEntities: boolean) {
     return (str: string) => {
         let ret = "";
         let lastIdx = 0;
+        let legacyTrieIndex = 0;
         let idx = 0;
-        while ((idx = str.indexOf("&", idx)) >= 0) {
-            const start = idx;
-            let trieNode: TrieNode | undefined = trieStart;
-            let legacyMap: TrieNode | undefined;
-            let legacyIndex = 0;
-            while (
-                ++idx < str.length &&
-                trieNode?.next &&
-                str.charAt(idx) !== ";"
-            ) {
-                trieNode = trieNode.next.get(str.charAt(idx));
-                if (legacyEntities && trieNode?.legacy) {
-                    legacyMap = trieNode;
-                    legacyIndex = idx;
+
+        function decodeNumeric(base: number) {
+            const entity = str.substring(
+                // Skip the leading "&#". For hex entities, also skip the leading "x".
+                lastIdx + 2 + (base >>> 4),
+                idx
+            );
+            const parsed = parseInt(entity, base);
+            return decodeCodePoint(parsed);
+        }
+
+        entityLoop: while ((idx = str.indexOf("&", idx)) >= 0) {
+            ret += str.slice(lastIdx, idx);
+            lastIdx = idx;
+            let trieNode: TrieNode = trieStart;
+            let legacyTrie: TrieNode | undefined;
+
+            while (++idx < str.length) {
+                const c = str.charAt(idx);
+                if (c === ";") {
+                    if (trieNode.value) {
+                        ret += trieNode.value;
+                    } else if (trieNode.base) {
+                        ret += decodeNumeric(trieNode.base);
+                    } else break;
+
+                    idx += 1;
+                    lastIdx = idx;
+                    continue entityLoop;
+                } else {
+                    const next = trieNode.next?.get(c);
+                    if (next) {
+                        trieNode = next;
+
+                        if (legacyEntities && next.legacy) {
+                            legacyTrie = next;
+                            legacyTrieIndex = idx;
+                        }
+                    } else break;
                 }
             }
 
-            const isTerminated = idx < str.length && str.charAt(idx) === ";";
-
-            if (
-                (legacyEntities || isTerminated) &&
-                str.charAt(start + 1) === "#"
-            ) {
-                const secondChar = str.charAt(start + 2);
-                const codePoint =
-                    secondChar === "x" || secondChar === "X"
-                        ? parseInt(str.substring(start + 3, idx), 16)
-                        : parseInt(str.substring(start + 2, idx), 10);
-                ret +=
-                    str.substring(lastIdx, start) + decodeCodePoint(codePoint);
-                lastIdx = idx += Number(isTerminated);
-            } else if (isTerminated) {
-                if (trieNode?.value) {
-                    ret += str.substring(lastIdx, start) + trieNode.value;
-                    lastIdx = idx += 1;
+            if (legacyEntities) {
+                if (legacyTrie) {
+                    ret += legacyTrie.value;
+                    lastIdx = legacyTrieIndex + 1;
+                } else if (trieNode.base) {
+                    ret += decodeNumeric(trieNode.base);
+                    lastIdx = idx;
                 }
-            } else if (legacyMap) {
-                ret += str.substring(lastIdx, start) + legacyMap.value;
-                lastIdx = idx = legacyIndex + 1;
             }
         }
 
@@ -86,9 +99,11 @@ function getTrieReplacer(trie: Map<string, TrieNode>, legacyEntities: boolean) {
     };
 }
 
-export const xmlTrie = getTrie(xmlMap);
+export const xmlTrie: TrieNode = { next: getTrie(xmlMap) };
 export const decodeXML = getTrieReplacer(xmlTrie, false);
-export const htmlTrie = markLegacyEntries(getTrie(entityMap), legacyMap);
+export const htmlTrie: TrieNode = {
+    next: markLegacyEntries(getTrie(entityMap), legacyMap),
+};
 export const decodeHTMLStrict = getTrieReplacer(htmlTrie, false);
 export const decodeHTML = getTrieReplacer(htmlTrie, true);
 

@@ -35,9 +35,9 @@ describe("Documents", () => {
             it(levels[i], () => {
                 for (const e of Object.keys(doc)) {
                     for (let l = i; l < levels.length; l++) {
-                        expect(
-                            entities.decode(entities.encode(doc[e], l), l)
-                        ).toBe(doc[e]);
+                        const encoded = entities.encode(doc[e], l);
+                        const decoded = entities.decode(encoded, l);
+                        expect(decoded).toBe(doc[e]);
                     }
                 }
             });
