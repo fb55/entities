@@ -16,6 +16,9 @@ describe("Documents", () => {
                 for (const e of Object.keys(doc)) {
                     for (let l = i; l < levels.length; l++) {
                         expect(entities.decode(`&${e};`, l)).toBe(doc[e]);
+                        expect(entities.decode(`&${e};`, { level: l })).toBe(
+                            doc[e]
+                        );
                     }
                 }
             });
@@ -26,6 +29,12 @@ describe("Documents", () => {
                 for (const e of Object.keys(doc)) {
                     for (let l = i; l < levels.length; l++) {
                         expect(entities.decodeStrict(`&${e};`, l)).toBe(doc[e]);
+                        expect(
+                            entities.decode(`&${e};`, {
+                                level: l,
+                                mode: entities.DecodingMode.Strict,
+                            })
+                        ).toBe(doc[e]);
                     }
                 }
             });
@@ -41,15 +50,28 @@ describe("Documents", () => {
                     }
                 }
             });
+
+            it("should only encode non-ASCII values if asked", () =>
+                expect(
+                    entities.encode("Great #'s of 🎁", {
+                        level: i,
+                        mode: entities.EncodingMode.ASCII,
+                    })
+                ).toBe("Great #&apos;s of &#x1F381;"));
         });
     }
 
     describe("Legacy", () => {
+        const legacyMap: Record<string, string> = legacy;
         it("should decode", () => {
-            for (const e of Object.keys(legacy)) {
-                expect(entities.decodeHTML(`&${e}`)).toBe(
-                    (legacy as Record<string, string>)[e]
-                );
+            for (const e of Object.keys(legacyMap)) {
+                expect(entities.decodeHTML(`&${e}`)).toBe(legacyMap[e]);
+                expect(
+                    entities.decodeStrict(`&${e}`, {
+                        level: entities.EntityLevel.HTML,
+                        mode: entities.DecodingMode.Legacy,
+                    })
+                ).toBe(legacyMap[e]);
             }
         });
     });

@@ -31,6 +31,10 @@ describe("Encode->decode test", () => {
             expect(encodedHTML5).toBe(html));
         it(`should HTML5 decode ${encodedHTML5}`, () =>
             expect(entities.decodeHTML(encodedHTML5)).toBe(input));
+        it("should encode emojis", () =>
+            expect(entities.encodeHTML5("😄🍾🥳💥😇")).toBe(
+                "&#x1F604;&#x1F37E;&#x1F973;&#x1F4A5;&#x1F607;"
+            ));
     }
 
     it("should encode data URIs (issue #16)", () => {
@@ -41,9 +45,13 @@ describe("Encode->decode test", () => {
 });
 
 describe("encodeNonAsciiHTML", () => {
-    it("should encode all non-ASCII characters", () => {
+    it("should encode all non-ASCII characters", () =>
         expect(entities.encodeNonAsciiHTML("<test> #123! übermaßen")).toBe(
             "&lt;test&gt; #123! &uuml;berma&szlig;en"
-        );
-    });
+        ));
+
+    it("should encode emojis", () =>
+        expect(entities.encodeNonAsciiHTML("😄🍾🥳💥😇")).toBe(
+            "&#x1F604;&#x1F37E;&#x1F973;&#x1F4A5;&#x1F607;"
+        ));
 });
