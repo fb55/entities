@@ -9,31 +9,38 @@ export interface TrieNode {
     offset?: number;
     legacy?: boolean;
     base?: number;
-    next?: Map<string, TrieNode>;
+    next?: Map<number, TrieNode>;
+}
+
+enum CHAR_CODES {
+    NUM = "#".charCodeAt(0),
+    SEMI = ";".charCodeAt(0),
+    LOWER_X = "x".charCodeAt(0),
+    UPPER_X = "X".charCodeAt(0),
 }
 
 const numStart: TrieNode = (function () {
-    type RecursiveMap = Map<string, TrieNode>;
+    type RecursiveMap = Map<number, TrieNode>;
     const numStart: RecursiveMap = new Map();
 
     const numRecurse: RecursiveMap = new Map();
     const numValue = { next: numRecurse, base: 10 };
 
     for (let i = 0; i <= 9; i++) {
-        numStart.set(i.toString(10), numValue);
-        numRecurse.set(i.toString(10), numValue);
+        numStart.set(i.toString(10).charCodeAt(0), numValue);
+        numRecurse.set(i.toString(10).charCodeAt(0), numValue);
     }
 
     const hexRecurse: RecursiveMap = new Map();
     const hexValue = { next: hexRecurse, base: 16 };
     for (let i = 0; i <= 15; i++) {
-        hexRecurse.set(i.toString(16), hexValue);
-        hexRecurse.set(i.toString(16).toUpperCase(), hexValue);
+        hexRecurse.set(i.toString(16).charCodeAt(0), hexValue);
+        hexRecurse.set(i.toString(16).toUpperCase().charCodeAt(0), hexValue);
     }
 
     const hexStart = { next: hexRecurse };
-    numStart.set("x", hexStart);
-    numStart.set("X", hexStart);
+    numStart.set(CHAR_CODES.LOWER_X, hexStart);
+    numStart.set(CHAR_CODES.UPPER_X, hexStart);
 
     return { next: numStart };
 })();
@@ -61,8 +68,8 @@ function getTrieReplacer(trieStart: TrieNode, legacyEntities: boolean) {
             let legacyTrie: TrieNode | undefined;
 
             while (++idx < str.length) {
-                const c = str.charAt(idx);
-                if (c === ";") {
+                const c = str.charCodeAt(idx);
+                if (c === CHAR_CODES.SEMI) {
                     if (trieNode.value) {
                         ret += trieNode.value;
                     } else if (trieNode.base) {
@@ -120,19 +127,20 @@ export const decodeHTMLStrict = getTrieReplacer(htmlTrie, false);
 export const decodeHTML = getTrieReplacer(htmlTrie, true);
 
 function getTrie(map: Record<string, string>) {
-    const trie = new Map<string, TrieNode>();
+    const trie = new Map<number, TrieNode>();
 
     for (const key of Object.keys(map)) {
         // Resolve the key
         let lastMap = trie;
-        for (const char of key.slice(0, -1)) {
+        for (let i = 0; i < key.length - 1; i++) {
+            const char = key.charCodeAt(i);
             const next = lastMap.get(char) ?? {};
             lastMap.set(char, next);
-            lastMap = next.next ??= new Map<string, TrieNode>();
+            lastMap = next.next ??= new Map();
         }
-        const val = lastMap.get(key.slice(-1)) ?? {};
+        const val = lastMap.get(key.charCodeAt(key.length - 1)) ?? {};
         val.value = map[key];
-        lastMap.set(key.slice(-1), val);
+        lastMap.set(key.charCodeAt(key.length - 1), val);
     }
 
     // Combine chains of nodes with a single branch to a postfix
@@ -142,7 +150,8 @@ function getTrie(map: Record<string, string>) {
 
             if (node.value == null && node.next.size === 1) {
                 node.next.forEach((next, char) => {
-                    node.postfix = char + (next.postfix ?? "");
+                    node.postfix =
+                        String.fromCharCode(char) + (next.postfix ?? "");
                     node.value = next.value;
                     node.next = next.next;
                 });
@@ -157,13 +166,13 @@ function getTrie(map: Record<string, string>) {
     trie.forEach((node) => addPostfixes(node, 0));
 
     // Add numeric values
-    trie.set("#", numStart);
+    trie.set(CHAR_CODES.NUM, numStart);
 
     return trie;
 }
 
 function markLegacyEntries(
-    trie: Map<string, TrieNode>,
+    trie: Map<number, TrieNode>,
     legacy: Record<string, string>
 ) {
     for (const key of Object.keys(legacy)) {
@@ -171,12 +180,12 @@ function markLegacyEntries(
         let lastMap: TrieNode = { next: trie };
 
         for (let i = 0; i < key.length; i++) {
-            const char = key.charAt(i);
+            const char = key.charCodeAt(i);
             const next = lastMap.next?.get(char);
             if (!next) throw new Error(`Could not find ${key} at ${char}`);
             lastMap = next;
 
-            // We know we have found our node, so we can stop here
+            // We know we have found a part of the entity, so skip the length of the postfix
             if (next.postfix) i += next.postfix.length;
         }
         lastMap.legacy = true;
