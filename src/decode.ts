@@ -5,6 +5,8 @@ import decodeCodePoint from "./decode_codepoint";
 
 export interface TrieNode {
     value?: string;
+    postfix?: string;
+    offset?: number;
     legacy?: boolean;
     base?: number;
     next?: Map<string, TrieNode>;
@@ -40,7 +42,6 @@ function getTrieReplacer(trieStart: TrieNode, legacyEntities: boolean) {
     return (str: string) => {
         let ret = "";
         let lastIdx = 0;
-        let legacyTrieIndex = 0;
         let idx = 0;
 
         function decodeNumeric(base: number) {
@@ -73,21 +74,32 @@ function getTrieReplacer(trieStart: TrieNode, legacyEntities: boolean) {
                     continue entityLoop;
                 } else {
                     const next = trieNode.next?.get(c);
-                    if (next) {
-                        trieNode = next;
 
-                        if (legacyEntities && next.legacy) {
-                            legacyTrie = next;
-                            legacyTrieIndex = idx;
+                    if (!next) break;
+
+                    if (next.postfix != null) {
+                        if (
+                            next.postfix !==
+                            str.substr(idx + 1, next.postfix.length)
+                        ) {
+                            break;
                         }
-                    } else break;
+
+                        idx += next.postfix.length;
+                    }
+
+                    trieNode = next;
+
+                    if (legacyEntities && next.legacy) {
+                        legacyTrie = next;
+                    }
                 }
             }
 
             if (legacyEntities) {
                 if (legacyTrie) {
                     ret += legacyTrie.value;
-                    lastIdx = legacyTrieIndex + 1;
+                    lastIdx += legacyTrie.offset! + 2;
                 } else if (trieNode.base) {
                     ret += decodeNumeric(trieNode.base);
                     lastIdx = idx;
@@ -123,6 +135,27 @@ function getTrie(map: Record<string, string>) {
         lastMap.set(key.slice(-1), val);
     }
 
+    // Combine chains of nodes with a single branch to a postfix
+    function addPostfixes(node: TrieNode, offset: number) {
+        if (node.next) {
+            node.next.forEach((next) => addPostfixes(next, offset + 1));
+
+            if (node.value == null && node.next.size === 1) {
+                node.next.forEach((next, char) => {
+                    node.postfix = char + (next.postfix ?? "");
+                    node.value = next.value;
+                    node.next = next.next;
+                });
+            }
+        }
+
+        if (node.value != null) {
+            node.offset = offset + (node.postfix?.length ?? 0);
+        }
+    }
+
+    trie.forEach((node) => addPostfixes(node, 0));
+
     // Add numeric values
     trie.set("#", numStart);
 
@@ -136,10 +169,15 @@ function markLegacyEntries(
     for (const key of Object.keys(legacy)) {
         // Resolve the key
         let lastMap: TrieNode = { next: trie };
-        for (const char of key) {
+
+        for (let i = 0; i < key.length; i++) {
+            const char = key.charAt(i);
             const next = lastMap.next?.get(char);
             if (!next) throw new Error(`Could not find ${key} at ${char}`);
             lastMap = next;
+
+            // We know we have found our node, so we can stop here
+            if (next.postfix) i += next.postfix.length;
         }
         lastMap.legacy = true;
     }
