@@ -23,8 +23,10 @@ describe("Decode test", () => {
             expect(entities.decodeHTML(input)).toBe(output));
     }
 
-    it("should HTML decode partial legacy entity", () =>
-        expect(entities.decodeHTML("&timesbar")).toBe("×bar"));
+    it("should HTML decode partial legacy entity", () => {
+        expect(entities.decodeHTMLStrict("&timesbar")).toBe("&timesbar");
+        expect(entities.decodeHTML("&timesbar")).toBe("×bar");
+    });
 
     it("should HTML decode legacy entities according to spec", () =>
         expect(entities.decodeHTML("?&image_uri=1&ℑ=2&image=3")).toBe(
