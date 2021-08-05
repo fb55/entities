@@ -15,7 +15,7 @@ function convertMapToBinaryTrie(
 
     // Write the encoded trie to disk
     fs.writeFileSync(
-        `${__dirname}/../src/decode-data-${name}.ts`,
+        `${__dirname}/../src/generated/decode-data-${name}.ts`,
         `// Generated using scripts/write-decode-map.ts
 // prettier-ignore
 export default new Uint16Array([${encoded

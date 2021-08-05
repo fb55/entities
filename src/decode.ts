@@ -1,5 +1,5 @@
-import htmlDecodeTree from "./decode-data-html";
-import xmlDecodeTree from "./decode-data-xml";
+import htmlDecodeTree from "./generated/decode-data-html";
+import xmlDecodeTree from "./generated/decode-data-xml";
 import decodeCodePoint from "./decode_codepoint";
 
 // Re-export for use by eg. htmlparser2
