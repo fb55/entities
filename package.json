@@ -57,7 +57,8 @@
     "license": "BSD-2-Clause",
     "jest": {
         "preset": "ts-jest",
-        "testEnvironment": "node"
+        "testEnvironment": "node",
+        "coverageProvider": "v8"
     },
     "prettier": {
         "tabWidth": 4,

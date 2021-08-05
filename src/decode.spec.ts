@@ -13,6 +13,7 @@ describe("Decode test", () => {
         { input: "&#x3A;", output: ":" },
         { input: "&#X3a;", output: ":" },
         { input: "&#X3A;", output: ":" },
+        { input: "&>", output: "&>" },
         { input: "id=770&#anchor", output: "id=770&#anchor" },
     ];
 
@@ -23,11 +24,19 @@ describe("Decode test", () => {
             expect(entities.decodeHTML(input)).toBe(output));
     }
 
-    it("should HTML decode partial legacy entity", () =>
-        expect(entities.decodeHTML("&timesbar")).toBe("×bar"));
+    it("should HTML decode partial legacy entity", () => {
+        expect(entities.decodeHTMLStrict("&timesbar")).toBe("&timesbar");
+        expect(entities.decodeHTML("&timesbar")).toBe("×bar");
+    });
 
     it("should HTML decode legacy entities according to spec", () =>
         expect(entities.decodeHTML("?&image_uri=1&ℑ=2&image=3")).toBe(
             "?&image_uri=1&ℑ=2&image=3"
         ));
+
+    it("should back out of legacy entities", () =>
+        expect(entities.decodeHTML("&ampa")).toBe("&a"));
+
+    it("should not parse numeric entities in strict mode", () =>
+        expect(entities.decodeHTMLStrict("&#55")).toBe("&#55"));
 });
