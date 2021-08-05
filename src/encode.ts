@@ -1,7 +1,18 @@
 import xmlMap from "./maps/xml.json";
+import { encodeHTMLTrieRe, getCodePoint } from "./encode-trie";
 
-const inverseXML = getInverseObj(xmlMap);
-const xmlReplacer = getInverseReplacer(inverseXML);
+import htmlMap from "./maps/entities.json";
+
+const htmlReplacer = getCharRegExp(htmlMap, true);
+const xmlReplacer = getCharRegExp(xmlMap, true);
+const xmlInvalidChars = getCharRegExp(xmlMap, false);
+
+const xmlCodeMap = new Map(
+    Object.keys(xmlMap).map((k) => [
+        (xmlMap as Record<string, string>)[k].charCodeAt(0),
+        `&${k};`,
+    ])
+);
 
 /**
  * Encodes all non-ASCII characters, as well as characters not valid in XML
@@ -10,12 +21,33 @@ const xmlReplacer = getInverseReplacer(inverseXML);
  * If a character has no equivalent entity, a
  * numeric hexadecimal reference (eg. `&#xfc;`) will be used.
  */
-export const encodeXML = getASCIIEncoder(inverseXML);
+export function encodeXML(str: string): string {
+    let ret = "";
+    let lastIdx = 0;
+    let match;
 
-import htmlMap from "./maps/entities.json";
+    while ((match = xmlReplacer.exec(str)) !== null) {
+        const i = match.index;
+        const char = str.charCodeAt(i);
+        const next = xmlCodeMap.get(char);
 
-const inverseHTML = getInverseObj(htmlMap);
-const htmlReplacer = getInverseReplacer(inverseHTML);
+        if (next) {
+            ret += str.substring(lastIdx, i) + next;
+            lastIdx = i + 1;
+        } else {
+            ret += `${str.substring(lastIdx, i)}&#x${getCodePoint(
+                str,
+                i
+            ).toString(16)};`;
+            // Increase by 1 if we have a surrogate pair
+            lastIdx = xmlReplacer.lastIndex += Number(
+                (char & 0xd800) === 0xd800
+            );
+        }
+    }
+
+    return ret + str.substr(lastIdx);
+}
 
 /**
  * Encodes all entities and non-ASCII characters in the input.
@@ -27,7 +59,9 @@ const htmlReplacer = getInverseReplacer(inverseHTML);
  * If a character has no equivalent entity, a
  * numeric hexadecimal reference (eg. `&#xfc;`) will be used.
  */
-export const encodeHTML = getInverse(inverseHTML, htmlReplacer);
+export function encodeHTML(data: string): string {
+    return encodeHTMLTrieRe(htmlReplacer, data);
+}
 /**
  * Encodes all non-ASCII characters, as well as characters not valid in HTML
  * documents using HTML entities.
@@ -35,41 +69,26 @@ export const encodeHTML = getInverse(inverseHTML, htmlReplacer);
  * If a character has no equivalent entity, a
  * numeric hexadecimal reference (eg. `&#xfc;`) will be used.
  */
-export const encodeNonAsciiHTML = getASCIIEncoder(inverseHTML);
-
-type MapType = Record<string, string>;
-
-function getInverseObj(obj: MapType): MapType {
-    return Object.keys(obj)
-        .sort()
-        .reduce((inverse: MapType, name: string) => {
-            inverse[obj[name]] = `&${name};`;
-            return inverse;
-        }, {});
+export function encodeNonAsciiHTML(data: string): string {
+    return encodeHTMLTrieRe(xmlReplacer, data);
 }
 
-function getInverseReplacer(inverse: MapType): RegExp {
-    const single: string[] = [];
-    const multiple: string[] = [];
-
-    for (const k of Object.keys(inverse)) {
-        if (k.length === 1) {
-            // Add value to single array
-            single.push(`\\${k}`);
-        } else {
-            // Add value to multiple array
-            multiple.push(k);
-        }
-    }
+function getCharRegExp(map: Record<string, string>, nonAscii: boolean): RegExp {
+    // Collect the start characters of all entities
+    const chars = Object.keys(map)
+        .map((k) => `\\${map[k].charAt(0)}`)
+        .filter((v) => !nonAscii || v.charCodeAt(1) < 128)
+        .sort((a, b) => a.charCodeAt(1) - b.charCodeAt(1))
+        // Remove duplicates
+        .filter((v, i, a) => v !== a[i + 1]);
 
     // Add ranges to single characters.
-    single.sort();
-    for (let start = 0; start < single.length - 1; start++) {
+    for (let start = 0; start < chars.length - 1; start++) {
         // Find the end of a run of characters
         let end = start;
         while (
-            end < single.length - 1 &&
-            single[end].charCodeAt(1) + 1 === single[end + 1].charCodeAt(1)
+            end < chars.length - 1 &&
+            chars[end].charCodeAt(1) + 1 === chars[end + 1].charCodeAt(1)
         ) {
             end += 1;
         }
@@ -79,47 +98,14 @@ function getInverseReplacer(inverse: MapType): RegExp {
         // We want to replace at least three characters
         if (count < 3) continue;
 
-        single.splice(start, count, `${single[start]}-${single[end]}`);
+        chars.splice(start, count, `${chars[start]}-${chars[end]}`);
     }
 
-    multiple.unshift(`[${single.join("")}]`);
-
-    return new RegExp(multiple.join("|"), "g");
+    return new RegExp(
+        `[${chars.join("")}${nonAscii ? "\\x80-\\uFFFF" : ""}]`,
+        "g"
+    );
 }
-
-// /[^\0-\x7F]/gu
-const reNonASCII =
-    /(?:[\x80-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF])/g;
-
-const getCodePoint =
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    String.prototype.codePointAt != null
-        ? // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          (str: string): number => str.codePointAt(0)!
-        : // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
-          (c: string): number =>
-              (c.charCodeAt(0) - 0xd800) * 0x400 +
-              c.charCodeAt(1) -
-              0xdc00 +
-              0x10000;
-
-function singleCharReplacer(c: string): string {
-    return `&#x${(c.length > 1 ? getCodePoint(c) : c.charCodeAt(0))
-        .toString(16)
-        .toUpperCase()};`;
-}
-
-function getInverse(inverse: MapType, re: RegExp) {
-    return (data: string) =>
-        data
-            .replace(re, (name) => inverse[name])
-            .replace(reNonASCII, singleCharReplacer);
-}
-
-const reEscapeChars = new RegExp(
-    `${xmlReplacer.source}|${reNonASCII.source}`,
-    "g"
-);
 
 /**
  * Encodes all non-ASCII characters, as well as characters not valid in XML
@@ -130,23 +116,31 @@ const reEscapeChars = new RegExp(
  *
  * @param data String to escape.
  */
-export function escape(data: string): string {
-    return data.replace(reEscapeChars, singleCharReplacer);
-}
+export const escape = encodeXML;
 
 /**
- * Encodes all characters not valid in XML documents using numeric hexadecimal
- * reference (eg. `&#xfc;`).
+ * Encodes all characters not valid in XML documents using XML entities.
  *
  * Note that the output will be character-set dependent.
  *
  * @param data String to escape.
  */
-export function escapeUTF8(data: string): string {
-    return data.replace(xmlReplacer, singleCharReplacer);
-}
+export function encodeXML_UTF8(data: string): string {
+    let match;
+    let lastIdx = 0;
+    let result = "";
 
-function getASCIIEncoder(obj: MapType) {
-    return (data: string) =>
-        data.replace(reEscapeChars, (c) => obj[c] || singleCharReplacer(c));
+    while ((match = xmlInvalidChars.exec(data))) {
+        if (lastIdx !== match.index) {
+            result += data.substring(lastIdx, match.index);
+        }
+
+        // We know that this chararcter will be in `inverseXML`
+        result += xmlCodeMap.get(match[0].charCodeAt(0))!;
+
+        // Every match will be of length 1
+        lastIdx = match.index + 1;
+    }
+
+    return result + data.substring(lastIdx);
 }

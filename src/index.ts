@@ -1,5 +1,10 @@
 import { decodeXML, decodeHTML, decodeHTMLStrict } from "./decode";
-import { encodeXML, encodeHTML, encodeNonAsciiHTML } from "./encode";
+import {
+    encodeXML,
+    encodeXML_UTF8,
+    encodeHTML,
+    encodeNonAsciiHTML,
+} from "./encode";
 
 /** The level of entities to support. */
 export enum EntityLevel {
@@ -129,17 +134,16 @@ export function encode(
 ): string {
     const opts = typeof options === "number" ? { level: options } : options;
 
+    // Mode `UTF8` just escapes XML entities
+    if (opts.mode === EncodingMode.UTF8) return encodeXML_UTF8(data);
+
     if (opts.level === EntityLevel.HTML) {
         if (opts.mode === EncodingMode.ASCII) {
             return encodeNonAsciiHTML(data);
         }
 
-        // TODO Support opts.mode === 'UTF8'
-
         return encodeHTML(data);
     }
-
-    // TODO Support opts.mode === 'UTF8'
 
     // ASCII and Extensive are equivalent
     return encodeXML(data);
@@ -150,7 +154,8 @@ export {
     encodeHTML,
     encodeNonAsciiHTML,
     escape,
-    escapeUTF8,
+    encodeXML_UTF8,
+    encodeXML_UTF8 as escapeUTF8,
     // Legacy aliases (deprecated)
     encodeHTML as encodeHTML4,
     encodeHTML as encodeHTML5,
