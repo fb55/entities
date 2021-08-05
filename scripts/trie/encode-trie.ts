@@ -29,7 +29,7 @@ function binaryLength(num: number) {
  * To consider:
  * - If a branch has a single option, we could skip the branching table entirely
  */
-export function encodeTrie(trie: TrieNode): number[] {
+export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
     const encodeCache = new Map<TrieNode, number>();
     const enc: number[] = [];
 
@@ -125,7 +125,7 @@ export function encodeTrie(trie: TrieNode): number[] {
 
         const jumpTableOverhead = (jumpTableLength + 1) / branches.length;
 
-        if (jumpTableOverhead <= 2) {
+        if (jumpTableOverhead <= maxJumpTableOverhead) {
             // Write the length of the adjusted table
             enc[nodeIdx] |= (jumpTableLength << 8) | BinTrieFlags.JUMP_TABLE;
 
