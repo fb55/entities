@@ -15,21 +15,9 @@ describe("encode_trie", () => {
 
     it("should encode a node with a multi-byte value", () => {
         expect(encodeTrie({ value: "ab" })).toStrictEqual([
-            BinTrieFlags.HAS_VALUE | BinTrieFlags.HEX_OR_MULTI_BYTE,
+            BinTrieFlags.HAS_VALUE | BinTrieFlags.MULTI_BYTE,
             "a".charCodeAt(0),
             "b".charCodeAt(0),
-        ]);
-    });
-
-    it("should encode a node with a number", () => {
-        expect(encodeTrie({ base: 10 })).toStrictEqual([
-            BinTrieFlags.HAS_VALUE | BinTrieFlags.IS_NUMBER,
-        ]);
-        expect(encodeTrie({ base: 16, legacy: true })).toStrictEqual([
-            BinTrieFlags.HAS_VALUE |
-                BinTrieFlags.IS_NUMBER |
-                BinTrieFlags.HEX_OR_MULTI_BYTE |
-                BinTrieFlags.LEGACY,
         ]);
     });
 
@@ -76,7 +64,7 @@ describe("encode_trie", () => {
             jumpRecursiveTrie.next.set(val, jumpRecursiveTrie)
         );
         expect(encodeTrie(jumpRecursiveTrie)).toStrictEqual([
-            0b0000_1010_0001_0000, 0b1101, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1,
+            0b0000_1010_0000_0001, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1,
         ]);
     });
 });

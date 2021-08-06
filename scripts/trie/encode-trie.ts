@@ -14,20 +14,19 @@ function binaryLength(num: number) {
  * We have four different types of nodes:
  * - Postfixes are ASCII values that match a particular character
  * - Values are UNICODE values that an entity resolves to
- * - Branches are two successive tables: characters and destinations
+ * - Branches can be:
+ *      1. If size is 1, then a matching character followed by the destination
+ *      2. Two successive tables: characters and destination pointers.
+ *          Characters have to be binary-searched to get the index of the destination pointer.
+ *      3. A jump table: For each character, the destination pointer is stored in a jump table.
  * - Records have a value greater than 128 (the max ASCII value). Their format is 8 bits main data, 8 bits supplemental data:
  *   (
  *      1 bit has has value flag
  *      7 bit branch length if this is a branch — needs to be here to ensure value is >128 with a branch
- *      1 bit data is legacy entity
- *      1 bit data is number (not byte)
- *      1 bit data is hex (if number) / is multi-byte (if byte)
- *      1 bit branch is jump table (one byte is used for table offset)
- *      4 bit reserved
+ *      1 bit data is multi-byte
+ *      7 bit branch jump table offset (if branch is a jump table)
  *   )
  *
- * To consider:
- * - If a branch has a single option, we could skip the branching table entirely
  */
 export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
     const encodeCache = new Map<TrieNode, number>();
@@ -55,16 +54,11 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
 
         const nodeIdx = enc.push(0) - 1;
 
-        if (node.legacy) enc[nodeIdx] |= BinTrieFlags.LEGACY;
-        if (node.base)
-            enc[nodeIdx] |= BinTrieFlags.HAS_VALUE | BinTrieFlags.IS_NUMBER;
-        if (node.base === 16) enc[nodeIdx] |= BinTrieFlags.HEX_OR_MULTI_BYTE;
-
         if (node.value != null) {
             enc[nodeIdx] |= BinTrieFlags.HAS_VALUE;
 
             if (node.value.length === 2) {
-                enc[nodeIdx] |= BinTrieFlags.HEX_OR_MULTI_BYTE;
+                enc[nodeIdx] |= BinTrieFlags.MULTI_BYTE;
             }
 
             for (let i = 0; i < node.value.length; i++)
@@ -123,12 +117,9 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
 
         const jumpTableLength = jumpEndValue - jumpStartValue + 1;
 
-        const jumpTableOverhead = (jumpTableLength + 1) / branches.length;
+        const jumpTableOverhead = jumpTableLength / branches.length;
 
         if (jumpTableOverhead <= maxJumpTableOverhead) {
-            // Write the length of the adjusted table
-            enc[nodeIdx] |= (jumpTableLength << 8) | BinTrieFlags.JUMP_TABLE;
-
             const jumpOffset = jumpStartValue - JUMP_OFFSET_BASE;
 
             assert.ok(
@@ -136,8 +127,8 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
                 `Offset ${jumpOffset} too large at ${binaryLength(jumpOffset)}`
             );
 
-            // Add offset to its own byte
-            enc.push(jumpOffset);
+            // Write the length of the adjusted table, plus jump offset
+            enc[nodeIdx] |= (jumpTableLength << 8) | jumpOffset;
 
             assert.ok(
                 binaryLength(jumpTableLength) <= 7,
@@ -152,7 +143,7 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
                 const [char, next] = branches[i];
                 const index = char - jumpStartValue;
                 // Write all values + 1, so 0 will result in a -1 when decoding
-                enc[branchIndex + 1 + index] = encodeNode(next, depth) + 1;
+                enc[branchIndex + index] = encodeNode(next, depth) + 1;
             }
 
             return;
