@@ -21,14 +21,11 @@ export enum CharCodes {
 export enum BinTrieFlags {
     HAS_VALUE = 0b1000_0000_0000_0000,
     BRANCH_LENGTH = 0b0111_1111_0000_0000,
-    LEGACY = 0b0000_0000_1000_0000,
-    IS_NUMBER = 0b0000_0000_0100_0000,
-    NUM_BYTE_POS = 6,
-    HEX_OR_MULTI_BYTE = 0b0000_0000_0010_0000,
-    JUMP_TABLE = 0b0000_0000_0001_0000,
+    MULTI_BYTE = 0b0000_0000_1000_0000,
+    JUMP_TABLE = 0b0000_0000_0111_1111,
 }
 
-export const JUMP_OFFSET_BASE = CharCodes.NUM;
+export const JUMP_OFFSET_BASE = CharCodes.ZERO - 1;
 
 function getDecoder(decodeTree: Uint16Array) {
     return function decodeHTMLBinary(str: string, strict: boolean): string {
@@ -101,13 +98,13 @@ function getDecoder(decodeTree: Uint16Array) {
                 // If the branch is a value, store it and continue
                 if (current & BinTrieFlags.HAS_VALUE) {
                     // If we have a legacy entity while parsing strictly, just skip the number of bytes
-                    if (strict && current & BinTrieFlags.LEGACY) {
+                    if (strict && str.charCodeAt(strIdx) !== CharCodes.SEMI) {
                         // No need to consider multi-byte values, as the legacy entity is always a single byte
-                        if (!(current & BinTrieFlags.IS_NUMBER)) treeIdx += 1;
+                        treeIdx += 1;
                     } else {
                         // If this is a surrogate pair, combine the higher bits from the node with the next byte
                         result =
-                            current & BinTrieFlags.HEX_OR_MULTI_BYTE
+                            current & BinTrieFlags.MULTI_BYTE
                                 ? String.fromCharCode(
                                       decodeTree[++treeIdx],
                                       decodeTree[++treeIdx]
@@ -148,13 +145,13 @@ export function determineBranch(
         return char === decodeTree[nodeIdx] ? nodeIdx + 1 : -1;
     }
 
-    if (current & BinTrieFlags.JUMP_TABLE) {
-        const jumpOffset = decodeTree[nodeIdx];
+    const jumpOffset = current & BinTrieFlags.JUMP_TABLE;
+    if (jumpOffset) {
         const value = char - JUMP_OFFSET_BASE - jumpOffset;
 
         return value < 0 || value > branchCount
             ? -1
-            : decodeTree[nodeIdx + 1 + value] - 1;
+            : decodeTree[nodeIdx + value] - 1;
     }
 
     // Binary search for the character.

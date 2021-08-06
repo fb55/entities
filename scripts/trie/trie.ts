@@ -4,40 +4,8 @@ export interface TrieNode {
     value?: string;
     postfix?: string;
     offset?: number;
-    legacy?: boolean;
-    base?: number;
     next?: Map<number, TrieNode>;
 }
-
-const numStart: TrieNode = (function () {
-    type RecursiveMap = Map<number, TrieNode>;
-    const numStart: RecursiveMap = new Map();
-
-    const numRecurse: RecursiveMap = new Map();
-    const numValue = { next: numRecurse, base: 10, legacy: true };
-
-    for (let i = 0; i <= 9; i++) {
-        numStart.set(i.toString(10).charCodeAt(0), numValue);
-        numRecurse.set(i.toString(10).charCodeAt(0), numValue);
-    }
-
-    numRecurse.set(CharCodes.SEMI, { base: 10 });
-
-    const hexRecurse: RecursiveMap = new Map();
-    const hexValue = { next: hexRecurse, base: 16, legacy: true };
-    for (let i = 0; i <= 15; i++) {
-        hexRecurse.set(i.toString(16).charCodeAt(0), hexValue);
-        hexRecurse.set(i.toString(16).toUpperCase().charCodeAt(0), hexValue);
-    }
-
-    hexRecurse.set(CharCodes.SEMI, { base: 16 });
-
-    const hexStart = { next: hexRecurse };
-    numStart.set(CharCodes.LOWER_X, hexStart);
-    numStart.set(CharCodes.UPPER_X, hexStart);
-
-    return { next: numStart };
-})();
 
 export function getTrie(
     map: Record<string, string>,
@@ -56,10 +24,7 @@ export function getTrie(
             lastMap = next.next ??= new Map();
         }
 
-        if (key in legacy) {
-            next.value = map[key];
-            next.legacy = true;
-        }
+        if (key in legacy) next.value = map[key];
 
         lastMap.set(CharCodes.SEMI, { value: map[key] });
     }
@@ -75,7 +40,6 @@ export function getTrie(
                         String.fromCharCode(char) + (next.postfix ?? "");
                     node.value = next.value;
                     node.next = next.next;
-                    node.legacy = next.legacy;
                 });
             }
         }
@@ -86,9 +50,6 @@ export function getTrie(
     }
 
     trie.forEach((node) => addPostfixes(node, 0));
-
-    // Add numeric values
-    trie.set(CharCodes.NUM, numStart);
 
     return { next: trie };
 }
