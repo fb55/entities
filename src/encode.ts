@@ -125,7 +125,7 @@ export const escape = encodeXML;
  *
  * @param data String to escape.
  */
-export function encodeXML_UTF8(data: string): string {
+export function escapeUTF8(data: string): string {
     let match;
     let lastIdx = 0;
     let result = "";

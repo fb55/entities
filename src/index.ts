@@ -1,7 +1,7 @@
 import { decodeXML, decodeHTML, decodeHTMLStrict } from "./decode";
 import {
     encodeXML,
-    encodeXML_UTF8,
+    escapeUTF8,
     encodeHTML,
     encodeNonAsciiHTML,
 } from "./encode";
@@ -135,7 +135,7 @@ export function encode(
     const opts = typeof options === "number" ? { level: options } : options;
 
     // Mode `UTF8` just escapes XML entities
-    if (opts.mode === EncodingMode.UTF8) return encodeXML_UTF8(data);
+    if (opts.mode === EncodingMode.UTF8) return escapeUTF8(data);
 
     if (opts.level === EntityLevel.HTML) {
         if (opts.mode === EncodingMode.ASCII) {
@@ -154,8 +154,7 @@ export {
     encodeHTML,
     encodeNonAsciiHTML,
     escape,
-    encodeXML_UTF8,
-    encodeXML_UTF8 as escapeUTF8,
+    escapeUTF8,
     // Legacy aliases (deprecated)
     encodeHTML as encodeHTML4,
     encodeHTML as encodeHTML5,
