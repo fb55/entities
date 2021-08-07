@@ -39,11 +39,18 @@ This is how `entities` compares to other libraries on a very basic benchmark
 
 ## Acknowledgements
 
-This libary wouldn't be possible without the work of these individuals. Thanks to
+This libary wouldn't be possible without the work of these individuals. Thanks
+to
 
-- [@mathiasbynens](https://github.com/mathiasbynens) for his explanations about character encodings, and his library `he`, which was one of the inspirations for `entities`
-- [@inikulin](https://github.com/inikulin) for his work on optimized tries for decoding HTML entities for the `parse5` project
-- [@mdevils](https://github.com/mdevils) for taking on the challenge of producing a quick entity library with his `html-entities` library. `entities` would be quite a bit slower if there wasn't any competition. Right now `entities` is on top, but we'll see how long that lasts!
+-   [@mathiasbynens](https://github.com/mathiasbynens) for his explanations
+    about character encodings, and his library `he`, which was one of the
+    inspirations for `entities`
+-   [@inikulin](https://github.com/inikulin) for his work on optimized tries for
+    decoding HTML entities for the `parse5` project
+-   [@mdevils](https://github.com/mdevils) for taking on the challenge of
+    producing a quick entity library with his `html-entities` library.
+    `entities` would be quite a bit slower if there wasn't any competition.
+    Right now `entities` is on top, but we'll see how long that lasts!
 
 ---
 
