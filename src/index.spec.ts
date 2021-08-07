@@ -57,7 +57,7 @@ describe("Documents", () => {
                         level: i,
                         mode: entities.EncodingMode.ASCII,
                     })
-                ).toBe("Great #&apos;s of &#x1F381;"));
+                ).toBe("Great #&apos;s of &#x1f381;"));
         });
     }
 
@@ -78,8 +78,8 @@ describe("Documents", () => {
 });
 
 const astral = [
-    ["1D306", "\uD834\uDF06"],
-    ["1D11E", "\uD834\uDD1E"],
+    ["1d306", "\uD834\uDF06"],
+    ["1d11e", "\uD834\uDD1E"],
 ];
 
 const astralSpecial = [
@@ -114,5 +114,5 @@ describe("Escape", () => {
     });
 
     it("should keep UTF8 characters", () =>
-        expect(entities.escapeUTF8('ß < "ü"')).toBe(`ß &#x3C; &#x22;ü&#x22;`));
+        expect(entities.escapeUTF8('ß < "ü"')).toBe(`ß &lt; &quot;ü&quot;`));
 });

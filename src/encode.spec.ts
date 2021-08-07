@@ -4,7 +4,7 @@ describe("Encode->decode test", () => {
     const testcases = [
         {
             input: "asdf & ÿ ü '",
-            xml: "asdf &amp; &#xFF; &#xFC; &apos;",
+            xml: "asdf &amp; &#xff; &#xfc; &apos;",
             html: "asdf &amp; &yuml; &uuml; &apos;",
         },
         {
@@ -33,7 +33,7 @@ describe("Encode->decode test", () => {
             expect(entities.decodeHTML(encodedHTML5)).toBe(input));
         it("should encode emojis", () =>
             expect(entities.encodeHTML5("😄🍾🥳💥😇")).toBe(
-                "&#x1F604;&#x1F37E;&#x1F973;&#x1F4A5;&#x1F607;"
+                "&#x1f604;&#x1f37e;&#x1f973;&#x1f4a5;&#x1f607;"
             ));
     }
 
@@ -52,6 +52,6 @@ describe("encodeNonAsciiHTML", () => {
 
     it("should encode emojis", () =>
         expect(entities.encodeNonAsciiHTML("😄🍾🥳💥😇")).toBe(
-            "&#x1F604;&#x1F37E;&#x1F973;&#x1F4A5;&#x1F607;"
+            "&#x1f604;&#x1f37e;&#x1f973;&#x1f4a5;&#x1f607;"
         ));
 });
