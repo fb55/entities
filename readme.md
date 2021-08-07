@@ -28,12 +28,12 @@ entities.decodeHTML("asdf &amp; &yuml; &uuml; &apos;"); // "asdf & ÿ ü '"
 This is how `entities` compares to other libraries on a very basic benchmark
 (see `scripts/benchmark.ts`, for 10,000,000 iterations):
 
-| Library        | `decode` performance | `encode` performance | Bundle size                                                                |
-| -------------- | -------------------- | -------------------- | -------------------------------------------------------------------------- |
-| entities       | 10.809s              | 17.683s              | ![npm bundle size](https://img.shields.io/bundlephobia/min/entities)       |
-| html-entities  | 14.029s              | 22.670s              | ![npm bundle size](https://img.shields.io/bundlephobia/min/html-entities)  |
-| he             | 16.163s              | 44.010s              | ![npm bundle size](https://img.shields.io/bundlephobia/min/he)             |
-| parse-entities | 28.507s              | N/A                  | ![npm bundle size](https://img.shields.io/bundlephobia/min/parse-entities) |
+| Library        | `decode` perf | `encode` perf | `escape` perf | Bundle size                                                                |
+| -------------- | ------------- | ------------- | ------------- | -------------------------------------------------------------------------- |
+| entities       | 1.418s        | 6.786s        | 2.196s        | ![npm bundle size](https://img.shields.io/bundlephobia/min/entities)       |
+| html-entities  | 2.530s        | 6.829s        | 2.415s        | ![npm bundle size](https://img.shields.io/bundlephobia/min/html-entities)  |
+| he             | 5.800s        | 24.237s       | 3.624s        | ![npm bundle size](https://img.shields.io/bundlephobia/min/he)             |
+| parse-entities | 9.660s        | N/A           | N/A           | ![npm bundle size](https://img.shields.io/bundlephobia/min/parse-entities) |
 
 ---
 
