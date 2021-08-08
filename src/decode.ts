@@ -5,17 +5,16 @@ import decodeCodePoint from "./decode_codepoint";
 // Re-export for use by eg. htmlparser2
 export { htmlDecodeTree, xmlDecodeTree };
 
-export enum CharCodes {
-    NUM = "#".charCodeAt(0),
-    SEMI = ";".charCodeAt(0),
-    ZERO = "0".charCodeAt(0),
-    NINE = "9".charCodeAt(0),
-    LOWER_A = "a".charCodeAt(0),
-    UPPER_A = "A".charCodeAt(0),
-    LOWER_F = "f".charCodeAt(0),
-    UPPER_F = "F".charCodeAt(0),
-    LOWER_X = "x".charCodeAt(0),
-    UPPER_X = "X".charCodeAt(0),
+const enum CharCodes {
+    NUM = 35, // "#"
+    SEMI = 59, // ";"
+    ZERO = 48, // "0"
+    NINE = 57, // "9"
+    LOWER_A = 97, // "a"
+    LOWER_F = 102, // "f"
+    LOWER_X = 120, // "x"
+    /** Bit that needs to be set to convert an upper case ASCII character to lower case */
+    To_LOWER_BIT = 0b100000,
 }
 
 export enum BinTrieFlags {
@@ -46,7 +45,7 @@ function getDecoder(decodeTree: Uint16Array) {
                 let base = 10;
 
                 let cp = str.charCodeAt(start);
-                if (cp === CharCodes.LOWER_X || cp === CharCodes.UPPER_X) {
+                if ((cp | CharCodes.To_LOWER_BIT) === CharCodes.LOWER_X) {
                     base = 16;
                     strIdx += 1;
                     start += 1;
@@ -56,9 +55,8 @@ function getDecoder(decodeTree: Uint16Array) {
                     ((cp = str.charCodeAt(++strIdx)) >= CharCodes.ZERO &&
                         cp <= CharCodes.NINE) ||
                     (base === 16 &&
-                        ((cp >= CharCodes.LOWER_A && cp <= CharCodes.LOWER_F) ||
-                            (cp >= CharCodes.UPPER_A &&
-                                cp <= CharCodes.UPPER_F)))
+                        (cp | CharCodes.To_LOWER_BIT) >= CharCodes.LOWER_A &&
+                        (cp | CharCodes.To_LOWER_BIT) <= CharCodes.LOWER_F)
                 );
 
                 if (start !== strIdx) {

@@ -26,7 +26,7 @@ export function getTrie(
 
         if (key in legacy) next.value = map[key];
 
-        lastMap.set(CharCodes.SEMI, { value: map[key] });
+        lastMap.set(";".charCodeAt(0), { value: map[key] });
     }
 
     // Combine chains of nodes with a single branch to a postfix
