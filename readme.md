@@ -13,12 +13,12 @@ Encode & decode HTML & XML entities with ease & speed.
 ```javascript
 const entities = require("entities");
 
-//encoding
-entities.escape("&#38;"); // "&#x26;#38;"
-entities.encodeXML("&#38;"); // "&amp;#38;"
-entities.encodeHTML("&#38;"); // "&amp;&num;38&semi;"
+// Encoding
+entities.escapeUTF8("&#38; ü"); // "&amp;#38; ü"
+entities.encodeXML("&#38; ü"); // "&amp;#38; &#xfc;"
+entities.encodeHTML("&#38; ü"); // "&amp;&num;38&semi; &uuml;"
 
-//decoding
+// Decoding
 entities.decodeXML("asdf &amp; &#xFF; &#xFC; &apos;"); // "asdf & ÿ ü '"
 entities.decodeHTML("asdf &amp; &yuml; &uuml; &apos;"); // "asdf & ÿ ü '"
 ```
@@ -34,6 +34,36 @@ This is how `entities` compares to other libraries on a very basic benchmark
 | html-entities  | 2.530s        | 6.829s        | 2.415s        | ![npm bundle size](https://img.shields.io/bundlephobia/min/html-entities)  |
 | he             | 5.800s        | 24.237s       | 3.624s        | ![npm bundle size](https://img.shields.io/bundlephobia/min/he)             |
 | parse-entities | 9.660s        | N/A           | N/A           | ![npm bundle size](https://img.shields.io/bundlephobia/min/parse-entities) |
+
+---
+
+## FAQ
+
+> What methods should I actually use to encode my documents?
+
+If your target supports UTF-8, the `escapeUTF8` method is going to be your best
+choice. Otherwise, use either `encodeHTML` or `encodeXML` based on whether
+you're dealing with an HTML or an XML document.
+
+You can have a look at the options for the `encode` and `decode` methods to see
+everything you can configure.
+
+> Why should I use `entities` instead of alternative modules?
+
+As of August 2021, `entities` is a bit faster than other modules. Still, this is
+not a very differentiated space and other modules can catch up.
+
+**More importantly**, you might already have `entities` in your dependency graph
+(as a dependency of eg. cheerio, or htmlparser2), and including it directly
+might not even increase your bundle size. The same is true for other entity
+libraries, so have a look through your `node_modules` directory!
+
+> Does `entities` support tree shaking?
+
+This depends on your bundler, but yes, it should! Eg. recent versions of Webpack
+are able to tree-shake commonjs projects, and having the `sideEffects` flag in
+the `package.json` set to `false` means that your bundles should be much
+smaller.
 
 ---
 
