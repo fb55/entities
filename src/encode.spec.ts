@@ -54,4 +54,11 @@ describe("encodeNonAsciiHTML", () => {
         expect(entities.encodeNonAsciiHTML("😄🍾🥳💥😇")).toBe(
             "&#x1f604;&#x1f37e;&#x1f973;&#x1f4a5;&#x1f607;"
         ));
+
+    it("should encode chars above surrogates", () =>
+        expect(
+            entities.encodeNonAsciiHTML("♒️♓️♈️♉️♊️♋️♌️♍️♎️♏️♐️♑️")
+        ).toBe(
+            "&#x2652;&#xfe0f;&#x2653;&#xfe0f;&#x2648;&#xfe0f;&#x2649;&#xfe0f;&#x264a;&#xfe0f;&#x264b;&#xfe0f;&#x264c;&#xfe0f;&#x264d;&#xfe0f;&#x264e;&#xfe0f;&#x264f;&#xfe0f;&#x2650;&#xfe0f;&#x2651;&#xfe0f;"
+        ));
 });

@@ -41,7 +41,7 @@ export function encodeXML(str: string): string {
             ).toString(16)};`;
             // Increase by 1 if we have a surrogate pair
             lastIdx = xmlReplacer.lastIndex += Number(
-                (char & 0xd800) === 0xd800
+                (char & 0b1111_1111_1000_0000) === 0xd800
             );
         }
     }
