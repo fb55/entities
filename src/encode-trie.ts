@@ -1,5 +1,14 @@
 import htmlMap from "./maps/entities.json";
 
+const enum Surrogate {
+    Mask = 0b1111_1100_0000_0000,
+    High = 0b1101_1000_0000_0000,
+}
+
+function isHighSurrugate(c: number) {
+    return (c & Surrogate.Mask) === Surrogate.High;
+}
+
 // For compatibility with node < 4, we wrap `codePointAt`
 export const getCodePoint =
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
@@ -7,8 +16,8 @@ export const getCodePoint =
         ? (str: string, index: number): number => str.codePointAt(index)!
         : // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
           (c: string, index: number): number =>
-              (c.charCodeAt(index) & 0xd800) === 0xd800
-                  ? (c.charCodeAt(index) - 0xd800) * 0x400 +
+              isHighSurrugate(c.charCodeAt(index))
+                  ? (c.charCodeAt(index) - Surrogate.High) * 0x400 +
                     c.charCodeAt(index + 1) -
                     0xdc00 +
                     0x10000
@@ -45,7 +54,7 @@ export function encodeHTMLTrieRe(regExp: RegExp, str: string): string {
                 i
             ).toString(16)};`;
             // Increase by 1 if we have a surrogate pair
-            lastIdx = regExp.lastIndex += Number((char & 0xd800) === 0xd800);
+            lastIdx = regExp.lastIndex += Number(isHighSurrugate(char));
         }
     }
 
