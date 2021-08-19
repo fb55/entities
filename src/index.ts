@@ -41,10 +41,10 @@ export enum EncodingMode {
     Extensive,
 }
 
-interface DecodingOptions {
+export interface DecodingOptions {
     /**
      * The level of entities to support.
-     * @default EntityLevel.XML
+     * @default {@link EntityLevel.XML}
      */
     level?: EntityLevel;
     /**
@@ -56,7 +56,7 @@ interface DecodingOptions {
      *
      * The deprecated `decodeStrict` function defaults this to `Strict`.
      *
-     * @default DecodingMode.Legacy
+     * @default {@link DecodingMode.Legacy}
      */
     mode?: DecodingMode;
 }
@@ -112,12 +112,12 @@ export function decodeStrict(
 export interface EncodingOptions {
     /**
      * The level of entities to support.
-     * @default EntityLevel.XML
+     * @default {@link EntityLevel.XML}
      */
     level?: EntityLevel;
     /**
      * Output format.
-     * @default EncodingMode.Extensive
+     * @default {@link EncodingMode.Extensive}
      */
     mode?: EncodingMode;
 }

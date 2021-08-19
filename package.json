@@ -35,6 +35,7 @@
         "jest": "^27.0.3",
         "prettier": "^2.0.5",
         "ts-jest": "^27.0.5",
+        "typedoc": "^0.21.6",
         "typescript": "^4.0.2"
     },
     "scripts": {
@@ -48,6 +49,7 @@
         "format:prettier": "npm run prettier -- --write",
         "prettier": "prettier '**/*.{ts,md,json,yml}'",
         "build": "tsc && cp -r src/maps lib",
+        "build:docs": "typedoc --hideGenerator src/index.ts",
         "prepare": "npm run build"
     },
     "repository": {
