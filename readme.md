@@ -2,6 +2,19 @@
 
 Encode & decode HTML & XML entities with ease & speed.
 
+## Features
+
+-   ⚔️ Battle tested: `entities` is used by many popular libraries; eg.
+    [`htmlparser2`](https://github.com/fb55/htmlparser2), the official
+    [AWS SDK](https://github.com/aws/aws-sdk-js-v3) and
+    [`commonmark`](https://github.com/commonmark/commonmark.js) use it to
+    process HTML entities.
+-   ⚡️ Fast: `entities` is the fastes library for decoding HTML entities (as of
+    August 2021); see [performance](#performance).
+-   🎛 Configurable: Get an output tailored for your needs. You are fine with
+    UTF8? That'll safe you some bytes. Prefer to only have ASCII characters? We
+    can do that as well!
+
 ## How to…
 
 ### …install `entities`
@@ -26,14 +39,14 @@ entities.decodeHTML("asdf &amp; &yuml; &uuml; &apos;"); // "asdf & ÿ ü '"
 ## Performance
 
 This is how `entities` compares to other libraries on a very basic benchmark
-(see `scripts/benchmark.ts`, for 10,000,000 iterations):
+(see `scripts/benchmark.ts`, for 10,000,000 iterations; **lower is better**):
 
-| Library        | `decode` perf | `encode` perf | `escape` perf | Bundle size                                                                |
-| -------------- | ------------- | ------------- | ------------- | -------------------------------------------------------------------------- |
-| entities       | 1.418s        | 6.786s        | 2.196s        | ![npm bundle size](https://img.shields.io/bundlephobia/min/entities)       |
-| html-entities  | 2.530s        | 6.829s        | 2.415s        | ![npm bundle size](https://img.shields.io/bundlephobia/min/html-entities)  |
-| he             | 5.800s        | 24.237s       | 3.624s        | ![npm bundle size](https://img.shields.io/bundlephobia/min/he)             |
-| parse-entities | 9.660s        | N/A           | N/A           | ![npm bundle size](https://img.shields.io/bundlephobia/min/parse-entities) |
+| Library        | Version | `decode` perf | `encode` perf | `escape` perf |
+| -------------- | ------- | ------------- | ------------- | ------------- |
+| entities       | `3.0.1` | 1.418s        | 6.786s        | 2.196s        |
+| html-entities  | `2.3.2` | 2.530s        | 6.829s        | 2.415s        |
+| he             | `1.2.0` | 5.800s        | 24.237s       | 3.624s        |
+| parse-entities | `3.0.0` | 9.660s        | N/A           | N/A           |
 
 ---
 
@@ -54,7 +67,7 @@ As of August 2021, `entities` is a bit faster than other modules. Still, this is
 not a very differentiated space and other modules can catch up.
 
 **More importantly**, you might already have `entities` in your dependency graph
-(as a dependency of eg. cheerio, or htmlparser2), and including it directly
+(as a dependency of eg. `cheerio`, or `htmlparser2`), and including it directly
 might not even increase your bundle size. The same is true for other entity
 libraries, so have a look through your `node_modules` directory!
 
