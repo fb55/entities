@@ -61,6 +61,12 @@ you're dealing with an HTML or an XML document.
 You can have a look at the options for the `encode` and `decode` methods to see
 everything you can configure.
 
+> When should I use strict decoding?
+
+Strict decoding is for decoding entities in attributes, as well as in legacy
+environments. When strict decoding, entities not terminated with a semicolon
+will be ignored.
+
 > Why should I use `entities` instead of alternative modules?
 
 As of August 2021, `entities` is a bit faster than other modules. Still, this is
