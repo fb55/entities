@@ -1,5 +1,3 @@
-import { CharCodes } from "../../src/decode";
-
 export interface TrieNode {
     value?: string;
     postfix?: string;

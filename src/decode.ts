@@ -51,9 +51,9 @@ function getDecoder(decodeTree: Uint16Array) {
                     start += 1;
                 }
 
+                do cp = str.charCodeAt(++strIdx);
                 while (
-                    ((cp = str.charCodeAt(++strIdx)) >= CharCodes.ZERO &&
-                        cp <= CharCodes.NINE) ||
+                    (cp >= CharCodes.ZERO && cp <= CharCodes.NINE) ||
                     (base === 16 &&
                         (cp | CharCodes.To_LOWER_BIT) >= CharCodes.LOWER_A &&
                         (cp | CharCodes.To_LOWER_BIT) <= CharCodes.LOWER_F)

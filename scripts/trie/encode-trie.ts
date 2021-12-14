@@ -193,7 +193,7 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
             (val) =>
                 typeof val === "number" && val >= 0 && binaryLength(val) <= 16
         ),
-        "Too many bytes"
+        "Too many bits"
     );
 
     return enc;
