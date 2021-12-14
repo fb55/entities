@@ -76,7 +76,7 @@ function getDecoder(decodeTree: Uint16Array) {
                 continue;
             }
 
-            let result: string | null = null;
+            let resultIdx = 0;
             let excess = 1;
             let treeIdx = 0;
             let current = decodeTree[treeIdx];
@@ -101,20 +101,23 @@ function getDecoder(decodeTree: Uint16Array) {
                         treeIdx += 1;
                     } else {
                         // If this is a surrogate pair, combine the higher bits from the node with the next byte
-                        result =
-                            current & BinTrieFlags.MULTI_BYTE
-                                ? String.fromCharCode(
-                                      decodeTree[++treeIdx],
-                                      decodeTree[++treeIdx]
-                                  )
-                                : String.fromCharCode(decodeTree[++treeIdx]);
+                        resultIdx = treeIdx;
+                        treeIdx +=
+                            1 +
+                            Number((current & BinTrieFlags.MULTI_BYTE) !== 0);
                         excess = 0;
                     }
                 }
             }
 
-            if (result != null) {
-                ret += result;
+            if (resultIdx !== 0) {
+                ret +=
+                    decodeTree[resultIdx] & BinTrieFlags.MULTI_BYTE
+                        ? String.fromCharCode(
+                              decodeTree[resultIdx + 1],
+                              decodeTree[resultIdx + 2]
+                          )
+                        : String.fromCharCode(decodeTree[resultIdx + 1]);
                 lastIdx = strIdx - excess + 1;
             }
         }
