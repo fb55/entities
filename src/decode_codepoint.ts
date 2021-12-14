@@ -49,10 +49,14 @@ const fromCodePoint =
         return output;
     };
 
-export default function decodeCodePoint(codePoint: number): string {
+export function replaceCodePoint(codePoint: number) {
     if ((codePoint >= 0xd800 && codePoint <= 0xdfff) || codePoint > 0x10ffff) {
-        return "\uFFFD";
+        return 0xfffd;
     }
 
-    return fromCodePoint(decodeMap.get(codePoint) ?? codePoint);
+    return decodeMap.get(codePoint) ?? codePoint;
+}
+
+export default function decodeCodePoint(codePoint: number): string {
+    return fromCodePoint(replaceCodePoint(codePoint));
 }
