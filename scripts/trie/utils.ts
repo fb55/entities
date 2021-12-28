@@ -21,25 +21,13 @@ function parseNode(decodeMap: number[], startIndex: number): TrieNode {
     }
     const value = decodeMap[index++];
     const hasValue = value & BinTrieFlags.HAS_VALUE;
-    const isNumber = value & BinTrieFlags.IS_NUMBER;
     const node: TrieNode = {
         postfix,
-        value:
-            hasValue && !isNumber
-                ? value & BinTrieFlags.HEX_OR_MULTI_BYTE
-                    ? String.fromCharCode(
-                          decodeMap[index++],
-                          decodeMap[index++]
-                      )
-                    : String.fromCharCode(decodeMap[index++])
-                : undefined,
-        base:
-            hasValue && isNumber
-                ? value & BinTrieFlags.HEX_OR_MULTI_BYTE
-                    ? 16
-                    : 10
-                : undefined,
-        legacy: !!(value & BinTrieFlags.LEGACY),
+        value: hasValue
+            ? value & BinTrieFlags.MULTI_BYTE
+                ? String.fromCharCode(decodeMap[index++], decodeMap[index++])
+                : String.fromCharCode(decodeMap[index++])
+            : undefined,
         next: undefined,
     };
 
@@ -85,8 +73,6 @@ function printTrie(trie: TrieNode, prefix = "") {
         trie.postfix,
         "value",
         trie.value,
-        "base",
-        trie.base,
         "next size",
         trie.next?.size
     );
@@ -98,4 +84,4 @@ function printTrie(trie: TrieNode, prefix = "") {
 }
 
 const parsedXMLDecodedTrie = parseNode(decodeXMLMap, 0);
-console.log(printTrie(parsedXMLDecodedTrie));
+printTrie(parsedXMLDecodedTrie);
