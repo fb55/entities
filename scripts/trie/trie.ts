@@ -33,6 +33,7 @@ export function getTrie(
             return false;
         }
 
+        // Check if the next nodes are equal. That means both are undefined.
         if (node1.next === node2.next) return true;
         if (
             node1.next == null ||
