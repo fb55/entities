@@ -142,15 +142,15 @@ export function determineBranch(
         return -1;
     }
 
-    if (branchCount === 1) {
-        return char === decodeTree[nodeIdx] ? nodeIdx + 1 : -1;
-    }
-
     const jumpOffset = current & BinTrieFlags.JUMP_TABLE;
     if (jumpOffset) {
         const value = char - JUMP_OFFSET_BASE - jumpOffset;
 
-        return value < 0 || value > branchCount
+        return branchCount === 1
+            ? value === 0
+                ? nodeIdx
+                : -1
+            : value < 0 || value > branchCount
             ? -1
             : decodeTree[nodeIdx + value] - 1;
     }

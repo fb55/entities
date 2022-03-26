@@ -1,5 +1,6 @@
-import { BinTrieFlags } from "../../src/decode";
+import { BinTrieFlags, JUMP_OFFSET_BASE } from "../../src/decode";
 import { encodeTrie } from "./encode-trie";
+import type { TrieNode } from "./trie";
 
 describe("encode_trie", () => {
     it("should encode an empty node", () => {
@@ -36,10 +37,32 @@ describe("encode_trie", () => {
                 next: new Map([["b".charCodeAt(0), { value: "a" }]]),
             })
         ).toStrictEqual([
-            0b0000_0001_0000_0000,
-            "b".charCodeAt(0),
+            0b0000_0001_0000_0000 | ("b".charCodeAt(0) - JUMP_OFFSET_BASE),
             BinTrieFlags.HAS_VALUE,
             "a".charCodeAt(0),
+        ]);
+    });
+
+    it("should encode a branch of size 1 with a value that's already encoded", () => {
+        const nodeA: TrieNode = { value: "a" };
+        const nodeC = { next: new Map([["c".charCodeAt(0), nodeA]]) };
+        const trie = {
+            next: new Map<number, TrieNode>([
+                ["A".charCodeAt(0), nodeA],
+                ["b".charCodeAt(0), nodeC],
+            ]),
+        };
+        expect(encodeTrie(trie)).toStrictEqual([
+            0b0000_0010_0000_0000,
+            "A".charCodeAt(0),
+            "b".charCodeAt(0),
+            0b101,
+            0b111,
+            BinTrieFlags.HAS_VALUE,
+            "a".charCodeAt(0),
+            0b0000_0010_0000_0000 | ("c".charCodeAt(0) - JUMP_OFFSET_BASE),
+            0b110, // Index plus one
+            0, // Wasted byte, due to edge-case
         ]);
     });
 
