@@ -1,18 +1,16 @@
-import xmlMap from "./maps/xml.json";
 import { encodeHTMLTrieRe, getCodePoint } from "./encode-trie";
 
-import htmlMap from "./maps/entities.json";
+const htmlReplacer = /[\t\n!-,./:-@[-`\f{-}$\x80-\uFFFF]/g;
+const xmlReplacer = /["&'<>$\x80-\uFFFF]/g;
+const xmlInvalidChars = /[&<>'"]/g;
 
-const htmlReplacer = getCharRegExp(htmlMap, true);
-const xmlReplacer = getCharRegExp(xmlMap, true);
-const xmlInvalidChars = getCharRegExp(xmlMap, false);
-
-const xmlCodeMap = new Map(
-    Object.keys(xmlMap).map((k) => [
-        (xmlMap as Record<string, string>)[k].charCodeAt(0),
-        `&${k};`,
-    ])
-);
+const xmlCodeMap = new Map([
+    [34, "&quot;"],
+    [38, "&amp;"],
+    [39, "&apos;"],
+    [60, "&lt;"],
+    [62, "&gt;"],
+]);
 
 /**
  * Encodes all non-ASCII characters, as well as characters not valid in XML
@@ -71,40 +69,6 @@ export function encodeHTML(data: string): string {
  */
 export function encodeNonAsciiHTML(data: string): string {
     return encodeHTMLTrieRe(xmlReplacer, data);
-}
-
-function getCharRegExp(map: Record<string, string>, nonAscii: boolean): RegExp {
-    // Collect the start characters of all entities
-    const chars = Object.keys(map)
-        .map((k) => `\\${map[k].charAt(0)}`)
-        .filter((v) => !nonAscii || v.charCodeAt(1) < 128)
-        .sort((a, b) => a.charCodeAt(1) - b.charCodeAt(1))
-        // Remove duplicates
-        .filter((v, i, a) => v !== a[i + 1]);
-
-    // Add ranges to single characters.
-    for (let start = 0; start < chars.length - 1; start++) {
-        // Find the end of a run of characters
-        let end = start;
-        while (
-            end < chars.length - 1 &&
-            chars[end].charCodeAt(1) + 1 === chars[end + 1].charCodeAt(1)
-        ) {
-            end += 1;
-        }
-
-        const count = 1 + end - start;
-
-        // We want to replace at least three characters
-        if (count < 3) continue;
-
-        chars.splice(start, count, `${chars[start]}-${chars[end]}`);
-    }
-
-    return new RegExp(
-        `[${chars.join("")}${nonAscii ? "\\x80-\\uFFFF" : ""}]`,
-        "g"
-    );
 }
 
 /**
