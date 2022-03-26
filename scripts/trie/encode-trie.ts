@@ -91,6 +91,17 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
             "Too many bits for branches"
         );
 
+        // If we only have a single branch, we can write the next value directly
+        if (branches.length === 1 && !encodeCache.has(branches[0][1])) {
+            const [char, next] = branches[0];
+
+            assert.ok(binaryLength(char) <= 7, "Too many bits for single char");
+
+            enc[nodeIdx] |= char;
+            encodeNode(next, depth);
+            return;
+        }
+
         const branchIndex = enc.length;
 
         // If we have consecutive branches, we can write the next value as a jump table
@@ -105,16 +116,7 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
         const jumpStartValue = branches[0][0];
         const jumpEndValue = branches[branches.length - 1][0];
 
-        const jumpTableLength =
-            /*
-             * In the edge-case of a single branch with a value that was already decoded,
-             * use a jump table of size two (with the second value wasted).
-             *
-             * This happens in 4 cases right now, out of 98 single-value branches.
-             */
-            branches.length === 1 && encodeCache.has(branches[0][1])
-                ? 2
-                : jumpEndValue - jumpStartValue + 1;
+        const jumpTableLength = jumpEndValue - jumpStartValue + 1;
 
         const jumpTableOverhead = jumpTableLength / branches.length;
 
@@ -133,12 +135,6 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
                 binaryLength(jumpTableLength) <= 7,
                 `Too many bits (${binaryLength(jumpTableLength)}) for branches`
             );
-
-            // Jump table length 1 signals that we skip the jump table and go directly to the next value.
-            if (jumpTableLength === 1) {
-                encodeNode(branches[0][1], depth);
-                return;
-            }
 
             // Reserve space for the jump table
             for (let i = 0; i < jumpTableLength; i++) enc.push(0);

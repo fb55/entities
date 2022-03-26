@@ -130,25 +130,17 @@ export function determineBranch(
     nodeIdx: number,
     char: number
 ): number {
-    if (current <= 128) {
-        return char === current ? nodeIdx : -1;
-    }
-
     const branchCount = (current & BinTrieFlags.BRANCH_LENGTH) >> 8;
+    const jumpOffset = current & BinTrieFlags.JUMP_TABLE;
 
     if (branchCount === 0) {
-        return -1;
+        return jumpOffset !== 0 && char === jumpOffset ? nodeIdx : -1;
     }
 
-    const jumpOffset = current & BinTrieFlags.JUMP_TABLE;
     if (jumpOffset) {
         const value = char - jumpOffset;
 
-        return branchCount === 1
-            ? value === 0
-                ? nodeIdx
-                : -1
-            : value < 0 || value > branchCount
+        return value < 0 || value > branchCount
             ? -1
             : decodeTree[nodeIdx + value] - 1;
     }
