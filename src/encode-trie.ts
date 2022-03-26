@@ -69,19 +69,19 @@ export interface TrieNode {
 export function getTrie(map: Record<string, string>): Map<number, TrieNode> {
     const trie = new Map<number, TrieNode>();
 
-    for (const value of Object.keys(map)) {
-        const key = map[value];
+    for (const entity of Object.keys(map)) {
+        const decoded = map[entity];
         // Resolve the key
         let lastMap = trie;
-        for (let i = 0; i < key.length - 1; i++) {
-            const char = key.charCodeAt(i);
+        for (let i = 0; i < decoded.length - 1; i++) {
+            const char = decoded.charCodeAt(i);
             const next = lastMap.get(char) ?? {};
             lastMap.set(char, next);
             lastMap = next.next ??= new Map();
         }
-        const val = lastMap.get(key.charCodeAt(key.length - 1)) ?? {};
-        val.value ??= `&${value};`;
-        lastMap.set(key.charCodeAt(key.length - 1), val);
+        const val = lastMap.get(decoded.charCodeAt(decoded.length - 1)) ?? {};
+        val.value ??= `&${entity};`;
+        lastMap.set(decoded.charCodeAt(decoded.length - 1), val);
     }
 
     return trie;

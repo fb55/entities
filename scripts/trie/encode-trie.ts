@@ -31,7 +31,7 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
     const encodeCache = new Map<TrieNode, number>();
     const enc: number[] = [];
 
-    function encodeNode(node: TrieNode, depth: number): number {
+    function encodeNode(node: TrieNode): number {
         // Cache nodes, as we can have loops
         const cached = encodeCache.get(node);
         if (cached != null) return cached;
@@ -53,18 +53,14 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
                 enc.push(node.value.charCodeAt(i));
         }
 
-        if (node.next) addBranches(node.next, nodeIdx, depth + 1);
+        if (node.next) addBranches(node.next, nodeIdx);
 
         assert.strictEqual(nodeIdx, startIndex, "Has expected location");
 
         return startIndex;
     }
 
-    function addBranches(
-        next: Map<number, TrieNode>,
-        nodeIdx: number,
-        depth: number
-    ) {
+    function addBranches(next: Map<number, TrieNode>, nodeIdx: number) {
         const branches = Array.from(next.entries());
 
         // Sort branches ASC by key
@@ -82,7 +78,7 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
             assert.ok(binaryLength(char) <= 7, "Too many bits for single char");
 
             enc[nodeIdx] |= char;
-            encodeNode(next, depth);
+            encodeNode(next);
             return;
         }
 
@@ -127,7 +123,7 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
             for (const [char, next] of branches) {
                 const index = char - jumpStartValue;
                 // Write all values + 1, so 0 will result in a -1 when decoding
-                enc[branchIndex + index] = encodeNode(next, depth) + 1;
+                enc[branchIndex + index] = encodeNode(next) + 1;
             }
 
             return;
@@ -162,14 +158,14 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
                 Number.MAX_SAFE_INTEGER,
                 "Should have the placeholder as the second element"
             );
-            const offset = encodeNode(next, depth);
+            const offset = encodeNode(next);
 
             assert.ok(binaryLength(offset) <= 16, "Too many bits for offset");
             enc[currentIndex] = offset;
         });
     }
 
-    encodeNode(trie, 0);
+    encodeNode(trie);
 
     // Make sure that every value fits in a UInt16
     assert.ok(
