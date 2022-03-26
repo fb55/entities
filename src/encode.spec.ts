@@ -42,15 +42,6 @@ describe("Encode->decode test", () => {
             "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAALAAABAAEAAAIBRAA7";
         expect(entities.decode(entities.encode(data))).toBe(data);
     });
-
-    it("should HTML encode all ASCII characters", () => {
-        for (let i = 0; i < 128; i++) {
-            const char = String.fromCharCode(i);
-            const encoded = entities.encodeHTML(char);
-            const decoded = entities.decodeHTML(encoded);
-            expect(decoded).toBe(char);
-        }
-    });
 });
 
 describe("encodeNonAsciiHTML", () => {
