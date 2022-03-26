@@ -1,4 +1,4 @@
-# Named entity array-mapped radix tree generator
+# Named entity array-mapped trie generator
 
 In `v3.0.0`, `entities` adopted a version of the radix tree from
 [`parse5`](https://github.com/inikulin/parse5). The below is adapted from
@@ -13,15 +13,13 @@ size of the character reference data to ~250Kb, at equivalent performance.
 
 ## Radix tree
 
-The trie was replaced with a
-[radix tree](https://en.wikipedia.org/wiki/Radix_tree). Unlike a trie, which
-contains only _nodes_, a radix tree contains _nodes_ and _edges_. If subsequent
-nodes contain only one branch, they can be combined into a single edge.
+All entities are encoded as a trie, which contains _nodes_. Nodes contain data
+and branches.
 
 E.g. for the words `test`, `tester` and `testing`, we'll receive the following
 trie:
 
-Legend: `[a, ...]` - node, `<abc>` - edge, `*` - data.
+Legend: `[a, ...]` - node, `*` - data.
 
 ```
               [t]
@@ -41,30 +39,11 @@ Legend: `[a, ...]` - node, `<abc>` - edge, `*` - data.
               [*]
 ```
 
-With a radix tree, this is reduced to:
+## Mapping the trie to an array
 
-```
-        <test>
-          |
-      [e, i, *]
-      /   |
-    <r>  <ng>
-     |     |
-    [*]   [*]
-```
-
-This approach has two advantages:
-
--   it significantly reduces the number of nodes, and thus memory allocated for
-    the data strucure;
--   edges can be represented as a simple array.
-
-## Mapping the radix tree to an array
-
-We've significantly reduced the size of the tree. However, since we need to
-allocate an object for each node and array for each edge, it still consumes a
-lot of memory. Therefore, we map our tree to an array, so we'll end up with just
-a single object. Since we don't have indices and code points which are more than
+Since we need to allocate an object for each node, the trie consumes a lot of
+memory. Therefore, we map our trie to an array, so we'll end up with just a
+single object. Since we don't have indices and code points which are more than
 `MAX_UINT16` (which is `0xFFFF`), we can use a `Uint16Array` for this.
 
 The only exception here are
@@ -73,18 +52,7 @@ which appear in named character reference results. They can be split across two
 `uint16` code points. The advantage of typed arrays is that they consume less
 memory and are extremely fast to traverse.
 
-Since edges are already arrays, we write them to the final array as is.
-
-### Mapping nodes
-
-#### Node header
-
-Edges are represented as plain code points. To distinguish nodes from edges, we
-need a marker, which will tell the traversing algorithm that it found a node.
-
-Character reference names contain only ASCII characters. So, any value above 128
-will be outside of this range. We therefore use the upper 8 bits to identify
-nodes.
+### Node layout
 
 A node may contain one or two bytes of data and/or branch data. The layout of a
 node is as follows:
@@ -95,29 +63,32 @@ node is as follows:
   \        \         \         \
    \        \         \         jump table offset
     \        \         flag if the value uses two bytes (for surrugate pairs)
-     \        number of branch data bytes
-      node marker
+     \        number of branches
+      has value flag
 ```
 
-The higher 8 bit are relevant for distinguishing nodes from edges, the lower
-ones provide supplemental information.
+If the _has value_ flag is set, the node will immediately be followed by the
+value. If it has any branch data (indicated by the _number of branches_ or the
+_jump table offset_ being set), it will then be followed by the branch data.
 
-#### Branch data
+### Branch data
 
 Branches can be represented in three different ways:
 
--   If we only have a single branch, and this branch wasn't encoded earlier in
-    the tree, we set the branch number to 0 and the jump table offset to the
-    branch data. The behavior of the branch is then identical to an edge.
--   If the branches edges are close to one another, we use a jump table. This is
+1.  If we only have a single branch, and this branch wasn't encoded earlier in
+    the tree, we set the number of branch to 0 and the jump table offset to the
+    branch value. The node will be followed by the serialized branch.
+2.  If the branch values are close to one another, we use a jump table. This is
     indicated by the jump table offset not being 0. The jump table is an array
-    of destination indices. Index 0 is used for the value of the jump table
-    offset.
--   If the branches edges are far apart, we use a dictionary. Branch data is
+    of destination indices.
+3.  If the branch values are far apart, we use a dictionary. Branch data is
     represented by two arrays, following one after another. The first array
     contains sorted transition code points, the second one the corresponding
-    next edge/node indices. The traversing algorithm will use a binary search to
+    next edge/node indices. The traversing algorithm will use binary search to
     find the key, and will then use the corresponding value as the jump target.
 
-The original `parse5` implementation only used the dictionary approach. Adding
-the alternative approaches led to a size reduction of the tree.
+The original `parse5` implementation used a radix tree as the basis for the
+encoded structure. It used a dictionary (see (3) above), as well as a variation
+of (1) for edges of the radix tree. The implementation in `entities` allowed us
+to use a trie when starting to decode, and gave us some space savings in the
+output.
