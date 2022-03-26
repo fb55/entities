@@ -50,6 +50,7 @@
         "prettier": "prettier '**/*.{ts,md,json,yml}'",
         "build": "tsc && cp -r src/maps lib",
         "build:docs": "typedoc --hideGenerator src/index.ts",
+        "build:trie": "ts-node scripts/write-decode-map.ts",
         "prepare": "npm run build"
     },
     "repository": {

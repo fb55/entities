@@ -1,4 +1,3 @@
-import { JUMP_OFFSET_BASE } from "./../../src/decode";
 import { getTrie, TrieNode } from "./trie";
 import { encodeTrie } from "./encode-trie";
 import { BinTrieFlags } from "../../src/decode";
@@ -15,14 +14,9 @@ function parseNode(decodeMap: number[], startIndex: number): TrieNode {
     const cached = parseCache.get(startIndex);
     if (cached != null) return cached;
     let index = startIndex;
-    let postfix = "";
-    while (decodeMap[index] < 128) {
-        postfix += String.fromCharCode(decodeMap[index++]);
-    }
     const value = decodeMap[index++];
     const hasValue = value & BinTrieFlags.HAS_VALUE;
     const node: TrieNode = {
-        postfix,
         value: hasValue
             ? value & BinTrieFlags.MULTI_BYTE
                 ? String.fromCharCode(decodeMap[index++], decodeMap[index++])
@@ -44,7 +38,7 @@ function parseNode(decodeMap: number[], startIndex: number): TrieNode {
 
             for (let i = 0; i < branchLength; i++) {
                 if (decodeMap[index] !== 0) {
-                    const code = JUMP_OFFSET_BASE + offset + i;
+                    const code = offset + i;
                     next.set(code, parseNode(decodeMap, decodeMap[index + i]));
                 }
             }
@@ -69,8 +63,6 @@ function printTrie(trie: TrieNode, prefix = "") {
     console.log(
         "prefix",
         prefix,
-        "postfix",
-        trie.postfix,
         "value",
         trie.value,
         "next size",

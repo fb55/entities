@@ -1,7 +1,5 @@
 export interface TrieNode {
     value?: string;
-    postfix?: string;
-    offset?: number;
     next?: Map<number, TrieNode>;
 }
 
@@ -10,6 +8,7 @@ export function getTrie(
     legacy: Record<string, string>
 ): TrieNode {
     const trie = new Map<number, TrieNode>();
+    const root = { next: trie };
 
     for (const key of Object.keys(map)) {
         // Resolve the key
@@ -27,27 +26,53 @@ export function getTrie(
         lastMap.set(";".charCodeAt(0), { value: map[key] });
     }
 
-    // Combine chains of nodes with a single branch to a postfix
-    function addPostfixes(node: TrieNode, offset: number) {
-        if (node.next) {
-            node.next.forEach((next) => addPostfixes(next, offset + 1));
+    function isEqual(node1: TrieNode, node2: TrieNode): boolean {
+        if (node1 === node2) return true;
 
-            if (node.value == null && node.next.size === 1) {
-                node.next.forEach((next, char) => {
-                    node.postfix =
-                        String.fromCharCode(char) + (next.postfix ?? "");
-                    node.value = next.value;
-                    node.next = next.next;
-                });
-            }
+        if (node1.value !== node2.value) {
+            return false;
         }
 
-        if (node.value != null) {
-            node.offset = offset + (node.postfix?.length ?? 0);
+        // Check if the next nodes are equal. That means both are undefined.
+        if (node1.next === node2.next) return true;
+        if (
+            node1.next == null ||
+            node2.next == null ||
+            node1.next.size !== node2.next.size
+        ) {
+            return false;
+        }
+
+        const next1 = [...node1.next];
+        const next2 = [...node2.next];
+
+        return next1.every(([char1, node1], idx) => {
+            const [char2, node2] = next2[idx];
+            return char1 === char2 && isEqual(node1, node2);
+        });
+    }
+
+    function mergeDuplicates(node: TrieNode) {
+        const nodes = [node];
+
+        for (let nodeIdx = 0; nodeIdx < nodes.length; nodeIdx++) {
+            const { next } = nodes[nodeIdx];
+
+            if (!next) continue;
+
+            for (const [char, node] of next) {
+                const idx = nodes.findIndex((n) => isEqual(n, node));
+
+                if (idx >= 0) {
+                    next.set(char, nodes[idx]);
+                } else {
+                    nodes.push(node);
+                }
+            }
         }
     }
 
-    trie.forEach((node) => addPostfixes(node, 0));
+    mergeDuplicates(root);
 
-    return { next: trie };
+    return root;
 }

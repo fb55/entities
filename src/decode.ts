@@ -24,8 +24,6 @@ export enum BinTrieFlags {
     JUMP_TABLE = 0b0000_0000_0111_1111,
 }
 
-export const JUMP_OFFSET_BASE = CharCodes.ZERO - 1;
-
 function getDecoder(decodeTree: Uint16Array) {
     return function decodeHTMLBinary(str: string, strict: boolean): string {
         let ret = "";
@@ -132,23 +130,15 @@ export function determineBranch(
     nodeIdx: number,
     char: number
 ): number {
-    if (current <= 128) {
-        return char === current ? nodeIdx : -1;
-    }
-
     const branchCount = (current & BinTrieFlags.BRANCH_LENGTH) >> 8;
+    const jumpOffset = current & BinTrieFlags.JUMP_TABLE;
 
     if (branchCount === 0) {
-        return -1;
+        return jumpOffset !== 0 && char === jumpOffset ? nodeIdx : -1;
     }
 
-    if (branchCount === 1) {
-        return char === decodeTree[nodeIdx] ? nodeIdx + 1 : -1;
-    }
-
-    const jumpOffset = current & BinTrieFlags.JUMP_TABLE;
     if (jumpOffset) {
-        const value = char - JUMP_OFFSET_BASE - jumpOffset;
+        const value = char - jumpOffset;
 
         return value < 0 || value > branchCount
             ? -1
