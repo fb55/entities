@@ -1,6 +1,5 @@
 export interface TrieNode {
     value?: string;
-    postfix?: string;
     next?: Map<number, TrieNode>;
 }
 
@@ -30,7 +29,7 @@ export function getTrie(
     function isEqual(node1: TrieNode, node2: TrieNode): boolean {
         if (node1 === node2) return true;
 
-        if (node1.value !== node2.value || node1.postfix !== node2.postfix) {
+        if (node1.value !== node2.value) {
             return false;
         }
 
@@ -72,23 +71,7 @@ export function getTrie(
         }
     }
 
-    // Combine chains of nodes with a single branch to a postfix
-    function addPostfixes(node: TrieNode) {
-        if (node.next) {
-            node.next.forEach((next) => addPostfixes(next));
-
-            if (node.value == null && node.next.size === 1) {
-                const [[char, next]] = node.next;
-
-                node.postfix = String.fromCharCode(char) + (next.postfix ?? "");
-                node.value = next.value;
-                node.next = next.next;
-            }
-        }
-    }
-
     mergeDuplicates(root);
-    addPostfixes(root);
 
     return root;
 }

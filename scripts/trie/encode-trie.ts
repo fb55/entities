@@ -11,8 +11,7 @@ function binaryLength(num: number) {
 /**
  * Encodes the trie in binary form.
  *
- * We have four different types of nodes:
- * - Postfixes are ASCII values that match a particular character
+ * We have three different types of nodes:
  * - Values are UNICODE values that an entity resolves to
  * - Branches can be:
  *      1. If size is 1, then a matching character followed by the destination
@@ -41,17 +40,6 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
 
         encodeCache.set(node, startIndex);
 
-        if (node.postfix != null) {
-            for (let i = 0; i < node.postfix.length; i++) {
-                const char = node.postfix.charCodeAt(i);
-
-                assert.ok(char < 128, "Char not in range");
-
-                // Start record with the postfix, as we have to match this first.
-                enc.push(char);
-            }
-        }
-
         const nodeIdx = enc.push(0) - 1;
 
         if (node.value != null) {
@@ -67,11 +55,7 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
 
         if (node.next) addBranches(node.next, nodeIdx, depth + 1);
 
-        assert.strictEqual(
-            nodeIdx,
-            startIndex + (node.postfix?.length ?? 0),
-            "Has expected location"
-        );
+        assert.strictEqual(nodeIdx, startIndex, "Has expected location");
 
         return startIndex;
     }

@@ -14,14 +14,9 @@ function parseNode(decodeMap: number[], startIndex: number): TrieNode {
     const cached = parseCache.get(startIndex);
     if (cached != null) return cached;
     let index = startIndex;
-    let postfix = "";
-    while (decodeMap[index] < 128) {
-        postfix += String.fromCharCode(decodeMap[index++]);
-    }
     const value = decodeMap[index++];
     const hasValue = value & BinTrieFlags.HAS_VALUE;
     const node: TrieNode = {
-        postfix,
         value: hasValue
             ? value & BinTrieFlags.MULTI_BYTE
                 ? String.fromCharCode(decodeMap[index++], decodeMap[index++])
@@ -68,8 +63,6 @@ function printTrie(trie: TrieNode, prefix = "") {
     console.log(
         "prefix",
         prefix,
-        "postfix",
-        trie.postfix,
         "value",
         trie.value,
         "next size",

@@ -22,15 +22,6 @@ describe("encode_trie", () => {
         ]);
     });
 
-    it("should encode a node with a value and a postfix", () => {
-        expect(encodeTrie({ value: "a", postfix: "bc" })).toStrictEqual([
-            "b".charCodeAt(0),
-            "c".charCodeAt(0),
-            BinTrieFlags.HAS_VALUE,
-            "a".charCodeAt(0),
-        ]);
-    });
-
     it("should encode a branch of size 1", () => {
         expect(
             encodeTrie({
