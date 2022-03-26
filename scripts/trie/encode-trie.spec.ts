@@ -77,17 +77,7 @@ describe("encode_trie", () => {
             jumpRecursiveTrie.next.set(val, jumpRecursiveTrie)
         );
         expect(encodeTrie(jumpRecursiveTrie)).toStrictEqual([
-            0b0000_1010_0000_0000 | 48,
-            1,
-            1,
-            0,
-            0,
-            1,
-            0,
-            1,
-            0,
-            1,
-            1,
+            0b0000_1010_0011_0000, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1,
         ]);
     });
 });
