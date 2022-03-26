@@ -1,4 +1,4 @@
-import { BinTrieFlags, JUMP_OFFSET_BASE } from "../../src/decode";
+import { BinTrieFlags } from "../../src/decode";
 import { encodeTrie } from "./encode-trie";
 import type { TrieNode } from "./trie";
 
@@ -37,7 +37,7 @@ describe("encode_trie", () => {
                 next: new Map([["b".charCodeAt(0), { value: "a" }]]),
             })
         ).toStrictEqual([
-            0b0000_0001_0000_0000 | ("b".charCodeAt(0) - JUMP_OFFSET_BASE),
+            0b0000_0001_0000_0000 | "b".charCodeAt(0),
             BinTrieFlags.HAS_VALUE,
             "a".charCodeAt(0),
         ]);
@@ -60,7 +60,7 @@ describe("encode_trie", () => {
             0b111,
             BinTrieFlags.HAS_VALUE,
             "a".charCodeAt(0),
-            0b0000_0010_0000_0000 | ("c".charCodeAt(0) - JUMP_OFFSET_BASE),
+            0b0000_0010_0000_0000 | "c".charCodeAt(0),
             0b110, // Index plus one
             0, // Wasted byte, due to edge-case
         ]);
@@ -87,7 +87,17 @@ describe("encode_trie", () => {
             jumpRecursiveTrie.next.set(val, jumpRecursiveTrie)
         );
         expect(encodeTrie(jumpRecursiveTrie)).toStrictEqual([
-            0b0000_1010_0000_0001, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1,
+            0b0000_1010_0000_0000 | 48,
+            1,
+            1,
+            0,
+            0,
+            1,
+            0,
+            1,
+            0,
+            1,
+            1,
         ]);
     });
 });

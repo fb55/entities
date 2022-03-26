@@ -1,7 +1,7 @@
 /* eslint-disable node/no-unsupported-features/es-builtins */
 
 import * as assert from "assert";
-import { BinTrieFlags, JUMP_OFFSET_BASE } from "../../src/decode";
+import { BinTrieFlags } from "../../src/decode";
 import { TrieNode } from "./trie";
 
 function binaryLength(num: number) {
@@ -119,7 +119,7 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
         const jumpTableOverhead = jumpTableLength / branches.length;
 
         if (jumpTableOverhead <= maxJumpTableOverhead) {
-            const jumpOffset = jumpStartValue - JUMP_OFFSET_BASE;
+            const jumpOffset = jumpStartValue;
 
             assert.ok(
                 binaryLength(jumpOffset) <= 16,
