@@ -106,10 +106,10 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
         // If we have consecutive branches, we can write the next value as a jump table
 
         /*
-         * First, we determine how much overhead adding the jump table adds.
-         * If it is more than 2.5x, skip it.
+         * First, we determine how much space adding the jump table adds.
          *
-         * TODO: Determine best value
+         * If it is more than 2x the number of branches (which is equivalent
+         * to the size of the dictionary), skip it.
          */
 
         const jumpStartValue = branches[0][0];
