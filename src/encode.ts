@@ -4,12 +4,23 @@ const htmlReplacer = /[\t\n!-,./:-@[-`\f{-}$\x80-\uFFFF]/g;
 const xmlReplacer = /["&'<>$\x80-\uFFFF]/g;
 const xmlInvalidChars = /[&<>'"]/g;
 
+const textReplacer = /[&<>\u00A0]/g;
+const attrReplacer = /["&\u00A0]/g;
+
 const xmlCodeMap = new Map([
     [34, "&quot;"],
     [38, "&amp;"],
     [39, "&apos;"],
     [60, "&lt;"],
     [62, "&gt;"],
+]);
+
+const htmlEscapeCodeMap = new Map([
+    [34, "&quot;"],
+    [38, "&amp;"],
+    [60, "&lt;"],
+    [62, "&gt;"],
+    [160, "&nbsp;"],
 ]);
 
 /**
@@ -107,4 +118,30 @@ export function escapeUTF8(data: string): string {
     }
 
     return result + data.substring(lastIdx);
+}
+
+/**
+ * Encodes all characters that have to be escaped in HTML attributes,
+ * following {@link https://html.spec.whatwg.org/multipage/parsing.html#escapingString}.
+ *
+ * @param data String to escape.
+ */
+export function escapeAttribute(data: string): string {
+    return data.replace(
+        attrReplacer,
+        (match) => htmlEscapeCodeMap.get(match.charCodeAt(0))!
+    );
+}
+
+/**
+ * Encodes all characters that have to be escaped in HTML text,
+ * following {@link https://html.spec.whatwg.org/multipage/parsing.html#escapingString}.
+ *
+ * @param data String to escape.
+ */
+export function escapeText(data: string): string {
+    return data.replace(
+        textReplacer,
+        (match) => htmlEscapeCodeMap.get(match.charCodeAt(0))!
+    );
 }
