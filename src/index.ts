@@ -4,6 +4,8 @@ import {
     escapeUTF8,
     encodeHTML,
     encodeNonAsciiHTML,
+    escapeAttribute,
+    escapeText,
 } from "./encode";
 
 /** The level of entities to support. */
@@ -39,6 +41,16 @@ export enum EncodingMode {
      * characters that are not ASCII characters.
      */
     Extensive,
+    /**
+     * Encode all characters that have to be escaped in HTML attributes,
+     * following {@link https://html.spec.whatwg.org/multipage/parsing.html#escapingString}.
+     */
+    Attribute,
+    /**
+     * Encode all characters that have to be escaped in HTML text,
+     * following {@link https://html.spec.whatwg.org/multipage/parsing.html#escapingString}.
+     */
+    Text,
 }
 
 export interface DecodingOptions {
@@ -136,6 +148,8 @@ export function encode(
 
     // Mode `UTF8` just escapes XML entities
     if (opts.mode === EncodingMode.UTF8) return escapeUTF8(data);
+    if (opts.mode === EncodingMode.Attribute) return escapeAttribute(data);
+    if (opts.mode === EncodingMode.Text) return escapeText(data);
 
     if (opts.level === EntityLevel.HTML) {
         if (opts.mode === EncodingMode.ASCII) {
@@ -155,6 +169,8 @@ export {
     encodeNonAsciiHTML,
     escape,
     escapeUTF8,
+    escapeAttribute,
+    escapeText,
     // Legacy aliases (deprecated)
     encodeHTML as encodeHTML4,
     encodeHTML as encodeHTML5,
