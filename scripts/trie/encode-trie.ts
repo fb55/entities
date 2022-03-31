@@ -1,7 +1,6 @@
 /* eslint-disable node/no-unsupported-features/es-builtins */
 
 import * as assert from "assert";
-import { BinTrieFlags } from "../../src/decode";
 import { TrieNode } from "./trie";
 
 function binaryLength(num: number) {
@@ -43,14 +42,37 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
         const nodeIdx = enc.push(0) - 1;
 
         if (node.value != null) {
-            enc[nodeIdx] |= BinTrieFlags.HAS_VALUE;
+            let valueLength = 0;
 
-            if (node.value.length === 2) {
-                enc[nodeIdx] |= BinTrieFlags.MULTI_BYTE;
+            /*
+             * If we don't have a branch and the value is short, we can
+             * store the value in the node.
+             */
+            if (
+                node.next ||
+                node.value.length > 1 ||
+                binaryLength(node.value.charCodeAt(0)) > 14
+            ) {
+                valueLength = node.value.length;
             }
 
-            for (let i = 0; i < node.value.length; i++)
-                enc.push(node.value.charCodeAt(i));
+            // Add 1 to the value length, to signal that we have a value.
+            valueLength += 1;
+
+            assert.ok(
+                binaryLength(valueLength) <= 2,
+                "Too many bits for value length"
+            );
+
+            enc[nodeIdx] |= valueLength << 14;
+
+            if (valueLength === 1) {
+                enc[nodeIdx] |= node.value.charCodeAt(0);
+            } else {
+                for (let i = 0; i < node.value.length; i++) {
+                    enc.push(node.value.charCodeAt(i));
+                }
+            }
         }
 
         if (node.next) addBranches(node.next, nodeIdx);
@@ -109,7 +131,7 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
             );
 
             // Write the length of the adjusted table, plus jump offset
-            enc[nodeIdx] |= (jumpTableLength << 8) | jumpOffset;
+            enc[nodeIdx] |= (jumpTableLength << 7) | jumpOffset;
 
             assert.ok(
                 binaryLength(jumpTableLength) <= 7,
@@ -129,7 +151,7 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
             return;
         }
 
-        enc[nodeIdx] |= branches.length << 8;
+        enc[nodeIdx] |= branches.length << 7;
 
         enc.push(
             ...branches.map(([char]) => char),

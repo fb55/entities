@@ -58,26 +58,30 @@ A node may contain one or two bytes of data and/or branch data. The layout of a
 node is as follows:
 
 ```
-1 bit |  7 bit  |  1 bit  |  7 bit
- \        \         \         \
-  \        \         \         \
-   \        \         \         jump table offset
-    \        \         flag if the value uses two bytes (for surrugate pairs)
+2 bit |  7 bit  |  7 bit
+ \        \         \
+  \        \         \
+   \        \         \
+    \        \         jump table offset
      \        number of branches
-      has value flag
+      value length
 ```
 
-If the _has value_ flag is set, the node will immediately be followed by the
-value. If it has any branch data (indicated by the _number of branches_ or the
-_jump table offset_ being set), it will then be followed by the branch data.
+The _value length_ is the number of bytes in the value. If the length is 1, the
+node does not have any branches and the value will be stored inside the lower 14
+bit of the node. Otherwise, the value will be stored in the next bytes of the
+array.
+
+If it has any branch data (indicated by the _number of branches_ or the _jump
+table offset_ being set), the node will be followed by the branch data.
 
 ### Branch data
 
 Branches can be represented in three different ways:
 
 1.  If we only have a single branch, and this branch wasn't encoded earlier in
-    the tree, we set the number of branch to 0 and the jump table offset to the
-    branch value. The node will be followed by the serialized branch.
+    the tree, we set the number of branches to 0 and the jump table offset to
+    the branch value. The node will be followed by the serialized branch.
 2.  If the branch values are close to one another, we use a jump table. This is
     indicated by the jump table offset not being 0. The jump table is an array
     of destination indices.
