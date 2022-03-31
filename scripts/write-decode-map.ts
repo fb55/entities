@@ -1,7 +1,7 @@
 import * as fs from "fs";
-import entityMap from "../src/maps/entities.json";
-import legacyMap from "../src/maps/legacy.json";
-import xmlMap from "../src/maps/xml.json";
+import entityMap from "../maps/entities.json";
+import legacyMap from "../maps/legacy.json";
+import xmlMap from "../maps/xml.json";
 
 import { getTrie } from "./trie/trie";
 import { encodeTrie } from "./trie/encode-trie";
