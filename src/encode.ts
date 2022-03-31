@@ -2,10 +2,6 @@ import { encodeHTMLTrieRe, getCodePoint } from "./encode-trie";
 
 const htmlReplacer = /[\t\n!-,./:-@[-`\f{-}$\x80-\uFFFF]/g;
 const xmlReplacer = /["&'<>$\x80-\uFFFF]/g;
-const xmlInvalidChars = /[&<>'"]/g;
-
-const textReplacer = /[&<>\u00A0]/g;
-const attrReplacer = /["&\u00A0]/g;
 
 const xmlCodeMap = new Map([
     [34, "&quot;"],
@@ -13,14 +9,6 @@ const xmlCodeMap = new Map([
     [39, "&apos;"],
     [60, "&lt;"],
     [62, "&gt;"],
-]);
-
-const htmlEscapeCodeMap = new Map([
-    [34, "&quot;"],
-    [38, "&amp;"],
-    [60, "&lt;"],
-    [62, "&gt;"],
-    [160, "&nbsp;"],
 ]);
 
 /**
@@ -93,6 +81,31 @@ export function encodeNonAsciiHTML(data: string): string {
  */
 export const escape = encodeXML;
 
+function getEscaper(
+    regex: RegExp,
+    map: Map<number, string>
+): (data: string) => string {
+    return function escape(data: string): string {
+        let match;
+        let lastIdx = 0;
+        let result = "";
+
+        while ((match = regex.exec(data))) {
+            if (lastIdx !== match.index) {
+                result += data.substring(lastIdx, match.index);
+            }
+
+            // We know that this chararcter will be in the map.
+            result += map.get(match[0].charCodeAt(0))!;
+
+            // Every match will be of length 1
+            lastIdx = match.index + 1;
+        }
+
+        return result + data.substring(lastIdx);
+    };
+}
+
 /**
  * Encodes all characters not valid in XML documents using XML entities.
  *
@@ -100,25 +113,7 @@ export const escape = encodeXML;
  *
  * @param data String to escape.
  */
-export function escapeUTF8(data: string): string {
-    let match;
-    let lastIdx = 0;
-    let result = "";
-
-    while ((match = xmlInvalidChars.exec(data))) {
-        if (lastIdx !== match.index) {
-            result += data.substring(lastIdx, match.index);
-        }
-
-        // We know that this chararcter will be in `inverseXML`
-        result += xmlCodeMap.get(match[0].charCodeAt(0))!;
-
-        // Every match will be of length 1
-        lastIdx = match.index + 1;
-    }
-
-    return result + data.substring(lastIdx);
-}
+export const escapeUTF8 = getEscaper(/[&<>'"]/g, xmlCodeMap);
 
 /**
  * Encodes all characters that have to be escaped in HTML attributes,
@@ -126,12 +121,14 @@ export function escapeUTF8(data: string): string {
  *
  * @param data String to escape.
  */
-export function escapeAttribute(data: string): string {
-    return data.replace(
-        attrReplacer,
-        (match) => htmlEscapeCodeMap.get(match.charCodeAt(0))!
-    );
-}
+export const escapeAttribute = getEscaper(
+    /["&\u00A0]/g,
+    new Map([
+        [34, "&quot;"],
+        [38, "&amp;"],
+        [160, "&nbsp;"],
+    ])
+);
 
 /**
  * Encodes all characters that have to be escaped in HTML text,
@@ -139,9 +136,12 @@ export function escapeAttribute(data: string): string {
  *
  * @param data String to escape.
  */
-export function escapeText(data: string): string {
-    return data.replace(
-        textReplacer,
-        (match) => htmlEscapeCodeMap.get(match.charCodeAt(0))!
-    );
-}
+export const escapeText = getEscaper(
+    /[&<>\u00A0]/g,
+    new Map([
+        [38, "&amp;"],
+        [60, "&lt;"],
+        [62, "&gt;"],
+        [160, "&nbsp;"],
+    ])
+);
