@@ -18,9 +18,8 @@ const enum CharCodes {
 }
 
 export enum BinTrieFlags {
-    HAS_VALUE = 0b1000_0000_0000_0000,
-    BRANCH_LENGTH = 0b0111_1111_0000_0000,
-    MULTI_BYTE = 0b0000_0000_1000_0000,
+    VALUE_LENGTH = 0b1100_0000_0000_0000,
+    BRANCH_LENGTH = 0b0011_1111_1000_0000,
     JUMP_TABLE = 0b0000_0000_0111_1111,
 }
 
@@ -91,31 +90,39 @@ function getDecoder(decodeTree: Uint16Array) {
 
                 current = decodeTree[treeIdx];
 
+                const masked = current & BinTrieFlags.VALUE_LENGTH;
+
                 // If the branch is a value, store it and continue
-                if (current & BinTrieFlags.HAS_VALUE) {
+                if (masked) {
                     // If we have a legacy entity while parsing strictly, just skip the number of bytes
-                    if (strict && str.charCodeAt(strIdx) !== CharCodes.SEMI) {
-                        // No need to consider multi-byte values, as the legacy entity is always a single byte
-                        treeIdx += 1;
-                    } else {
-                        // If this is a surrogate pair, combine the higher bits from the node with the next byte
+                    if (!strict || str.charCodeAt(strIdx) === CharCodes.SEMI) {
                         resultIdx = treeIdx;
-                        treeIdx +=
-                            1 +
-                            Number((current & BinTrieFlags.MULTI_BYTE) !== 0);
                         excess = 0;
                     }
+
+                    // The mask is the number of bytes of the value, including the current byte.
+                    const valueLength = (masked >> 14) - 1;
+
+                    if (valueLength === 0) break;
+
+                    treeIdx += valueLength;
                 }
             }
 
             if (resultIdx !== 0) {
+                const valueLength =
+                    (decodeTree[resultIdx] & BinTrieFlags.VALUE_LENGTH) >> 14;
                 ret +=
-                    decodeTree[resultIdx] & BinTrieFlags.MULTI_BYTE
+                    valueLength === 1
                         ? String.fromCharCode(
+                              decodeTree[resultIdx] & ~BinTrieFlags.VALUE_LENGTH
+                          )
+                        : valueLength === 2
+                        ? String.fromCharCode(decodeTree[resultIdx + 1])
+                        : String.fromCharCode(
                               decodeTree[resultIdx + 1],
                               decodeTree[resultIdx + 2]
-                          )
-                        : String.fromCharCode(decodeTree[resultIdx + 1]);
+                          );
                 lastIdx = strIdx - excess + 1;
             }
         }
@@ -130,13 +137,15 @@ export function determineBranch(
     nodeIdx: number,
     char: number
 ): number {
-    const branchCount = (current & BinTrieFlags.BRANCH_LENGTH) >> 8;
+    const branchCount = (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
     const jumpOffset = current & BinTrieFlags.JUMP_TABLE;
 
+    // Case 1: Single branch encoded in jump offset
     if (branchCount === 0) {
         return jumpOffset !== 0 && char === jumpOffset ? nodeIdx : -1;
     }
 
+    // Case 2: Multiple branches encoded in jump table
     if (jumpOffset) {
         const value = char - jumpOffset;
 
@@ -144,6 +153,8 @@ export function determineBranch(
             ? -1
             : decodeTree[nodeIdx + value] - 1;
     }
+
+    // Case 3: Multiple branches encoded in dictionary
 
     // Binary search for the character.
     let lo = nodeIdx;
