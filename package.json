@@ -51,6 +51,7 @@
         "build": "tsc && cp -r src/maps lib",
         "build:docs": "typedoc --hideGenerator src/index.ts",
         "build:trie": "ts-node scripts/write-decode-map.ts",
+        "build:encode-map": "jq -c 'to_entries | reverse | map( {(.value) : .key } ) | sort | add' maps/entities.json > src/maps/entities-encode.json",
         "prepare": "npm run build"
     },
     "repository": {

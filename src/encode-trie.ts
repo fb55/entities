@@ -1,4 +1,4 @@
-import htmlMap from "./maps/entities.json";
+import htmlMap from "./maps/entities-encode.json";
 
 const enum Surrogate {
     Mask = 0b1111_1100_0000_0000,
@@ -69,8 +69,8 @@ export interface TrieNode {
 export function getTrie(map: Record<string, string>): Map<number, TrieNode> {
     const trie = new Map<number, TrieNode>();
 
-    for (const entity of Object.keys(map)) {
-        const decoded = map[entity];
+    for (const decoded of Object.keys(map)) {
+        const entity = map[decoded];
         // Resolve the key
         let lastMap = trie;
         for (let i = 0; i < decoded.length - 1; i++) {
