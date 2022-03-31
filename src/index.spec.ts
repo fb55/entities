@@ -1,12 +1,12 @@
 import path from "path";
 import * as entities from ".";
-import legacy from "./maps/legacy.json";
+import legacy from "../maps/legacy.json";
 
 const levels = ["xml", "entities"];
 
 describe("Documents", () => {
     const levelDocs = levels
-        .map((n) => path.join("..", "src", "maps", n))
+        .map((n) => path.join("..", "maps", n))
         .map(require)
         .map((doc, i) => [i, doc]);
 

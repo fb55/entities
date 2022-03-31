@@ -1,7 +1,7 @@
 import { getTrie, TrieNode } from "./trie";
 import { encodeTrie } from "./encode-trie";
 import { BinTrieFlags } from "../../src/decode";
-import xmlMap from "../../src/maps/xml.json";
+import xmlMap from "../../maps/xml.json";
 
 /**
  * Utils for analzying the encoded trie.
