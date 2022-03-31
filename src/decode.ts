@@ -100,11 +100,11 @@ function getDecoder(decodeTree: Uint16Array) {
                         excess = 0;
                     }
 
+                    // The mask is the number of bytes of the value, including the current byte.
                     const valueLength = (masked >> 14) - 1;
 
                     if (valueLength === 0) break;
 
-                    // The mask is the number of bytes of the value, plus one.
                     treeIdx += valueLength;
                 }
             }
