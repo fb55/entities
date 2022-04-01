@@ -23,6 +23,7 @@
         "curly": [2, "multi-line"],
         "no-else-return": 2,
 
+        "node/no-missing-import": 0,
         "node/no-unsupported-features/es-syntax": 0
     },
     "overrides": [

@@ -1,6 +1,6 @@
-import htmlDecodeTree from "./generated/decode-data-html";
-import xmlDecodeTree from "./generated/decode-data-xml";
-import decodeCodePoint from "./decode_codepoint";
+import htmlDecodeTree from "./generated/decode-data-html.js";
+import xmlDecodeTree from "./generated/decode-data-xml.js";
+import decodeCodePoint from "./decode_codepoint.js";
 
 // Re-export for use by eg. htmlparser2
 export { htmlDecodeTree, xmlDecodeTree };

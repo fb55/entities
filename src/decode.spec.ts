@@ -1,4 +1,4 @@
-import * as entities from "./decode";
+import * as entities from "./decode.js";
 
 describe("Decode test", () => {
     const testcases = [

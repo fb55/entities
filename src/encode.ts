@@ -1,4 +1,4 @@
-import { encodeHTMLTrieRe, getCodePoint } from "./encode-trie";
+import { encodeHTMLTrieRe, getCodePoint } from "./encode-trie.js";
 
 const htmlReplacer = /[\t\n!-,./:-@[-`\f{-}$\x80-\uFFFF]/g;
 const xmlReplacer = /["&'<>$\x80-\uFFFF]/g;
