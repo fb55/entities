@@ -1,6 +1,6 @@
-import { getTrie, TrieNode } from "./trie";
-import { encodeTrie } from "./encode-trie";
-import { BinTrieFlags } from "../../src/decode";
+import { getTrie, TrieNode } from "./trie.js";
+import { encodeTrie } from "./encode-trie.js";
+import { BinTrieFlags } from "../../src/decode.js";
 import xmlMap from "../../maps/xml.json";
 
 /**

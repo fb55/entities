@@ -1,4 +1,4 @@
-import { decodeXML, decodeHTML, decodeHTMLStrict } from "./decode";
+import { decodeXML, decodeHTML, decodeHTMLStrict } from "./decode.js";
 import {
     encodeXML,
     escapeUTF8,
@@ -6,7 +6,7 @@ import {
     encodeNonAsciiHTML,
     escapeAttribute,
     escapeText,
-} from "./encode";
+} from "./encode.js";
 
 /** The level of entities to support. */
 export enum EntityLevel {
@@ -174,7 +174,7 @@ export {
     // Legacy aliases (deprecated)
     encodeHTML as encodeHTML4,
     encodeHTML as encodeHTML5,
-} from "./encode";
+} from "./encode.js";
 
 export {
     decodeXML,
@@ -186,4 +186,4 @@ export {
     decodeHTMLStrict as decodeHTML4Strict,
     decodeHTMLStrict as decodeHTML5Strict,
     decodeXML as decodeXMLStrict,
-} from "./decode";
+} from "./decode.js";

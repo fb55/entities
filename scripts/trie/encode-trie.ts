@@ -1,7 +1,7 @@
 /* eslint-disable node/no-unsupported-features/es-builtins */
 
 import * as assert from "assert";
-import { TrieNode } from "./trie";
+import { TrieNode } from "./trie.js";
 
 function binaryLength(num: number) {
     return Math.ceil(Math.log2(num));

@@ -1,5 +1,5 @@
-import { encodeTrie } from "./encode-trie";
-import type { TrieNode } from "./trie";
+import { encodeTrie } from "./encode-trie.js";
+import type { TrieNode } from "./trie.js";
 
 describe("encode_trie", () => {
     it("should encode an empty node", () => {
