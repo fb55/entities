@@ -3,7 +3,7 @@ import xmlDecodeTree from "./generated/decode-data-xml.js";
 import decodeCodePoint from "./decode_codepoint.js";
 
 // Re-export for use by eg. htmlparser2
-export { htmlDecodeTree, xmlDecodeTree };
+export { htmlDecodeTree, xmlDecodeTree, decodeCodePoint };
 
 const enum CharCodes {
     NUM = 35, // "#"

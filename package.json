@@ -23,6 +23,10 @@
         ".": {
             "require": "./lib/index.js",
             "import": "./lib/esm/index.js"
+        },
+        "./lib/decode.js": {
+            "require": "./lib/decode.js",
+            "import": "./lib/esm/decode.js"
         }
     },
     "files": [
