@@ -76,7 +76,10 @@
     "jest": {
         "preset": "ts-jest",
         "testEnvironment": "node",
-        "coverageProvider": "v8"
+        "coverageProvider": "v8",
+        "moduleNameMapper": {
+            "^(.*)\\.js$": "$1"
+        }
     },
     "prettier": {
         "tabWidth": 4,
