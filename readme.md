@@ -78,7 +78,10 @@ libraries, so have a look through your `node_modules` directory!
 
 > Does `entities` support tree shaking?
 
-Yes! `entities` ships as both a CommonJS and a ES module.
+Yes! `entities` ships as both a CommonJS and a ES module. Note that for best
+results, you should not use the `encode` and `decode` functions, as they wrap
+around a number of other functions, all of which will remain in the bundle.
+Instead, use the functions that you need directly.
 
 ---
 
