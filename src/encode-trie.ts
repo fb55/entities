@@ -1,4 +1,4 @@
-import htmlMap from "./maps/entities-encode.json";
+import htmlTrie from "./generated/encode-html";
 
 const enum Surrogate {
     Mask = 0b1111_1100_0000_0000,
@@ -23,8 +23,6 @@ export const getCodePoint =
                     0x10000
                   : c.charCodeAt(index);
 
-const htmlTrie = getTrie(htmlMap);
-
 export function encodeHTMLTrieRe(regExp: RegExp, str: string): string {
     let ret = "";
     let lastIdx = 0;
@@ -33,20 +31,31 @@ export function encodeHTMLTrieRe(regExp: RegExp, str: string): string {
     while ((match = regExp.exec(str)) !== null) {
         const i = match.index;
         const char = str.charCodeAt(i);
-        const next = htmlTrie.get(char);
+        let next = htmlTrie.get(char);
 
-        if (next) {
-            if (next.next != null && i + 1 < str.length) {
-                const value = next.next.get(str.charCodeAt(i + 1))?.value;
-                if (value != null) {
-                    ret += str.substring(lastIdx, i) + value;
-                    regExp.lastIndex += 1;
-                    lastIdx = i + 2;
-                    continue;
+        if (next != null) {
+            if (typeof next !== "string") {
+                // We are in a branch. Try to match the next char.
+                if (i + 1 < str.length) {
+                    const value =
+                        typeof next.n === "number"
+                            ? next.n === str.charCodeAt(i + 1)
+                                ? next.o
+                                : null
+                            : next.n.get(str.charCodeAt(i + 1));
+
+                    if (value) {
+                        ret += str.substring(lastIdx, i) + value;
+                        lastIdx = regExp.lastIndex += 1;
+                        continue;
+                    }
                 }
+
+                // If we have a character without a value, use a numeric entitiy.
+                next = next.v ?? `&#x${char.toString(16)};`;
             }
 
-            ret += str.substring(lastIdx, i) + next.value;
+            ret += str.substring(lastIdx, i) + next;
             lastIdx = i + 1;
         } else {
             ret += `${str.substring(lastIdx, i)}&#x${getCodePoint(
@@ -59,30 +68,4 @@ export function encodeHTMLTrieRe(regExp: RegExp, str: string): string {
     }
 
     return ret + str.substr(lastIdx);
-}
-
-export interface TrieNode {
-    value?: string;
-    next?: Map<number, TrieNode>;
-}
-
-export function getTrie(map: Record<string, string>): Map<number, TrieNode> {
-    const trie = new Map<number, TrieNode>();
-
-    for (const decoded of Object.keys(map)) {
-        const entity = map[decoded];
-        // Resolve the key
-        let lastMap = trie;
-        for (let i = 0; i < decoded.length - 1; i++) {
-            const char = decoded.charCodeAt(i);
-            const next = lastMap.get(char) ?? {};
-            lastMap.set(char, next);
-            lastMap = next.next ??= new Map();
-        }
-        const val = lastMap.get(decoded.charCodeAt(decoded.length - 1)) ?? {};
-        val.value ??= `&${entity};`;
-        lastMap.set(decoded.charCodeAt(decoded.length - 1), val);
-    }
-
-    return trie;
 }
