@@ -1,3 +1,5 @@
+/* eslint-disable node/no-unsupported-features/es-builtins */
+
 import htmlMap from "../maps/entities.json";
 import { writeFileSync } from "fs";
 
@@ -14,8 +16,16 @@ const serialized = serializeTrie(htmlTrie);
 writeFileSync(
     `${__dirname}/../src/generated/encode-html.ts`,
     `// Generated using scripts/write-encode-map.ts
+
+type EncodeTrieNode =
+    | string
+    | { v?: string; n: number | Map<number, EncodeTrieNode>; o?: string };
+
 // prettier-ignore
-export default ${serialized};
+export default ${
+        // Fix the type of the first map to refer to trie nodes.
+        serialized.replace("<number,string>", "<number,EncodeTrieNode>")
+    };
 `
 );
 
@@ -42,19 +52,40 @@ function getTrie(map: Record<string, string>): Map<number, TrieNode> {
     return trie;
 }
 
-function serializeTrie(trie: Map<number, TrieNode>): string {
-    // eslint-disable-next-line node/no-unsupported-features/es-builtins
-    const entries: [number, TrieNode][] = Array.from(trie.entries());
+function wrapValue(value: string | undefined): string {
+    if (value == null) throw new Error("unexpected null");
 
-    return `new Map([${entries
-        .map(
-            ([key, value]) =>
-                `[${key},{${[
-                    value.v && `v:"&${value.v};"`,
-                    value.n && `n:${serializeTrie(value.n)}`,
-                ]
-                    .filter(Boolean)
-                    .join(",")}}]`
-        )
+    return `"&${value};"`;
+}
+
+function serializeTrie(trie: Map<number, TrieNode>): string {
+    const entries: [number, TrieNode][] = Array.from(trie.entries()).sort(
+        (a, b) => a[0] - b[0]
+    );
+
+    return `new Map<number,string>([${entries
+        .map(([key, value]) => {
+            if (!value.n) {
+                if (value.v == null) throw new Error("unexpected null");
+
+                return `[${key},${wrapValue(value.v)}]`;
+            }
+
+            const entries: string[] = [];
+
+            if (value.v != null) {
+                entries.push(`v:${wrapValue(value.v)}`);
+            }
+
+            if (value.n.size > 1) {
+                entries.push(`n:${serializeTrie(value.n)}`);
+            } else {
+                const [cond, other] = Array.from(value.n)[0];
+
+                entries.push(`n:${cond},o:${wrapValue(other.v)}`);
+            }
+
+            return `[${key},{${entries.join(",")}}]`;
+        })
         .join(",")}])`;
 }

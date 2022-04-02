@@ -31,20 +31,30 @@ export function encodeHTMLTrieRe(regExp: RegExp, str: string): string {
     while ((match = regExp.exec(str)) !== null) {
         const i = match.index;
         const char = str.charCodeAt(i);
-        const next = htmlTrie.get(char);
+        let next = htmlTrie.get(char);
 
-        if (next) {
-            if (next.n != null && i + 1 < str.length) {
-                const value = next.n.get(str.charCodeAt(i + 1))?.v;
-                if (value != null) {
-                    ret += str.substring(lastIdx, i) + value;
-                    regExp.lastIndex += 1;
-                    lastIdx = i + 2;
-                    continue;
+        if (next != null) {
+            if (typeof next !== "string") {
+                if (i + 1 < str.length) {
+                    const value =
+                        typeof next.n === "number"
+                            ? next.n === str.charCodeAt(i + 1)
+                                ? next.o
+                                : null
+                            : next.n.get(str.charCodeAt(i + 1));
+
+                    if (value) {
+                        ret += str.substring(lastIdx, i) + value;
+                        lastIdx = regExp.lastIndex += 1;
+                        continue;
+                    }
                 }
+
+                // If we have a character without a value, use a numeric entitiy.
+                next = next.v ?? `&#x${char.toString(16)};`;
             }
 
-            ret += str.substring(lastIdx, i) + next.v;
+            ret += str.substring(lastIdx, i) + next;
             lastIdx = i + 1;
         } else {
             ret += `${str.substring(lastIdx, i)}&#x${getCodePoint(
