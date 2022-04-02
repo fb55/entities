@@ -1,4 +1,4 @@
-import htmlTrie from "./generated/encode-html";
+import htmlTrie from "./generated/encode-html.js";
 
 const enum Surrogate {
     Mask = 0b1111_1100_0000_0000,
