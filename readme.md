@@ -4,7 +4,7 @@ Encode & decode HTML & XML entities with ease & speed.
 
 ## Features
 
--   ⚔️ Battle tested: `entities` is used by many popular libraries; eg.
+-   😇 Tried and true: `entities` is used by many popular libraries; eg.
     [`htmlparser2`](https://github.com/fb55/htmlparser2), the official
     [AWS SDK](https://github.com/aws/aws-sdk-js-v3) and
     [`commonmark`](https://github.com/commonmark/commonmark.js) use it to
