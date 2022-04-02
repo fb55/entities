@@ -35,6 +35,7 @@ export function encodeHTMLTrieRe(regExp: RegExp, str: string): string {
 
         if (next != null) {
             if (typeof next !== "string") {
+                // We are in a branch. Try to match the next char.
                 if (i + 1 < str.length) {
                     const value =
                         typeof next.n === "number"
