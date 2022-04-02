@@ -51,6 +51,9 @@ describe("Encode->decode test", () => {
             expect(decoded).toBe(char);
         }
     });
+
+    it("should encode trailing parts of entities", () =>
+        expect(entities.encodeHTML("\ud835")).toBe("&#xd835;"));
 });
 
 describe("encodeNonAsciiHTML", () => {
