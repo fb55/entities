@@ -10,7 +10,7 @@ Encode & decode HTML & XML entities with ease & speed.
     [`commonmark`](https://github.com/commonmark/commonmark.js) use it to
     process HTML entities.
 -   ⚡️ Fast: `entities` is the fastes library for decoding HTML entities (as of
-    August 2021); see [performance](#performance).
+    April 2022); see [performance](#performance).
 -   🎛 Configurable: Get an output tailored for your needs. You are fine with
     UTF8? That'll safe you some bytes. Prefer to only have ASCII characters? We
     can do that as well!
@@ -63,13 +63,12 @@ everything you can configure.
 
 > When should I use strict decoding?
 
-Strict decoding is for decoding entities in attributes, as well as in legacy
-environments. When strict decoding, entities not terminated with a semicolon
-will be ignored.
+When strict decoding, entities not terminated with a semicolon will be ignored.
+This is helpful for decoding entities in legacy environments.
 
 > Why should I use `entities` instead of alternative modules?
 
-As of August 2021, `entities` is a bit faster than other modules. Still, this is
+As of April 2022, `entities` is a bit faster than other modules. Still, this is
 not a very differentiated space and other modules can catch up.
 
 **More importantly**, you might already have `entities` in your dependency graph
@@ -79,10 +78,7 @@ libraries, so have a look through your `node_modules` directory!
 
 > Does `entities` support tree shaking?
 
-This depends on your bundler, but yes, it should! Eg. recent versions of Webpack
-are able to tree-shake commonjs projects, and having the `sideEffects` flag in
-the `package.json` set to `false` means that your bundles should be much
-smaller.
+Yes! `entities` ships as both a CommonJS and a ES module.
 
 ---
 
