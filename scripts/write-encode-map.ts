@@ -77,6 +77,12 @@ function serializeTrie(trie: Map<number, TrieNode>): string {
                 entries.push(`v:${wrapValue(value.v)}`);
             }
 
+            /*
+             * We encode branches as either a number with an `o` (other) value,
+             * or as a map.
+             *
+             * We use a map if there are more than one character in the key.
+             */
             if (value.n.size > 1) {
                 entries.push(`n:${serializeTrie(value.n)}`);
             } else {
