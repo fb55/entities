@@ -33,7 +33,7 @@ const decodeMap = new Map([
 
 const fromCodePoint =
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, node/no-unsupported-features/es-builtins
-    String.fromCodePoint ||
+    String.fromCodePoint ??
     function (codePoint: number): string {
         let output = "";
 
