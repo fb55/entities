@@ -28,7 +28,7 @@ export function encodeXML(str: string): string {
         const char = str.charCodeAt(i);
         const next = xmlCodeMap.get(char);
 
-        if (next) {
+        if (next !== undefined) {
             ret += str.substring(lastIdx, i) + next;
             lastIdx = i + 1;
         } else {

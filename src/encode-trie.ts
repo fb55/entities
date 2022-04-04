@@ -41,10 +41,10 @@ export function encodeHTMLTrieRe(regExp: RegExp, str: string): string {
                         typeof next.n === "number"
                             ? next.n === str.charCodeAt(i + 1)
                                 ? next.o
-                                : null
+                                : undefined
                             : next.n.get(str.charCodeAt(i + 1));
 
-                    if (value) {
+                    if (value !== undefined) {
                         ret += str.substring(lastIdx, i) + value;
                         lastIdx = regExp.lastIndex += 1;
                         continue;
