@@ -5,7 +5,7 @@ const enum Surrogate {
     High = 0b1101_1000_0000_0000,
 }
 
-function isHighSurrugate(c: number) {
+function isHighSurrogate(c: number) {
     return (c & Surrogate.Mask) === Surrogate.High;
 }
 
@@ -16,7 +16,7 @@ export const getCodePoint =
         ? (str: string, index: number): number => str.codePointAt(index)!
         : // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
           (c: string, index: number): number =>
-              isHighSurrugate(c.charCodeAt(index))
+              isHighSurrogate(c.charCodeAt(index))
                   ? (c.charCodeAt(index) - Surrogate.High) * 0x400 +
                     c.charCodeAt(index + 1) -
                     0xdc00 +
@@ -58,12 +58,10 @@ export function encodeHTMLTrieRe(regExp: RegExp, str: string): string {
             ret += str.substring(lastIdx, i) + next;
             lastIdx = i + 1;
         } else {
-            ret += `${str.substring(lastIdx, i)}&#x${getCodePoint(
-                str,
-                i
-            ).toString(16)};`;
+            const cp = getCodePoint(str, i);
+            ret += `${str.substring(lastIdx, i)}&#x${cp.toString(16)};`;
             // Increase by 1 if we have a surrogate pair
-            lastIdx = regExp.lastIndex += Number(isHighSurrugate(char));
+            lastIdx = regExp.lastIndex += Number(cp !== char);
         }
     }
 
