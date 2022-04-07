@@ -54,6 +54,9 @@ describe("Encode->decode test", () => {
 
     it("should encode trailing parts of entities", () =>
         expect(entities.encodeHTML("\ud835")).toBe("&#xd835;"));
+
+    it("should encode surrogate pair with first surrogate equivalent of entity, without corresponding entity", () =>
+        expect(entities.encodeHTML("\u{1d4a4}")).toBe("&#x1d4a4;"));
 });
 
 describe("encodeNonAsciiHTML", () => {

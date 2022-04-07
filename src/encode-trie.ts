@@ -30,36 +30,38 @@ export function encodeHTMLTrieRe(regExp: RegExp, str: string): string {
 
     while ((match = regExp.exec(str)) !== null) {
         const i = match.index;
+        ret += str.substring(lastIdx, i);
         const char = str.charCodeAt(i);
         let next = htmlTrie.get(char);
 
-        if (next != null) {
-            if (typeof next !== "string") {
-                // We are in a branch. Try to match the next char.
-                if (i + 1 < str.length) {
-                    const value =
-                        typeof next.n === "number"
-                            ? next.n === str.charCodeAt(i + 1)
-                                ? next.o
-                                : undefined
-                            : next.n.get(str.charCodeAt(i + 1));
+        if (typeof next === "object") {
+            // We are in a branch. Try to match the next char.
+            if (i + 1 < str.length) {
+                const nextChar = str.charCodeAt(i + 1);
+                const value =
+                    typeof next.n === "number"
+                        ? next.n === nextChar
+                            ? next.o
+                            : undefined
+                        : next.n.get(nextChar);
 
-                    if (value !== undefined) {
-                        ret += str.substring(lastIdx, i) + value;
-                        lastIdx = regExp.lastIndex += 1;
-                        continue;
-                    }
+                if (value !== undefined) {
+                    ret += value;
+                    lastIdx = regExp.lastIndex += 1;
+                    continue;
                 }
-
-                // If we have a character without a value, use a numeric entitiy.
-                next = next.v ?? `&#x${char.toString(16)};`;
             }
 
-            ret += str.substring(lastIdx, i) + next;
+            next = next.v;
+        }
+
+        // We might have a tree node without a value; skip and use a numeric entitiy.
+        if (next !== undefined) {
+            ret += next;
             lastIdx = i + 1;
         } else {
             const cp = getCodePoint(str, i);
-            ret += `${str.substring(lastIdx, i)}&#x${cp.toString(16)};`;
+            ret += `&#x${cp.toString(16)};`;
             // Increase by 1 if we have a surrogate pair
             lastIdx = regExp.lastIndex += Number(cp !== char);
         }
