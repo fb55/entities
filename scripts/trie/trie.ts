@@ -43,8 +43,8 @@ export function getTrie(
             return false;
         }
 
-        const next1 = [...node1.next];
-        const next2 = [...node2.next];
+        const next1 = Array.from(node1.next);
+        const next2 = Array.from(node2.next);
 
         return next1.every(([char1, node1], idx) => {
             const [char2, node2] = next2[idx];
@@ -60,7 +60,7 @@ export function getTrie(
 
             if (!next) continue;
 
-            for (const [char, node] of next) {
+            for (const [char, node] of Array.from(next)) {
                 const idx = nodes.findIndex((n) => isEqual(n, node));
 
                 if (idx >= 0) {

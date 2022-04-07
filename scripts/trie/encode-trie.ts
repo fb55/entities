@@ -1,5 +1,3 @@
-/* eslint-disable node/no-unsupported-features/es-builtins */
-
 import * as assert from "assert";
 import { TrieNode } from "./trie.js";
 
@@ -115,16 +113,14 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
          * to the size of the dictionary), skip it.
          */
 
-        const jumpStartValue = branches[0][0];
+        const jumpOffset = branches[0][0];
         const jumpEndValue = branches[branches.length - 1][0];
 
-        const jumpTableLength = jumpEndValue - jumpStartValue + 1;
+        const jumpTableLength = jumpEndValue - jumpOffset + 1;
 
         const jumpTableOverhead = jumpTableLength / branches.length;
 
         if (jumpTableOverhead <= maxJumpTableOverhead) {
-            const jumpOffset = jumpStartValue;
-
             assert.ok(
                 binaryLength(jumpOffset) <= 16,
                 `Offset ${jumpOffset} too large at ${binaryLength(jumpOffset)}`
@@ -143,7 +139,7 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
 
             // Write the jump table
             for (const [char, next] of branches) {
-                const index = char - jumpStartValue;
+                const index = char - jumpOffset;
                 // Write all values + 1, so 0 will result in a -1 when decoding
                 enc[branchIndex + index] = encodeNode(next) + 1;
             }

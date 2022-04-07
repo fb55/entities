@@ -31,8 +31,5 @@
         "**/__fixtures__/*",
         "**/__tests__/*",
         "**/__snapshots__/*"
-    ],
-    "ts-node": {
-        "compilerOptions": { "target": "es2019" }
-    }
+    ]
 }

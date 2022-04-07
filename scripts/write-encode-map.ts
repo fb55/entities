@@ -1,5 +1,3 @@
-/* eslint-disable node/no-unsupported-features/es-builtins */
-
 import htmlMap from "../maps/entities.json";
 import { writeFileSync } from "fs";
 

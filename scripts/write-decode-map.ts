@@ -3,8 +3,8 @@ import entityMap from "../maps/entities.json";
 import legacyMap from "../maps/legacy.json";
 import xmlMap from "../maps/xml.json";
 
-import { getTrie } from "./trie/trie.js";
-import { encodeTrie } from "./trie/encode-trie.js";
+import { getTrie } from "./trie/trie";
+import { encodeTrie } from "./trie/encode-trie";
 
 function convertMapToBinaryTrie(
     name: string,
