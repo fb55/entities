@@ -1,6 +1,6 @@
 {
     "name": "entities",
-    "version": "4.1.1",
+    "version": "4.2.0",
     "description": "Encode & decode XML and HTML entities with ease & speed",
     "author": "Felix Boehm <me@feedic.com>",
     "funding": "https://github.com/fb55/entities?sponsor=1",
