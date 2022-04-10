@@ -1,5 +1,5 @@
 import * as assert from "assert";
-import { TrieNode } from "./trie.js";
+import type { TrieNode } from "./trie.js";
 
 function binaryLength(num: number) {
     return Math.ceil(Math.log2(num));
