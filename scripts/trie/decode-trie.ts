@@ -51,8 +51,6 @@ export function decodeNode(
             if (val !== -1) {
                 const code = jumpOffset + i;
 
-                console.log("CODE", String.fromCharCode(code), i, val);
-
                 decodeNode(
                     decodeMap,
                     resultMap,
@@ -63,11 +61,6 @@ export function decodeNode(
         }
     } else {
         for (let i = 0; i < branchLength; i++) {
-            console.log(
-                "BRANCH",
-                String.fromCharCode(decodeMap[branchIdx + i])
-            );
-
             decodeNode(
                 decodeMap,
                 resultMap,
