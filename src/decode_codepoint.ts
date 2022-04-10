@@ -31,7 +31,7 @@ const decodeMap = new Map([
     [159, 376],
 ]);
 
-const fromCodePoint =
+export const fromCodePoint =
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, node/no-unsupported-features/es-builtins
     String.fromCodePoint ??
     function (codePoint: number): string {

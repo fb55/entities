@@ -1,12 +1,10 @@
 import htmlDecodeTree from "./generated/decode-data-html.js";
 import xmlDecodeTree from "./generated/decode-data-xml.js";
-import {
-    default as decodeCodePoint,
-    replaceCodePoint,
-} from "./decode_codepoint.js";
+import decodeCodePoint from "./decode_codepoint.js";
 
 // Re-export for use by eg. htmlparser2
-export { htmlDecodeTree, xmlDecodeTree, decodeCodePoint, replaceCodePoint };
+export { htmlDecodeTree, xmlDecodeTree, decodeCodePoint };
+export { replaceCodePoint, fromCodePoint } from "./decode_codepoint.js";
 
 const enum CharCodes {
     NUM = 35, // "#"
