@@ -77,15 +77,3 @@ describe("encodeNonAsciiHTML", () => {
             "&#x2652;&#xfe0f;&#x2653;&#xfe0f;&#x2648;&#xfe0f;&#x2649;&#xfe0f;&#x264a;&#xfe0f;&#x264b;&#xfe0f;&#x264c;&#xfe0f;&#x264d;&#xfe0f;&#x264e;&#xfe0f;&#x264f;&#xfe0f;&#x2650;&#xfe0f;&#x2651;&#xfe0f;"
         ));
 });
-
-describe("escape HTML", () => {
-    it("should escape HTML attribute values", () =>
-        expect(entities.escapeAttribute('<a " attr > & value \u00a0!')).toBe(
-            "<a &quot; attr > &amp; value &nbsp;!"
-        ));
-
-    it("should escape HTML text", () =>
-        expect(entities.escapeText('<a " text > & value \u00a0!')).toBe(
-            '&lt;a " text &gt; &amp; value &nbsp;!'
-        ));
-});
