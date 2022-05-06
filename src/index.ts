@@ -26,7 +26,7 @@ export enum DecodingMode {
 export enum EncodingMode {
     /**
      * The output is UTF-8 encoded. Only characters that need escaping within
-     * HTML will be escaped.
+     * XML will be escaped.
      */
     UTF8,
     /**

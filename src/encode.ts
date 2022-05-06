@@ -4,24 +4,26 @@ import { xmlReplacer, getCodePoint } from "./escape.js";
 const htmlReplacer = /[\t\n!-,./:-@[-`\f{-}$\x80-\uFFFF]/g;
 
 /**
- * Encodes all entities and non-ASCII characters in the input.
+ * Encodes all characters in the input using HTML entities. This includes
+ * characters that are valid ASCII characters in HTML documents, such as `#`.
  *
- * This includes characters that are valid ASCII characters in HTML documents.
- * For example `#` will be encoded as `&num;`. To get a more compact output,
- * consider using the `encodeNonAsciiHTML` function.
+ * To get a more compact output, consider using the `encodeNonAsciiHTML`
+ * function, which will only encode characters that are not valid in HTML
+ * documents, as well as non-ASCII characters.
  *
- * If a character has no equivalent entity, a
- * numeric hexadecimal reference (eg. `&#xfc;`) will be used.
+ * If a character has no equivalent entity, a numeric hexadecimal reference
+ * (eg. `&#xfc;`) will be used.
  */
 export function encodeHTML(data: string): string {
     return encodeHTMLTrieRe(htmlReplacer, data);
 }
 /**
  * Encodes all non-ASCII characters, as well as characters not valid in HTML
- * documents using HTML entities.
+ * documents using HTML entities. This function will not encode characters that
+ * are valid in HTML documents, such as `#`.
  *
- * If a character has no equivalent entity, a
- * numeric hexadecimal reference (eg. `&#xfc;`) will be used.
+ * If a character has no equivalent entity, a numeric hexadecimal reference
+ * (eg. `&#xfc;`) will be used.
  */
 export function encodeNonAsciiHTML(data: string): string {
     return encodeHTMLTrieRe(xmlReplacer, data);

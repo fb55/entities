@@ -180,14 +180,32 @@ export function determineBranch(
 const htmlDecoder = getDecoder(htmlDecodeTree);
 const xmlDecoder = getDecoder(xmlDecodeTree);
 
+/**
+ * Decodes an HTML string, allowing for entities not terminated by a semi-colon.
+ *
+ * @param str The string to decode.
+ * @returns The decoded string.
+ */
 export function decodeHTML(str: string): string {
     return htmlDecoder(str, false);
 }
 
+/**
+ * Decodes an HTML string, requiring all entities to be terminated by a semi-colon.
+ *
+ * @param str The string to decode.
+ * @returns The decoded string.
+ */
 export function decodeHTMLStrict(str: string): string {
     return htmlDecoder(str, true);
 }
 
+/**
+ * Decodes an XML string, requiring all entities to be terminated by a semi-colon.
+ *
+ * @param str The string to decode.
+ * @returns The decoded string.
+ */
 export function decodeXML(str: string): string {
     return xmlDecoder(str, true);
 }
