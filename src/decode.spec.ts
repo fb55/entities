@@ -39,4 +39,7 @@ describe("Decode test", () => {
 
     it("should not parse numeric entities in strict mode", () =>
         expect(entities.decodeHTMLStrict("&#55")).toBe("&#55"));
+
+    it("should parse &nbsp followed by < (#852)", () =>
+        expect(entities.decodeHTML("&nbsp<")).toBe("\u00a0<"));
 });
