@@ -150,7 +150,7 @@ export function determineBranch(
     if (jumpOffset) {
         const value = char - jumpOffset;
 
-        return value < 0 || value > branchCount
+        return value < 0 || value >= branchCount
             ? -1
             : decodeTree[nodeIdx + value] - 1;
     }
