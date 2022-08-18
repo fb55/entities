@@ -1,3 +1,11 @@
 // Generated using scripts/write-decode-map.ts
+/* eslint-disable */
 // prettier-ignore
-export default new Uint16Array([512,97,103,108,113,9,21,24,27,621,15,0,0,18,112,59,16422,111,115,59,16423,116,59,16446,116,59,16444,117,111,116,59,16418]);
+export default /* #__PURE__ */ (function () {
+    const hex = "e8,2p,2v,30,35,9,l,o,r,h9,f,0,0,i,34,1n,co6,33,37,1n,co7,38,1n,cou,38,1n,cos,39,33,38,1n,co2".split(',');
+    const arr = new Uint16Array(32);
+    for (let i = 0; i < arr.length; i++) {
+        arr[i] = parseInt(hex[i], 36);
+    }
+    return arr;
+})();
