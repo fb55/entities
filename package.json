@@ -34,7 +34,8 @@
         }
     },
     "files": [
-        "lib/**/*"
+        "lib/**/*.js",
+        "lib/**/*.d.ts"
     ],
     "engines": {
         "node": ">=0.12"
