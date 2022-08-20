@@ -6,9 +6,9 @@ type EncodeTrieNode =
 
 function restoreDiff<T extends ReadonlyArray<[number, unknown]>>(arr: T): T {
     for (let i = 1; i < arr.length; i++) {
-        arr[i][0] += arr[i - 1][0] + 1
+        arr[i][0] += arr[i - 1][0] + 1;
     }
-    return arr
+    return arr;
 }
 
 // prettier-ignore

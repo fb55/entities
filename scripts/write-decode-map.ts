@@ -12,7 +12,7 @@ function convertMapToBinaryTrie(
     legacy: Record<string, string>
 ) {
     const encoded = encodeTrie(getTrie(map, legacy));
-    const hex = encoded.map(v => v.toString(36)).join(',')
+    const hex = encoded.map((v) => v.toString(36)).join(",");
 
     // Write the encoded trie to disk
     fs.writeFileSync(

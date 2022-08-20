@@ -21,9 +21,9 @@ type EncodeTrieNode =
 
 function restoreDiff<T extends ReadonlyArray<[number, unknown]>>(arr: T): T {
     for (let i = 1; i < arr.length; i++) {
-        arr[i][0] += arr[i - 1][0] + 1
+        arr[i][0] += arr[i - 1][0] + 1;
     }
-    return arr
+    return arr;
 }
 
 // prettier-ignore
@@ -71,7 +71,7 @@ function serializeTrie(trie: Map<number, TrieNode>): string {
     return `new Map<number,string>(/* #__PURE__ */restoreDiff([${entries
         .map(([key, value], i, arr) => {
             if (i !== 0) {
-                key -= arr[i - 1][0] + 1
+                key -= arr[i - 1][0] + 1;
             }
             if (!value.n) {
                 if (value.v == null) throw new Error("unexpected null");
