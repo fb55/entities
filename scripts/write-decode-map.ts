@@ -26,6 +26,7 @@ function convertMapToBinaryTrie(
         `// Generated using scripts/write-decode-map.ts
 
 export default new Uint16Array(
+    // prettier-ignore
     ${stringified}
         .split("")
         .map((c) => c.charCodeAt(0))
