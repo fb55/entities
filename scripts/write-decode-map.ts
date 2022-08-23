@@ -12,22 +12,24 @@ function convertMapToBinaryTrie(
     legacy: Record<string, string>
 ) {
     const encoded = encodeTrie(getTrie(map, legacy));
-    const hex = encoded.map((v) => v.toString(36)).join(",");
+    const stringified = JSON.stringify(String.fromCharCode(...encoded))
+        .replace(
+            /[^\x20-\x7e]/g,
+            (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`
+        )
+        .replace(/\\u0000/g, "\\0")
+        .replace(/\\u00([\da-f]{2})/g, "\\x$1");
 
     // Write the encoded trie to disk
     fs.writeFileSync(
         `${__dirname}/../src/generated/decode-data-${name}.ts`,
         `// Generated using scripts/write-decode-map.ts
-/* eslint-disable */
-// prettier-ignore
-export default /* #__PURE__ */ (function () {
-    const hex = "${hex}".split(',');
-    const arr = new Uint16Array(${encoded.length});
-    for (let i = 0; i < arr.length; i++) {
-        arr[i] = parseInt(hex[i], 36);
-    }
-    return arr;
-})();
+
+export default new Uint16Array(
+    ${stringified}
+        .split("")
+        .map((c) => c.charCodeAt(0))
+);
 `
     );
 }
