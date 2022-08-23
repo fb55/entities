@@ -12,15 +12,25 @@ function convertMapToBinaryTrie(
     legacy: Record<string, string>
 ) {
     const encoded = encodeTrie(getTrie(map, legacy));
+    const stringified = JSON.stringify(String.fromCharCode(...encoded))
+        .replace(
+            /[^\x20-\x7e]/g,
+            (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`
+        )
+        .replace(/\\u0000/g, "\\0")
+        .replace(/\\u00([\da-f]{2})/g, "\\x$1");
 
     // Write the encoded trie to disk
     fs.writeFileSync(
         `${__dirname}/../src/generated/decode-data-${name}.ts`,
         `// Generated using scripts/write-decode-map.ts
-// prettier-ignore
-export default new Uint16Array([${encoded
-            .map((val) => val.toString(10))
-            .join(",")}]);
+
+export default new Uint16Array(
+    // prettier-ignore
+    ${stringified}
+        .split("")
+        .map((c) => c.charCodeAt(0))
+);
 `
     );
 }

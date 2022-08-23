@@ -1,3 +1,8 @@
 // Generated using scripts/write-decode-map.ts
-// prettier-ignore
-export default new Uint16Array([512,97,103,108,113,9,21,24,27,621,15,0,0,18,112,59,16422,111,115,59,16423,116,59,16446,116,59,16444,117,111,116,59,16418]);
+
+export default new Uint16Array(
+    // prettier-ignore
+    "\u0200aglq\t\x15\x18\x1b\u026d\x0f\0\0\x12p;\u4026os;\u4027t;\u403et;\u403cuot;\u4022"
+        .split("")
+        .map((c) => c.charCodeAt(0))
+);

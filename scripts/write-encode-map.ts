@@ -19,6 +19,15 @@ type EncodeTrieNode =
     | string
     | { v?: string; n: number | Map<number, EncodeTrieNode>; o?: string };
 
+function restoreDiff<T extends ReadonlyArray<[number, EncodeTrieNode]>>(
+    arr: T
+): T {
+    for (let i = 1; i < arr.length; i++) {
+        arr[i][0] += arr[i - 1][0] + 1;
+    }
+    return arr;
+}
+
 // prettier-ignore
 export default ${
         // Fix the type of the first map to refer to trie nodes.
@@ -61,8 +70,11 @@ function serializeTrie(trie: Map<number, TrieNode>): string {
         (a, b) => a[0] - b[0]
     );
 
-    return `new Map<number,string>([${entries
-        .map(([key, value]) => {
+    return `new Map<number,string>(/* #__PURE__ */restoreDiff([${entries
+        .map(([key, value], i, arr) => {
+            if (i !== 0) {
+                key -= arr[i - 1][0] + 1;
+            }
             if (!value.n) {
                 if (value.v == null) throw new Error("unexpected null");
 
@@ -91,5 +103,5 @@ function serializeTrie(trie: Map<number, TrieNode>): string {
 
             return `[${key},{${entries.join(",")}}]`;
         })
-        .join(",")}])`;
+        .join(",")}]))`;
 }
