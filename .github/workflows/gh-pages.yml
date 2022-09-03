@@ -8,13 +8,18 @@ env:
     FORCE_COLOR: 2
     NODE: 16
 
+permissions:  # added using https://github.com/step-security/secure-workflows
+  contents: read
+
 jobs:
     pages:
+        permissions:
+          contents: write  # for peaceiris/actions-gh-pages to push pages branch
         name: Deploy to GitHub Pages
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v3
-            - uses: actions/setup-node@v3
+            - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b
+            - uses: actions/setup-node@2fddd8803e2f5c9604345a0b591c3020ee971a93
               with:
                   node-version: "${{ env.NODE }}"
                   cache: "npm"
@@ -22,7 +27,7 @@ jobs:
             - name: Build docs
               run: npm run build:docs
             - name: Deploy
-              uses: peaceiris/actions-gh-pages@v3.8.0
+              uses: peaceiris/actions-gh-pages@068dc23d9710f1ba62e86896f84735d869951305
               with:
                   github_token: ${{ secrets.GITHUB_TOKEN }}
                   publish_dir: docs
