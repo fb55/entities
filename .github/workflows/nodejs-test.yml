@@ -11,12 +11,15 @@ env:
     FORCE_COLOR: 2
     NODE_COV: "lts/*" # The Node.js version to run coveralls on
 
+permissions:
+    contents: read
+
 jobs:
     lint:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v3
-            - uses: actions/setup-node@v3
+            - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b
+            - uses: actions/setup-node@2fddd8803e2f5c9604345a0b591c3020ee971a93
               with:
                   node-version: 16
                   cache: npm
@@ -24,6 +27,9 @@ jobs:
             - run: npm run lint
 
     test:
+        permissions:
+            checks: write # for coverallsapp/github-action to create new checks
+            contents: read # for actions/checkout to fetch code
         name: Node ${{ matrix.node }}
         runs-on: ubuntu-latest
 
@@ -37,9 +43,9 @@ jobs:
                     - "lts/*"
 
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b
             - name: Use Node.js ${{ matrix.node }}
-              uses: actions/setup-node@v3
+              uses: actions/setup-node@2fddd8803e2f5c9604345a0b591c3020ee971a93
               with:
                   node-version: ${{ matrix.node }}
                   cache: npm
@@ -55,7 +61,7 @@ jobs:
               if: matrix.node == env.NODE_COV
 
             - name: Run Coveralls
-              uses: coverallsapp/github-action@1.1.3
+              uses: coverallsapp/github-action@9ba913c152ae4be1327bfb9085dc806cedb44057
               if: matrix.node == env.NODE_COV
               continue-on-error: true
               with:
