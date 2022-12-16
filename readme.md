@@ -1,4 +1,4 @@
-# entities [![NPM version](http://img.shields.io/npm/v/entities.svg)](https://npmjs.org/package/entities) [![Downloads](https://img.shields.io/npm/dm/entities.svg)](https://npmjs.org/package/entities) [![Build Status](http://img.shields.io/travis/fb55/entities.svg)](http://travis-ci.org/fb55/entities) [![Coverage](http://img.shields.io/coveralls/fb55/entities.svg)](https://coveralls.io/r/fb55/entities)
+# entities [![NPM version](https://img.shields.io/npm/v/entities.svg)](https://npmjs.org/package/entities) [![Downloads](https://img.shields.io/npm/dm/entities.svg)](https://npmjs.org/package/entities) [![Node.js CI](https://github.com/fb55/entities/actions/workflows/nodejs-test.yml/badge.svg)](https://github.com/fb55/entities/actions/workflows/nodejs-test.yml)
 
 Encode & decode HTML & XML entities with ease & speed.
 
@@ -9,8 +9,8 @@ Encode & decode HTML & XML entities with ease & speed.
     [AWS SDK](https://github.com/aws/aws-sdk-js-v3) and
     [`commonmark`](https://github.com/commonmark/commonmark.js) use it to
     process HTML entities.
--   ⚡️ Fast: `entities` is the fastes library for decoding HTML entities (as of
-    April 2022); see [performance](#performance).
+-   ⚡️ Fast: `entities` is the fastest library for decoding HTML entities (as
+    of April 2022); see [performance](#performance).
 -   🎛 Configurable: Get an output tailored for your needs. You are fine with
     UTF8? That'll safe you some bytes. Prefer to only have ASCII characters? We
     can do that as well!
