@@ -9,7 +9,7 @@ Encode & decode HTML & XML entities with ease & speed.
     [AWS SDK](https://github.com/aws/aws-sdk-js-v3) and
     [`commonmark`](https://github.com/commonmark/commonmark.js) use it to
     process HTML entities.
--   ⚡️ Fast: `entities` is the fastes library for decoding HTML entities (as of
+-   ⚡️ Fast: `entities` is the fastest library for decoding HTML entities (as of
     April 2022); see [performance](#performance).
 -   🎛 Configurable: Get an output tailored for your needs. You are fine with
     UTF8? That'll safe you some bytes. Prefer to only have ASCII characters? We
