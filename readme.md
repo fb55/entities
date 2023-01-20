@@ -87,7 +87,7 @@ Instead, use the functions that you need directly.
 
 ## Acknowledgements
 
-This libary wouldn't be possible without the work of these individuals. Thanks
+This library wouldn't be possible without the work of these individuals. Thanks
 to
 
 -   [@mathiasbynens](https://github.com/mathiasbynens) for his explanations
