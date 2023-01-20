@@ -61,7 +61,7 @@ function encodeHTMLTrieRe(regExp: RegExp, str: string): string {
             next = next.v;
         }
 
-        // We might have a tree node without a value; skip and use a numeric entitiy.
+        // We might have a tree node without a value; skip and use a numeric entity.
         if (next !== undefined) {
             ret += next;
             lastIdx = i + 1;

@@ -82,7 +82,7 @@ function getEscaper(
                 result += data.substring(lastIdx, match.index);
             }
 
-            // We know that this chararcter will be in the map.
+            // We know that this character will be in the map.
             result += map.get(match[0].charCodeAt(0))!;
 
             // Every match will be of length 1
