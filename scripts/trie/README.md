@@ -41,10 +41,11 @@ Legend: `[a, ...]` - node, `*` - data.
 
 ## Mapping the trie to an array
 
-Since we need to allocate an object for each node, the trie consumes a lot of
-memory. Therefore, we map our trie to an array, so we'll end up with just a
-single object. Since we don't have indices and code points which are more than
-`MAX_UINT16` (which is `0xFFFF`), we can use a `Uint16Array` for this.
+If we had to allocate an object for each node, the trie would consume a lot of
+memory (the aforementioned ~8.5Mb). Therefore, we map our trie to an array, so
+we'll end up with just a single object. Since we don't have indices and code
+points which are more than `MAX_UINT16` (which is `0xFFFF`), we can use a
+`Uint16Array` for this.
 
 The only exception here are
 [surrogate pairs](https://en.wikipedia.org/wiki/UTF-16#U.2B10000_to_U.2B10FFFF),
@@ -67,9 +68,10 @@ node is as follows:
       value length
 ```
 
-The _value length_ is the number of bytes in the value. If the length is 1, the
-node does not have any branches and the value will be stored inside the lower 14
-bit of the node. Otherwise, the value will be stored in the next bytes of the
+The _value length_ is the number of bytes used for the value. If the length is
+0, we don't have a value. If the length is 1, the node does not have any
+branches and the value will be stored inside the lower 14 bit of the node
+itself. Otherwise, the value will be stored in the next one or two bytes of the
 array.
 
 If it has any branch data (indicated by the _number of branches_ or the _jump
