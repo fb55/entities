@@ -60,6 +60,22 @@ export class EntityDecoder {
     private consumed = 0;
     private codepoint = 0;
 
+    private treeIdx = 0;
+    private resultIdx = 0;
+    private excess = 1;
+    private isAttribute = false;
+
+    /** Resets the instance to make it reusable. */
+    startEntity(isAttribute: boolean): void {
+        this.isAttribute = isAttribute;
+        this.state = EntityDecoderState.EntityStart;
+        this.codepoint = 0;
+        this.treeIdx = 0;
+        this.excess = 1;
+        this.resultIdx = 0;
+        this.consumed = 0;
+    }
+
     /**
      * Write an entity to the decoder. This can be called multiple times with partial entities.
      * If the entity is incomplete, the decoder will return -1.
@@ -71,57 +87,49 @@ export class EntityDecoder {
      * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
      */
-    write(str: string, offset: number, isAttribute: boolean): number {
+    write(str: string, offset: number): number {
         switch (this.state) {
             case EntityDecoderState.EntityStart: {
                 if (str.charCodeAt(offset) === CharCodes.NUM) {
                     this.state = EntityDecoderState.NumericStart;
                     this.consumed += 1;
-                    return this.stateNumericStart(str, offset + 1, isAttribute);
+                    return this.stateNumericStart(str, offset + 1);
                 }
                 this.state = EntityDecoderState.NamedEntity;
-                return this.stateNamedEntity(str, offset, isAttribute);
+                return this.stateNamedEntity(str, offset);
             }
 
             case EntityDecoderState.NumericStart: {
-                return this.stateNumericStart(str, offset, isAttribute);
+                return this.stateNumericStart(str, offset);
             }
 
             case EntityDecoderState.NumericDecimal: {
-                return this.stateNumericDecimal(str, offset, isAttribute);
+                return this.stateNumericDecimal(str, offset);
             }
 
             case EntityDecoderState.NumericHex: {
-                return this.stateNumericHex(str, offset, isAttribute);
+                return this.stateNumericHex(str, offset);
             }
 
             case EntityDecoderState.NamedEntity: {
-                return this.stateNamedEntity(str, offset, isAttribute);
+                return this.stateNamedEntity(str, offset);
             }
         }
     }
 
-    private stateNumericStart(
-        str: string,
-        strIdx: number,
-        isAttribute: boolean
-    ): number {
+    private stateNumericStart(str: string, strIdx: number): number {
         const char = str.charCodeAt(strIdx);
         if ((char | CharCodes.TO_LOWER_BIT) === CharCodes.LOWER_X) {
             this.state = EntityDecoderState.NumericHex;
             this.consumed += 1;
-            return this.stateNumericHex(str, strIdx + 1, isAttribute);
+            return this.stateNumericHex(str, strIdx + 1);
         }
 
         this.state = EntityDecoderState.NumericDecimal;
-        return this.stateNumericDecimal(str, strIdx, isAttribute);
+        return this.stateNumericDecimal(str, strIdx);
     }
 
-    private stateNumericHex(
-        str: string,
-        strIdx: number,
-        isAttribute: boolean
-    ): number {
+    private stateNumericHex(str: string, strIdx: number): number {
         const startIdx = strIdx;
 
         while (
@@ -139,17 +147,13 @@ export class EntityDecoder {
         }
 
         if (strIdx < str.length) {
-            return this.emitNumericEntity(isAttribute);
+            return this.emitNumericEntity();
         }
 
         return -1;
     }
 
-    private stateNumericDecimal(
-        str: string,
-        strIdx: number,
-        isAttribute: boolean
-    ): number {
+    private stateNumericDecimal(str: string, strIdx: number): number {
         const startIdx = strIdx;
 
         while (strIdx < str.length && isNumber(str.charCodeAt(strIdx))) {
@@ -163,13 +167,13 @@ export class EntityDecoder {
         }
 
         if (strIdx < str.length) {
-            return this.emitNumericEntity(isAttribute);
+            return this.emitNumericEntity();
         }
 
         return -1;
     }
 
-    private emitNumericEntity(_isAttribute: boolean): number {
+    private emitNumericEntity(): number {
         // TODO Figure out if this is a legit end of the entity
 
         // TODO Produce errors
@@ -178,16 +182,8 @@ export class EntityDecoder {
         return this.consumed;
     }
 
-    private treeIdx = 0;
-    private resultIdx = 0;
-    private excess = 1;
-
-    private stateNamedEntity(
-        str: string,
-        strIdx: number,
-        isAttribute: boolean
-    ): number {
-        const strict = isAttribute; // FIXME
+    private stateNamedEntity(str: string, strIdx: number): number {
+        const strict = this.isAttribute; // FIXME
         const startIdx = strIdx;
         const { decodeTree } = this;
         let current = decodeTree[this.treeIdx];
@@ -260,27 +256,17 @@ export class EntityDecoder {
         return 0;
     }
 
-    end(isAttribute: boolean): number {
+    end(): number {
         // Emit entity if we have one.
         if (this.resultIdx !== 0) {
             return this.emitNamedEntity();
         }
         // TODO Make it possible to emit eg. &#000; here.
         if (this.codepoint !== 0) {
-            return this.emitNumericEntity(isAttribute);
+            return this.emitNumericEntity();
         }
 
         return 0;
-    }
-
-    /** Resets the instance to make it reusable. */
-    reset(): void {
-        this.state = EntityDecoderState.EntityStart;
-        this.codepoint = 0;
-        this.treeIdx = 0;
-        this.excess = 1;
-        this.resultIdx = 0;
-        this.consumed = 0;
     }
 }
 
@@ -298,14 +284,14 @@ function getDecoder(decodeTree: Uint16Array) {
             // Skip the "&"
             strIdx += 1;
 
-            const len = decoder.write(str, strIdx, strict);
+            decoder.startEntity(strict);
+            const len = decoder.write(str, strIdx);
 
             if (len < 0) {
-                strIdx += decoder.end(strict);
+                strIdx += decoder.end();
                 break;
             }
 
-            decoder.reset();
             strIdx += len;
         }
 

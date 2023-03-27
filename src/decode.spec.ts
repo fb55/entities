@@ -46,43 +46,40 @@ describe("Decode test", () => {
 
 describe("EntityDecoder", () => {
     it("should decode numeric entities", () => {
-        // eslint-disable-next-line @typescript-eslint/no-use-before-define
-        const cb: (str: string) => void = jest.fn(() => decoder.reset());
+        const cb = jest.fn();
         const decoder = new entities.EntityDecoder(entities.xmlDecodeTree, cb);
 
-        decoder.write("&#x3a;", 1, false);
+        decoder.write("&#x3a;", 1);
 
         expect(cb).toHaveBeenCalledWith(":");
 
-        decoder.end(false);
+        decoder.end();
 
         expect(cb).toHaveBeenCalledTimes(1);
     });
 
     it("should decode named entities", () => {
-        // eslint-disable-next-line @typescript-eslint/no-use-before-define
-        const cb: (str: string) => void = jest.fn(() => decoder.reset());
+        const cb = jest.fn();
         const decoder = new entities.EntityDecoder(entities.xmlDecodeTree, cb);
 
-        decoder.write("&amp;", 1, false);
+        decoder.write("&amp;", 1);
 
         expect(cb).toHaveBeenNthCalledWith(1, "&");
 
-        decoder.end(false);
+        decoder.end();
 
         expect(cb).toHaveBeenCalledTimes(1);
     });
 
     it("should decode legacy entities", () => {
-        // eslint-disable-next-line @typescript-eslint/no-use-before-define
-        const cb: (str: string) => void = jest.fn(() => decoder.reset());
+        const cb = jest.fn();
         const decoder = new entities.EntityDecoder(entities.xmlDecodeTree, cb);
 
-        decoder.write("&amp", 1, false);
+        decoder.write("&amp", 1);
 
         expect(cb).not.toHaveBeenCalled();
 
-        decoder.end(false);
+        decoder.end();
 
         expect(cb).toHaveBeenNthCalledWith(1, "&");
         expect(cb).toHaveBeenCalledTimes(1);
