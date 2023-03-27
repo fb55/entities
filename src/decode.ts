@@ -14,8 +14,10 @@ const enum CharCodes {
     LOWER_A = 97, // "a"
     LOWER_F = 102, // "f"
     LOWER_X = 120, // "x"
+    UPPER_A = 65, // "A"
+    UPPER_F = 70, // "F"
     /** Bit that needs to be set to convert an upper case ASCII character to lower case */
-    To_LOWER_BIT = 0b100000,
+    TO_LOWER_BIT = 0b100000,
 }
 
 export enum BinTrieFlags {
@@ -24,9 +26,269 @@ export enum BinTrieFlags {
     JUMP_TABLE = 0b0000_0000_0111_1111,
 }
 
+function isNumber(code: number): boolean {
+    return code >= CharCodes.ZERO && code <= CharCodes.NINE;
+}
+
+function isHexadecimalCharacter(code: number): boolean {
+    return (
+        (code >= CharCodes.UPPER_A && code <= CharCodes.UPPER_F) ||
+        (code >= CharCodes.LOWER_A && code <= CharCodes.LOWER_F)
+    );
+}
+
+const enum EntityDecoderState {
+    EntityStart,
+    NumericStart,
+    NumericDecimal,
+    NumericHex,
+    NamedEntity,
+}
+
+/**
+ * Implementation of `getDecoder`, but with support of writing partial entities.
+ *
+ * This is used by the `Tokenizer` to decode entities in chunks.
+ */
+export class EntityDecoder {
+    constructor(
+        private readonly decodeTree: Uint16Array,
+        private readonly emitEntity: (str: string) => void
+    ) {}
+
+    private state = EntityDecoderState.EntityStart;
+    private consumed = 0;
+    private codepoint = 0;
+
+    /**
+     * Write an entity to the decoder. This can be called multiple times with partial entities.
+     * If the entity is incomplete, the decoder will return -1.
+     *
+     * Mirrors the implementation of `getDecoder`, but with the ability to stop decoding if the
+     * entity is incomplete, and resume when the next string is written.
+     *
+     * @param string The string containing the entity (or a continuation of the entity).
+     * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
+     * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+     */
+    write(str: string, offset: number, isAttribute: boolean): number {
+        switch (this.state) {
+            case EntityDecoderState.EntityStart: {
+                if (str.charCodeAt(offset) === CharCodes.NUM) {
+                    this.state = EntityDecoderState.NumericStart;
+                    this.consumed += 1;
+                    return this.stateNumericStart(str, offset + 1, isAttribute);
+                }
+                this.state = EntityDecoderState.NamedEntity;
+                return this.stateNamedEntity(str, offset, isAttribute);
+            }
+
+            case EntityDecoderState.NumericStart: {
+                return this.stateNumericStart(str, offset, isAttribute);
+            }
+
+            case EntityDecoderState.NumericDecimal: {
+                return this.stateNumericDecimal(str, offset, isAttribute);
+            }
+
+            case EntityDecoderState.NumericHex: {
+                return this.stateNumericHex(str, offset, isAttribute);
+            }
+
+            case EntityDecoderState.NamedEntity: {
+                return this.stateNamedEntity(str, offset, isAttribute);
+            }
+        }
+    }
+
+    private stateNumericStart(
+        str: string,
+        strIdx: number,
+        isAttribute: boolean
+    ): number {
+        const char = str.charCodeAt(strIdx);
+        if ((char | CharCodes.TO_LOWER_BIT) === CharCodes.LOWER_X) {
+            this.state = EntityDecoderState.NumericHex;
+            this.consumed += 1;
+            return this.stateNumericHex(str, strIdx + 1, isAttribute);
+        }
+
+        this.state = EntityDecoderState.NumericDecimal;
+        return this.stateNumericDecimal(str, strIdx, isAttribute);
+    }
+
+    private stateNumericHex(
+        str: string,
+        strIdx: number,
+        isAttribute: boolean
+    ): number {
+        const startIdx = strIdx;
+
+        while (
+            strIdx < str.length &&
+            (isNumber(str.charCodeAt(strIdx)) ||
+                isHexadecimalCharacter(str.charCodeAt(strIdx)))
+        ) {
+            strIdx += 1;
+        }
+
+        if (startIdx !== strIdx) {
+            this.codepoint =
+                this.codepoint * 16 + parseInt(str.slice(startIdx, strIdx), 16);
+            this.consumed += strIdx - startIdx;
+        }
+
+        if (strIdx < str.length) {
+            return this.emitNumericEntity(isAttribute);
+        }
+
+        return -1;
+    }
+
+    private stateNumericDecimal(
+        str: string,
+        strIdx: number,
+        isAttribute: boolean
+    ): number {
+        const startIdx = strIdx;
+
+        while (strIdx < str.length && isNumber(str.charCodeAt(strIdx))) {
+            strIdx += 1;
+        }
+
+        if (startIdx !== strIdx) {
+            this.codepoint =
+                this.codepoint * 10 + parseInt(str.slice(startIdx, strIdx), 10);
+            this.consumed += strIdx - startIdx;
+        }
+
+        if (strIdx < str.length) {
+            return this.emitNumericEntity(isAttribute);
+        }
+
+        return -1;
+    }
+
+    private emitNumericEntity(_isAttribute: boolean): number {
+        // TODO Figure out if this is a legit end of the entity
+
+        // TODO Produce errors
+
+        this.emitEntity(decodeCodePoint(this.codepoint));
+        return this.consumed;
+    }
+
+    private treeIdx = 0;
+    private resultIdx = 0;
+    private excess = 1;
+
+    private stateNamedEntity(
+        str: string,
+        strIdx: number,
+        isAttribute: boolean
+    ): number {
+        const strict = isAttribute; // FIXME
+        const startIdx = strIdx;
+        const { decodeTree } = this;
+        let current = decodeTree[this.treeIdx];
+
+        for (; strIdx < str.length; strIdx++, this.excess++) {
+            this.treeIdx = determineBranch(
+                decodeTree,
+                current,
+                this.treeIdx + 1,
+                str.charCodeAt(strIdx)
+            );
+
+            if (this.treeIdx < 0) {
+                this.consumed += strIdx - startIdx;
+                return this.emitNamedEntity();
+            }
+
+            current = decodeTree[this.treeIdx];
+
+            const masked = current & BinTrieFlags.VALUE_LENGTH;
+
+            // If the branch is a value, store it and continue
+            if (masked) {
+                // If we have a legacy entity while parsing strictly, just skip the number of bytes
+                if (!strict || str.charCodeAt(strIdx) === CharCodes.SEMI) {
+                    this.resultIdx = this.treeIdx;
+                    this.excess = 0;
+                }
+
+                // The mask is the number of bytes of the value, including the current byte.
+                const valueLength = (masked >> 14) - 1;
+
+                if (valueLength === 0) {
+                    this.consumed += strIdx - startIdx;
+                    return this.emitNamedEntity();
+                }
+
+                this.treeIdx += valueLength;
+            }
+        }
+
+        this.consumed += strIdx - startIdx;
+
+        return -1;
+    }
+
+    private emitNamedEntity(): number {
+        const { resultIdx, decodeTree } = this;
+
+        if (this.resultIdx !== 0) {
+            const valueLength =
+                (this.decodeTree[resultIdx] & BinTrieFlags.VALUE_LENGTH) >> 14;
+
+            this.emitEntity(
+                valueLength === 1
+                    ? String.fromCharCode(
+                          decodeTree[resultIdx] & ~BinTrieFlags.VALUE_LENGTH
+                      )
+                    : valueLength === 2
+                    ? String.fromCharCode(decodeTree[resultIdx + 1])
+                    : String.fromCharCode(
+                          decodeTree[resultIdx + 1],
+                          decodeTree[resultIdx + 2]
+                      )
+            );
+
+            return this.consumed - this.excess;
+        }
+
+        return 0;
+    }
+
+    end(isAttribute: boolean): number {
+        // Emit entity if we have one.
+        if (this.resultIdx !== 0) {
+            return this.emitNamedEntity();
+        }
+        // TODO Make it possible to emit eg. &#000; here.
+        if (this.codepoint !== 0) {
+            return this.emitNumericEntity(isAttribute);
+        }
+
+        return 0;
+    }
+
+    /** Resets the instance to make it reusable. */
+    reset(): void {
+        this.state = EntityDecoderState.EntityStart;
+        this.codepoint = 0;
+        this.treeIdx = 0;
+        this.excess = 1;
+        this.resultIdx = 0;
+        this.consumed = 0;
+    }
+}
+
 function getDecoder(decodeTree: Uint16Array) {
-    return function decodeHTMLBinary(str: string, strict: boolean): string {
-        let ret = "";
+    let ret = "";
+    const decoder = new EntityDecoder(decodeTree, (str) => (ret += str));
+
+    return function decodeWithTrie(str: string, strict: boolean): string {
         let lastIdx = 0;
         let strIdx = 0;
 
@@ -36,99 +298,23 @@ function getDecoder(decodeTree: Uint16Array) {
             // Skip the "&"
             strIdx += 1;
 
-            // If we have a numeric entity, handle this separately.
-            if (str.charCodeAt(strIdx) === CharCodes.NUM) {
-                // Skip the leading "&#". For hex entities, also skip the leading "x".
-                let start = strIdx + 1;
-                let base = 10;
+            const len = decoder.write(str, strIdx, strict);
 
-                let cp = str.charCodeAt(start);
-                if ((cp | CharCodes.To_LOWER_BIT) === CharCodes.LOWER_X) {
-                    base = 16;
-                    strIdx += 1;
-                    start += 1;
-                }
-
-                do cp = str.charCodeAt(++strIdx);
-                while (
-                    (cp >= CharCodes.ZERO && cp <= CharCodes.NINE) ||
-                    (base === 16 &&
-                        (cp | CharCodes.To_LOWER_BIT) >= CharCodes.LOWER_A &&
-                        (cp | CharCodes.To_LOWER_BIT) <= CharCodes.LOWER_F)
-                );
-
-                if (start !== strIdx) {
-                    const entity = str.substring(start, strIdx);
-                    const parsed = parseInt(entity, base);
-
-                    if (str.charCodeAt(strIdx) === CharCodes.SEMI) {
-                        strIdx += 1;
-                    } else if (strict) {
-                        continue;
-                    }
-
-                    ret += decodeCodePoint(parsed);
-                    lastIdx = strIdx;
-                }
-
-                continue;
+            if (len < 0) {
+                strIdx += decoder.end(strict);
+                break;
             }
 
-            let resultIdx = 0;
-            let excess = 1;
-            let treeIdx = 0;
-            let current = decodeTree[treeIdx];
-
-            for (; strIdx < str.length; strIdx++, excess++) {
-                treeIdx = determineBranch(
-                    decodeTree,
-                    current,
-                    treeIdx + 1,
-                    str.charCodeAt(strIdx)
-                );
-
-                if (treeIdx < 0) break;
-
-                current = decodeTree[treeIdx];
-
-                const masked = current & BinTrieFlags.VALUE_LENGTH;
-
-                // If the branch is a value, store it and continue
-                if (masked) {
-                    // If we have a legacy entity while parsing strictly, just skip the number of bytes
-                    if (!strict || str.charCodeAt(strIdx) === CharCodes.SEMI) {
-                        resultIdx = treeIdx;
-                        excess = 0;
-                    }
-
-                    // The mask is the number of bytes of the value, including the current byte.
-                    const valueLength = (masked >> 14) - 1;
-
-                    if (valueLength === 0) break;
-
-                    treeIdx += valueLength;
-                }
-            }
-
-            if (resultIdx !== 0) {
-                const valueLength =
-                    (decodeTree[resultIdx] & BinTrieFlags.VALUE_LENGTH) >> 14;
-                ret +=
-                    valueLength === 1
-                        ? String.fromCharCode(
-                              decodeTree[resultIdx] & ~BinTrieFlags.VALUE_LENGTH
-                          )
-                        : valueLength === 2
-                        ? String.fromCharCode(decodeTree[resultIdx + 1])
-                        : String.fromCharCode(
-                              decodeTree[resultIdx + 1],
-                              decodeTree[resultIdx + 2]
-                          );
-                lastIdx = strIdx - excess + 1;
-            }
+            decoder.reset();
+            strIdx += len;
         }
 
-        return ret + str.slice(lastIdx);
+        const result = ret + str.slice(lastIdx);
+
+        // Make sure we don't keep a reference to the final string.
+        ret = "";
+
+        return result;
     };
 }
 
