@@ -47,41 +47,35 @@ describe("Decode test", () => {
 describe("EntityDecoder", () => {
     it("should decode numeric entities", () => {
         const cb = jest.fn();
-        const decoder = new entities.EntityDecoder(entities.xmlDecodeTree, cb);
+        const decoder = new entities.EntityDecoder(entities.htmlDecodeTree, cb);
 
-        decoder.write("&#x3a;", 1);
-
-        expect(cb).toHaveBeenCalledWith(":");
-
-        decoder.end();
+        expect(decoder.write("&#x3a;", 1)).toBe(6);
 
         expect(cb).toHaveBeenCalledTimes(1);
+        expect(cb).toHaveBeenCalledWith(":");
     });
 
     it("should decode named entities", () => {
         const cb = jest.fn();
-        const decoder = new entities.EntityDecoder(entities.xmlDecodeTree, cb);
+        const decoder = new entities.EntityDecoder(entities.htmlDecodeTree, cb);
 
-        decoder.write("&amp;", 1);
-
-        expect(cb).toHaveBeenNthCalledWith(1, "&");
-
-        decoder.end();
+        expect(decoder.write("&amp;", 1)).toBe(5);
 
         expect(cb).toHaveBeenCalledTimes(1);
+        expect(cb).toHaveBeenCalledWith("&");
     });
 
     it("should decode legacy entities", () => {
         const cb = jest.fn();
-        const decoder = new entities.EntityDecoder(entities.xmlDecodeTree, cb);
+        const decoder = new entities.EntityDecoder(entities.htmlDecodeTree, cb);
 
-        decoder.write("&amp", 1);
+        expect(decoder.write("&amp", 1)).toBe(-1);
 
         expect(cb).not.toHaveBeenCalled();
 
-        decoder.end();
+        expect(decoder.end()).toBe(4);
 
-        expect(cb).toHaveBeenNthCalledWith(1, "&");
         expect(cb).toHaveBeenCalledTimes(1);
+        expect(cb).toHaveBeenCalledWith("&");
     });
 });

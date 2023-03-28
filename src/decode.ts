@@ -57,7 +57,7 @@ export class EntityDecoder {
     ) {}
 
     private state = EntityDecoderState.EntityStart;
-    private consumed = 0;
+    private consumed = 1;
     private codepoint = 0;
 
     private treeIdx = 0;
@@ -73,7 +73,7 @@ export class EntityDecoder {
         this.treeIdx = 0;
         this.excess = 1;
         this.resultIdx = 0;
-        this.consumed = 0;
+        this.consumed = 1;
     }
 
     /**
@@ -184,7 +184,6 @@ export class EntityDecoder {
 
     private stateNamedEntity(str: string, strIdx: number): number {
         const strict = this.isAttribute; // FIXME
-        const startIdx = strIdx;
         const { decodeTree } = this;
         let current = decodeTree[this.treeIdx];
 
@@ -196,10 +195,7 @@ export class EntityDecoder {
                 str.charCodeAt(strIdx)
             );
 
-            if (this.treeIdx < 0) {
-                this.consumed += strIdx - startIdx;
-                return this.emitNamedEntity();
-            }
+            if (this.treeIdx < 0) return this.emitNamedEntity();
 
             current = decodeTree[this.treeIdx];
 
@@ -210,22 +206,18 @@ export class EntityDecoder {
                 // If we have a legacy entity while parsing strictly, just skip the number of bytes
                 if (!strict || str.charCodeAt(strIdx) === CharCodes.SEMI) {
                     this.resultIdx = this.treeIdx;
+                    this.consumed += this.excess;
                     this.excess = 0;
                 }
 
                 // The mask is the number of bytes of the value, including the current byte.
                 const valueLength = (masked >> 14) - 1;
 
-                if (valueLength === 0) {
-                    this.consumed += strIdx - startIdx;
-                    return this.emitNamedEntity();
-                }
+                if (valueLength === 0) return this.emitNamedEntity();
 
                 this.treeIdx += valueLength;
             }
         }
-
-        this.consumed += strIdx - startIdx;
 
         return -1;
     }
@@ -233,7 +225,7 @@ export class EntityDecoder {
     private emitNamedEntity(): number {
         const { resultIdx, decodeTree } = this;
 
-        if (this.resultIdx !== 0) {
+        if (resultIdx !== 0) {
             const valueLength =
                 (this.decodeTree[resultIdx] & BinTrieFlags.VALUE_LENGTH) >> 14;
 
@@ -281,11 +273,13 @@ function getDecoder(decodeTree: Uint16Array) {
         while ((strIdx = str.indexOf("&", strIdx)) >= 0) {
             ret += str.slice(lastIdx, strIdx);
             lastIdx = strIdx;
-            // Skip the "&"
-            strIdx += 1;
 
             decoder.startEntity(strict);
-            const len = decoder.write(str, strIdx);
+            const len = decoder.write(
+                str,
+                // Skip the "&"
+                strIdx + 1
+            );
 
             if (len < 0) {
                 strIdx += decoder.end();
@@ -293,6 +287,7 @@ function getDecoder(decodeTree: Uint16Array) {
             }
 
             strIdx += len;
+            lastIdx = strIdx;
         }
 
         const result = ret + str.slice(lastIdx);
