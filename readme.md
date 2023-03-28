@@ -12,7 +12,7 @@ Encode & decode HTML & XML entities with ease & speed.
 -   ⚡️ Fast: `entities` is the fastest library for decoding HTML entities (as
     of April 2022); see [performance](#performance).
 -   🎛 Configurable: Get an output tailored for your needs. You are fine with
-    UTF8? That'll safe you some bytes. Prefer to only have ASCII characters? We
+    UTF8? That'll save you some bytes. Prefer to only have ASCII characters? We
     can do that as well!
 
 ## How to…
