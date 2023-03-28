@@ -147,7 +147,7 @@ export class EntityDecoder {
         }
 
         if (strIdx < str.length) {
-            return this.emitNumericEntity();
+            return this.emitNumericEntity(str.charCodeAt(strIdx));
         }
 
         return -1;
@@ -167,14 +167,15 @@ export class EntityDecoder {
         }
 
         if (strIdx < str.length) {
-            return this.emitNumericEntity();
+            return this.emitNumericEntity(str.charCodeAt(strIdx));
         }
 
         return -1;
     }
 
-    private emitNumericEntity(): number {
+    private emitNumericEntity(lastCp: number): number {
         // TODO Figure out if this is a legit end of the entity
+        if (lastCp === CharCodes.SEMI) this.consumed += 1;
 
         // TODO Produce errors
 
@@ -242,7 +243,7 @@ export class EntityDecoder {
                       )
             );
 
-            return this.consumed - this.excess;
+            return this.consumed;
         }
 
         return 0;
@@ -255,7 +256,7 @@ export class EntityDecoder {
         }
         // TODO Make it possible to emit eg. &#000; here.
         if (this.codepoint !== 0) {
-            return this.emitNumericEntity();
+            return this.emitNumericEntity(0);
         }
 
         return 0;
@@ -272,9 +273,9 @@ function getDecoder(decodeTree: Uint16Array) {
 
         while ((strIdx = str.indexOf("&", strIdx)) >= 0) {
             ret += str.slice(lastIdx, strIdx);
-            lastIdx = strIdx;
 
             decoder.startEntity(strict);
+
             const len = decoder.write(
                 str,
                 // Skip the "&"
@@ -282,12 +283,13 @@ function getDecoder(decodeTree: Uint16Array) {
             );
 
             if (len < 0) {
-                strIdx += decoder.end();
+                lastIdx = strIdx + decoder.end();
                 break;
             }
 
-            strIdx += len;
-            lastIdx = strIdx;
+            lastIdx = strIdx + len;
+            // If `len` is 0, skip the current `&` and continue.
+            strIdx = len === 0 ? lastIdx + 1 : lastIdx;
         }
 
         const result = ret + str.slice(lastIdx);
