@@ -153,10 +153,10 @@ export class EntityDecoder {
             this.codepoint =
                 this.codepoint * 16 + parseInt(str.slice(startIdx, strIdx), 16);
             this.consumed += strIdx - startIdx;
-        }
 
-        if (strIdx < str.length) {
-            return this.emitNumericEntity(str.charCodeAt(strIdx));
+            if (strIdx < str.length) {
+                return this.emitNumericEntity(str.charCodeAt(strIdx));
+            }
         }
 
         return -1;
@@ -173,10 +173,10 @@ export class EntityDecoder {
             this.codepoint =
                 this.codepoint * 10 + parseInt(str.slice(startIdx, strIdx), 10);
             this.consumed += strIdx - startIdx;
-        }
 
-        if (strIdx < str.length) {
-            return this.emitNumericEntity(str.charCodeAt(strIdx));
+            if (strIdx < str.length) {
+                return this.emitNumericEntity(str.charCodeAt(strIdx));
+            }
         }
 
         return -1;
@@ -263,15 +263,23 @@ export class EntityDecoder {
     }
 
     end(): number {
-        // Emit entity if we have one.
+        // Emit a named entity if we have one.
         if (this.resultIdx !== 0) {
             return this.emitNamedEntity();
         }
-        // TODO Make it possible to emit eg. &#000; here.
-        if (this.codepoint !== 0) {
+
+        // Otherwise, emit a numeric entity if we have one.
+        if (
+            this.codepoint !== 0 ||
+            // Make it possible to emit eg. &#000; here.
+            (this.consumed > 2 &&
+                (this.state === EntityDecoderState.NumericDecimal ||
+                    this.consumed > 3))
+        ) {
             return this.emitNumericEntity(0);
         }
 
+        // Return 0 if we have no entity.
         return 0;
     }
 }
