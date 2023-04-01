@@ -45,6 +45,15 @@ const enum EntityDecoderState {
     NamedEntity,
 }
 
+export enum EntityDecoderMode {
+    /** Only allow entities terminated with a semicolon. */
+    Strict,
+    /** Entities in attributes have limitations on ending characters. */
+    Attribute,
+    /** Entities in text nodes can end with any character. */
+    Text,
+}
+
 /**
  * Implementation of `getDecoder`, but with support of writing partial entities.
  *
@@ -63,11 +72,11 @@ export class EntityDecoder {
     private treeIdx = 0;
     private resultIdx = 0;
     private excess = 1;
-    private isAttribute = false;
+    private decodeMode = EntityDecoderMode.Strict;
 
     /** Resets the instance to make it reusable. */
-    startEntity(isAttribute: boolean): void {
-        this.isAttribute = isAttribute;
+    startEntity(decodeMode: EntityDecoderMode): void {
+        this.decodeMode = decodeMode;
         this.state = EntityDecoderState.EntityStart;
         this.codepoint = 0;
         this.treeIdx = 0;
@@ -175,7 +184,11 @@ export class EntityDecoder {
 
     private emitNumericEntity(lastCp: number): number {
         // TODO Figure out if this is a legit end of the entity
-        if (lastCp === CharCodes.SEMI) this.consumed += 1;
+        if (lastCp === CharCodes.SEMI) {
+            this.consumed += 1;
+        } else if (this.decodeMode === EntityDecoderMode.Strict) {
+            return 0;
+        }
 
         // TODO Produce errors
 
@@ -184,7 +197,7 @@ export class EntityDecoder {
     }
 
     private stateNamedEntity(str: string, strIdx: number): number {
-        const strict = this.isAttribute; // FIXME
+        const strict = this.decodeMode === EntityDecoderMode.Strict;
         const { decodeTree } = this;
         let current = decodeTree[this.treeIdx];
 
@@ -268,13 +281,17 @@ function getDecoder(decodeTree: Uint16Array) {
     const decoder = new EntityDecoder(decodeTree, (str) => (ret += str));
 
     return function decodeWithTrie(str: string, strict: boolean): string {
+        const decodeMode = strict
+            ? EntityDecoderMode.Strict
+            : EntityDecoderMode.Text;
+
         let lastIdx = 0;
         let strIdx = 0;
 
         while ((strIdx = str.indexOf("&", strIdx)) >= 0) {
             ret += str.slice(lastIdx, strIdx);
 
-            decoder.startEntity(strict);
+            decoder.startEntity(decodeMode);
 
             const len = decoder.write(
                 str,

@@ -68,6 +68,7 @@ describe("EntityDecoder", () => {
     it("should decode legacy entities", () => {
         const cb = jest.fn();
         const decoder = new entities.EntityDecoder(entities.htmlDecodeTree, cb);
+        decoder.startEntity(entities.EntityDecoderMode.Text);
 
         expect(decoder.write("&amp", 1)).toBe(-1);
 
