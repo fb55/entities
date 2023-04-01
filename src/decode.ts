@@ -1,6 +1,9 @@
 import htmlDecodeTree from "./generated/decode-data-html.js";
 import xmlDecodeTree from "./generated/decode-data-xml.js";
-import decodeCodePoint from "./decode_codepoint.js";
+import decodeCodePoint, {
+    replaceCodePoint,
+    fromCodePoint,
+} from "./decode_codepoint.js";
 
 // Re-export for use by eg. htmlparser2
 export { htmlDecodeTree, xmlDecodeTree, decodeCodePoint };
@@ -62,7 +65,7 @@ export enum EntityDecoderMode {
 export class EntityDecoder {
     constructor(
         private readonly decodeTree: Uint16Array,
-        private readonly emitEntity: (str: string) => void
+        private readonly emitCodePoint: (cp: number) => void
     ) {}
 
     private state = EntityDecoderState.EntityStart;
@@ -192,7 +195,7 @@ export class EntityDecoder {
 
         // TODO Produce errors
 
-        this.emitEntity(decodeCodePoint(this.codepoint));
+        this.emitCodePoint(replaceCodePoint(this.codepoint));
         return this.consumed;
     }
 
@@ -217,7 +220,7 @@ export class EntityDecoder {
 
             // If the branch is a value, store it and continue
             if (masked) {
-                // If we have a legacy entity while parsing strictly, just skip the number of bytes
+                // If we encounter a legacy entity while parsing strictly, just skip the number of bytes
                 if (!strict || str.charCodeAt(strIdx) === CharCodes.SEMI) {
                     this.resultIdx = this.treeIdx;
                     this.consumed += this.excess;
@@ -227,6 +230,7 @@ export class EntityDecoder {
                 // The mask is the number of bytes of the value, including the current byte.
                 const valueLength = (masked >> 14) - 1;
 
+                // If the value is stored in the current byte, we are done.
                 if (valueLength === 0) return this.emitNamedEntity();
 
                 this.treeIdx += valueLength;
@@ -243,18 +247,14 @@ export class EntityDecoder {
             const valueLength =
                 (this.decodeTree[resultIdx] & BinTrieFlags.VALUE_LENGTH) >> 14;
 
-            this.emitEntity(
+            this.emitCodePoint(
                 valueLength === 1
-                    ? String.fromCharCode(
-                          decodeTree[resultIdx] & ~BinTrieFlags.VALUE_LENGTH
-                      )
-                    : valueLength === 2
-                    ? String.fromCharCode(decodeTree[resultIdx + 1])
-                    : String.fromCharCode(
-                          decodeTree[resultIdx + 1],
-                          decodeTree[resultIdx + 2]
-                      )
+                    ? decodeTree[resultIdx] & ~BinTrieFlags.VALUE_LENGTH
+                    : decodeTree[resultIdx + 1]
             );
+            if (valueLength === 3) {
+                this.emitCodePoint(decodeTree[resultIdx + 2]);
+            }
 
             return this.consumed;
         }
@@ -286,7 +286,10 @@ export class EntityDecoder {
 
 function getDecoder(decodeTree: Uint16Array) {
     let ret = "";
-    const decoder = new EntityDecoder(decodeTree, (str) => (ret += str));
+    const decoder = new EntityDecoder(
+        decodeTree,
+        (str) => (ret += fromCodePoint(str))
+    );
 
     return function decodeWithTrie(str: string, strict: boolean): string {
         const decodeMode = strict

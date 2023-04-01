@@ -52,7 +52,7 @@ describe("EntityDecoder", () => {
         expect(decoder.write("&#x3a;", 1)).toBe(6);
 
         expect(cb).toHaveBeenCalledTimes(1);
-        expect(cb).toHaveBeenCalledWith(":");
+        expect(cb).toHaveBeenCalledWith(":".charCodeAt(0));
     });
 
     it("should decode named entities", () => {
@@ -62,7 +62,7 @@ describe("EntityDecoder", () => {
         expect(decoder.write("&amp;", 1)).toBe(5);
 
         expect(cb).toHaveBeenCalledTimes(1);
-        expect(cb).toHaveBeenCalledWith("&");
+        expect(cb).toHaveBeenCalledWith("&".charCodeAt(0));
     });
 
     it("should decode legacy entities", () => {
@@ -77,6 +77,6 @@ describe("EntityDecoder", () => {
         expect(decoder.end()).toBe(4);
 
         expect(cb).toHaveBeenCalledTimes(1);
-        expect(cb).toHaveBeenCalledWith("&");
+        expect(cb).toHaveBeenCalledWith("&".charCodeAt(0));
     });
 });
