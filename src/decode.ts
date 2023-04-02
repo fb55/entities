@@ -66,12 +66,16 @@ export class EntityDecoder {
     constructor(
         private readonly decodeTree: Uint16Array,
         private readonly emitCodePoint: (cp: number) => void
-    ) {}
+    ) {
+        this.treeCurrent = this.decodeTree[0];
+    }
 
     private state = EntityDecoderState.EntityStart;
+    /** Characters that were consumed while parsing an entity. */
     private consumed = 1;
     private codepoint = 0;
 
+    private treeCurrent: number;
     private treeIdx = 0;
     private resultIdx = 0;
     private excess = 1;
@@ -83,6 +87,7 @@ export class EntityDecoder {
         this.state = EntityDecoderState.EntityStart;
         this.codepoint = 0;
         this.treeIdx = 0;
+        this.treeCurrent = this.decodeTree[0];
         this.excess = 1;
         this.resultIdx = 0;
         this.consumed = 1;
@@ -202,21 +207,20 @@ export class EntityDecoder {
     private stateNamedEntity(str: string, strIdx: number): number {
         const strict = this.decodeMode === EntityDecoderMode.Strict;
         const { decodeTree } = this;
-        let current = decodeTree[this.treeIdx];
 
         for (; strIdx < str.length; strIdx++, this.excess++) {
             this.treeIdx = determineBranch(
                 decodeTree,
-                current,
+                this.treeCurrent,
                 this.treeIdx + 1,
                 str.charCodeAt(strIdx)
             );
 
             if (this.treeIdx < 0) return this.emitNamedEntity();
 
-            current = decodeTree[this.treeIdx];
+            this.treeCurrent = decodeTree[this.treeIdx];
 
-            const masked = current & BinTrieFlags.VALUE_LENGTH;
+            const masked = this.treeCurrent & BinTrieFlags.VALUE_LENGTH;
 
             // If the branch is a value, store it and continue
             if (masked) {
@@ -272,9 +276,9 @@ export class EntityDecoder {
         if (
             this.codepoint !== 0 ||
             // Make it possible to emit eg. &#000; here.
-            (this.consumed > 2 &&
-                (this.state === EntityDecoderState.NumericDecimal ||
-                    this.consumed > 3))
+            this.consumed > 3 ||
+            (this.state === EntityDecoderState.NumericDecimal &&
+                this.consumed > 2)
         ) {
             return this.emitNumericEntity(0);
         }

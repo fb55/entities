@@ -79,4 +79,17 @@ describe("EntityDecoder", () => {
         expect(cb).toHaveBeenCalledTimes(1);
         expect(cb).toHaveBeenCalledWith("&".charCodeAt(0));
     });
+
+    it("should decode named entity written character by character", () => {
+        const cb = jest.fn();
+        const decoder = new entities.EntityDecoder(entities.htmlDecodeTree, cb);
+
+        for (const c of "amp") {
+            expect(decoder.write(c, 0)).toBe(-1);
+        }
+        expect(decoder.write(";", 0)).toBe(5);
+
+        expect(cb).toHaveBeenCalledTimes(1);
+        expect(cb).toHaveBeenCalledWith("&".charCodeAt(0));
+    });
 });
