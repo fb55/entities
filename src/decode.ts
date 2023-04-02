@@ -253,8 +253,9 @@ export class EntityDecoder {
             );
 
             if (this.treeIdx < 0) {
-                return this.decodeMode === EntityDecoderMode.Attribute &&
-                    isEntityInAttributeInvalidEnd(char)
+                return this.result === 0 ||
+                    (this.decodeMode === EntityDecoderMode.Attribute &&
+                        isEntityInAttributeInvalidEnd(char))
                     ? 0
                     : this.emitNamedEntity();
             }
@@ -264,19 +265,20 @@ export class EntityDecoder {
 
             // If the branch is a value, store it and continue
             if (valueLength !== 0) {
-                // If we encounter a legacy entity while parsing strictly, then ignore it.
-                if (
-                    char === CharCodes.SEMI ||
-                    this.decodeMode !== EntityDecoderMode.Strict
-                ) {
+                // If the entity is terminated by a semicolon, we are done.
+                if (char === CharCodes.SEMI) {
+                    return this.emitNamedEntityData(
+                        this.treeIdx,
+                        valueLength,
+                        this.consumed + this.excess
+                    );
+                }
+
+                // If we encounter a non-terminated (legacy) entity while parsing strictly, then ignore it.
+                if (this.decodeMode !== EntityDecoderMode.Strict) {
                     this.result = this.treeIdx;
                     this.consumed += this.excess;
                     this.excess = 0;
-                }
-
-                // If the entity is terminated by a semicolon, we are done.
-                if (char === CharCodes.SEMI) {
-                    return this.emitNamedEntity();
                 }
             }
         }
@@ -286,33 +288,38 @@ export class EntityDecoder {
 
     private emitNamedEntity(): number {
         const { result, decodeTree } = this;
+        const valueLength =
+            (decodeTree[result] & BinTrieFlags.VALUE_LENGTH) >> 14;
 
-        if (result !== 0) {
-            const valueLength =
-                (decodeTree[result] & BinTrieFlags.VALUE_LENGTH) >> 14;
+        return this.emitNamedEntityData(result, valueLength, this.consumed);
+    }
 
-            this.emitCodePoint(
-                valueLength === 1
-                    ? decodeTree[result] & ~BinTrieFlags.VALUE_LENGTH
-                    : decodeTree[result + 1],
-                this.consumed
-            );
-            if (valueLength === 3) {
-                // For multi-byte values, we need to emit the second byte.
-                this.emitCodePoint(decodeTree[result + 2], this.consumed);
-            }
+    private emitNamedEntityData(
+        result: number,
+        valueLength: number,
+        consumed: number
+    ): number {
+        const { decodeTree } = this;
 
-            return this.consumed;
+        this.emitCodePoint(
+            valueLength === 1
+                ? decodeTree[result] & ~BinTrieFlags.VALUE_LENGTH
+                : decodeTree[result + 1],
+            consumed
+        );
+        if (valueLength === 3) {
+            // For multi-byte values, we need to emit the second byte.
+            this.emitCodePoint(decodeTree[result + 2], consumed);
         }
 
-        return 0;
+        return consumed;
     }
 
     end(): number {
         switch (this.state) {
             case EntityDecoderState.NamedEntity: {
                 // Emit a named entity if we have one.
-                return this.emitNamedEntity();
+                return this.result !== 0 ? this.emitNamedEntity() : 0;
             }
             // Otherwise, emit a numeric entity if we have one.
             case EntityDecoderState.NumericDecimal: {
