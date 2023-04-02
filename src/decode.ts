@@ -73,11 +73,16 @@ export class EntityDecoder {
     private state = EntityDecoderState.EntityStart;
     /** Characters that were consumed while parsing an entity. */
     private consumed = 1;
-    private codepoint = 0;
+    /**
+     * The result of the entity.
+     *
+     * Either the result index of a numeric entity, or the codepoint of a
+     * numeric entity.
+     */
+    private result = 0;
 
     private treeCurrent: number;
     private treeIdx = 0;
-    private resultIdx = 0;
     private excess = 1;
     private decodeMode = EntityDecoderMode.Strict;
 
@@ -85,11 +90,10 @@ export class EntityDecoder {
     startEntity(decodeMode: EntityDecoderMode): void {
         this.decodeMode = decodeMode;
         this.state = EntityDecoderState.EntityStart;
-        this.codepoint = 0;
+        this.result = 0;
         this.treeIdx = 0;
         this.treeCurrent = this.decodeTree[0];
         this.excess = 1;
-        this.resultIdx = 0;
         this.consumed = 1;
     }
 
@@ -158,8 +162,8 @@ export class EntityDecoder {
         }
 
         if (startIdx !== strIdx) {
-            this.codepoint =
-                this.codepoint * 16 + parseInt(str.slice(startIdx, strIdx), 16);
+            this.result =
+                this.result * 16 + parseInt(str.slice(startIdx, strIdx), 16);
             this.consumed += strIdx - startIdx;
 
             if (strIdx < str.length) {
@@ -178,8 +182,8 @@ export class EntityDecoder {
         }
 
         if (startIdx !== strIdx) {
-            this.codepoint =
-                this.codepoint * 10 + parseInt(str.slice(startIdx, strIdx), 10);
+            this.result =
+                this.result * 10 + parseInt(str.slice(startIdx, strIdx), 10);
             this.consumed += strIdx - startIdx;
 
             if (strIdx < str.length) {
@@ -200,7 +204,7 @@ export class EntityDecoder {
 
         // TODO Produce errors
 
-        this.emitCodePoint(replaceCodePoint(this.codepoint));
+        this.emitCodePoint(replaceCodePoint(this.result));
         return this.consumed;
     }
 
@@ -226,7 +230,7 @@ export class EntityDecoder {
             if (masked) {
                 // If we encounter a legacy entity while parsing strictly, just skip the number of bytes
                 if (!strict || str.charCodeAt(strIdx) === CharCodes.SEMI) {
-                    this.resultIdx = this.treeIdx;
+                    this.result = this.treeIdx;
                     this.consumed += this.excess;
                     this.excess = 0;
                 }
@@ -245,19 +249,19 @@ export class EntityDecoder {
     }
 
     private emitNamedEntity(): number {
-        const { resultIdx, decodeTree } = this;
+        const { result, decodeTree } = this;
 
-        if (resultIdx !== 0) {
+        if (result !== 0) {
             const valueLength =
-                (this.decodeTree[resultIdx] & BinTrieFlags.VALUE_LENGTH) >> 14;
+                (decodeTree[result] & BinTrieFlags.VALUE_LENGTH) >> 14;
 
             this.emitCodePoint(
                 valueLength === 1
-                    ? decodeTree[resultIdx] & ~BinTrieFlags.VALUE_LENGTH
-                    : decodeTree[resultIdx + 1]
+                    ? decodeTree[result] & ~BinTrieFlags.VALUE_LENGTH
+                    : decodeTree[result + 1]
             );
             if (valueLength === 3) {
-                this.emitCodePoint(decodeTree[resultIdx + 2]);
+                this.emitCodePoint(decodeTree[result + 2]);
             }
 
             return this.consumed;
@@ -267,24 +271,30 @@ export class EntityDecoder {
     }
 
     end(): number {
-        // Emit a named entity if we have one.
-        if (this.resultIdx !== 0) {
-            return this.emitNamedEntity();
+        switch (this.state) {
+            case EntityDecoderState.NamedEntity: {
+                // Emit a named entity if we have one.
+                return this.emitNamedEntity();
+            }
+            // Otherwise, emit a numeric entity if we have one.
+            case EntityDecoderState.NumericDecimal: {
+                // Ensure we consumed at least one numeric character.
+                if (this.consumed > 2) {
+                    return this.emitNumericEntity(0);
+                }
+                return 0;
+            }
+            case EntityDecoderState.NumericHex: {
+                if (this.consumed > 3) {
+                    return this.emitNumericEntity(0);
+                }
+                return 0;
+            }
+            default: {
+                // Return 0 if we have no entity.
+                return 0;
+            }
         }
-
-        // Otherwise, emit a numeric entity if we have one.
-        if (
-            this.codepoint !== 0 ||
-            // Make it possible to emit eg. &#000; here.
-            this.consumed > 3 ||
-            (this.state === EntityDecoderState.NumericDecimal &&
-                this.consumed > 2)
-        ) {
-            return this.emitNumericEntity(0);
-        }
-
-        // Return 0 if we have no entity.
-        return 0;
     }
 }
 
