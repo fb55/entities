@@ -65,7 +65,7 @@ export enum EntityDecoderMode {
 export class EntityDecoder {
     constructor(
         private readonly decodeTree: Uint16Array,
-        private readonly emitCodePoint: (cp: number) => void
+        private readonly emitCodePoint: (cp: number, consumed: number) => void
     ) {
         this.treeCurrent = this.decodeTree[0];
     }
@@ -139,6 +139,10 @@ export class EntityDecoder {
     }
 
     private stateNumericStart(str: string, strIdx: number): number {
+        if (strIdx >= str.length) {
+            return -1;
+        }
+
         const char = str.charCodeAt(strIdx);
         if ((char | CharCodes.TO_LOWER_BIT) === CharCodes.LOWER_X) {
             this.state = EntityDecoderState.NumericHex;
@@ -150,26 +154,34 @@ export class EntityDecoder {
         return this.stateNumericDecimal(str, strIdx);
     }
 
+    private addToNumericResult(
+        str: string,
+        start: number,
+        end: number,
+        base: number
+    ): void {
+        if (start !== end) {
+            this.result =
+                this.result * base + parseInt(str.slice(start, end), base);
+            this.consumed += end - start;
+        }
+    }
+
     private stateNumericHex(str: string, strIdx: number): number {
         const startIdx = strIdx;
 
-        while (
-            strIdx < str.length &&
-            (isNumber(str.charCodeAt(strIdx)) ||
-                isHexadecimalCharacter(str.charCodeAt(strIdx)))
-        ) {
-            strIdx += 1;
-        }
+        while (strIdx < str.length) {
+            const char = str.charCodeAt(strIdx);
+            if (isNumber(char) || isHexadecimalCharacter(char)) {
+                strIdx += 1;
+            } else {
+                this.addToNumericResult(str, startIdx, strIdx, 16);
 
-        if (startIdx !== strIdx) {
-            this.result =
-                this.result * 16 + parseInt(str.slice(startIdx, strIdx), 16);
-            this.consumed += strIdx - startIdx;
-
-            if (strIdx < str.length) {
-                return this.emitNumericEntity(str.charCodeAt(strIdx));
+                return this.consumed > 3 ? this.emitNumericEntity(char) : 0;
             }
         }
+
+        this.addToNumericResult(str, startIdx, strIdx, 16);
 
         return -1;
     }
@@ -177,19 +189,18 @@ export class EntityDecoder {
     private stateNumericDecimal(str: string, strIdx: number): number {
         const startIdx = strIdx;
 
-        while (strIdx < str.length && isNumber(str.charCodeAt(strIdx))) {
-            strIdx += 1;
-        }
+        while (strIdx < str.length) {
+            const char = str.charCodeAt(strIdx);
+            if (isNumber(char)) {
+                strIdx += 1;
+            } else {
+                this.addToNumericResult(str, startIdx, strIdx, 10);
 
-        if (startIdx !== strIdx) {
-            this.result =
-                this.result * 10 + parseInt(str.slice(startIdx, strIdx), 10);
-            this.consumed += strIdx - startIdx;
-
-            if (strIdx < str.length) {
-                return this.emitNumericEntity(str.charCodeAt(strIdx));
+                return this.consumed > 2 ? this.emitNumericEntity(char) : 0;
             }
         }
+
+        this.addToNumericResult(str, startIdx, strIdx, 10);
 
         return -1;
     }
@@ -204,12 +215,11 @@ export class EntityDecoder {
 
         // TODO Produce errors
 
-        this.emitCodePoint(replaceCodePoint(this.result));
+        this.emitCodePoint(replaceCodePoint(this.result), this.consumed);
         return this.consumed;
     }
 
     private stateNamedEntity(str: string, strIdx: number): number {
-        const strict = this.decodeMode === EntityDecoderMode.Strict;
         const { decodeTree } = this;
 
         for (; strIdx < str.length; strIdx++, this.excess++) {
@@ -229,7 +239,10 @@ export class EntityDecoder {
             // If the branch is a value, store it and continue
             if (masked) {
                 // If we encounter a legacy entity while parsing strictly, just skip the number of bytes
-                if (!strict || str.charCodeAt(strIdx) === CharCodes.SEMI) {
+                if (
+                    str.charCodeAt(strIdx) === CharCodes.SEMI ||
+                    this.decodeMode !== EntityDecoderMode.Strict
+                ) {
                     this.result = this.treeIdx;
                     this.consumed += this.excess;
                     this.excess = 0;
@@ -258,10 +271,12 @@ export class EntityDecoder {
             this.emitCodePoint(
                 valueLength === 1
                     ? decodeTree[result] & ~BinTrieFlags.VALUE_LENGTH
-                    : decodeTree[result + 1]
+                    : decodeTree[result + 1],
+                this.consumed
             );
             if (valueLength === 3) {
-                this.emitCodePoint(decodeTree[result + 2]);
+                // For multi-byte values, we need to emit the second byte.
+                this.emitCodePoint(decodeTree[result + 2], this.consumed);
             }
 
             return this.consumed;

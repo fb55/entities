@@ -52,7 +52,7 @@ describe("EntityDecoder", () => {
         expect(decoder.write("&#x3a;", 1)).toBe(6);
 
         expect(cb).toHaveBeenCalledTimes(1);
-        expect(cb).toHaveBeenCalledWith(":".charCodeAt(0));
+        expect(cb).toHaveBeenCalledWith(":".charCodeAt(0), 6);
     });
 
     it("should decode named entities", () => {
@@ -62,7 +62,7 @@ describe("EntityDecoder", () => {
         expect(decoder.write("&amp;", 1)).toBe(5);
 
         expect(cb).toHaveBeenCalledTimes(1);
-        expect(cb).toHaveBeenCalledWith("&".charCodeAt(0));
+        expect(cb).toHaveBeenCalledWith("&".charCodeAt(0), 5);
     });
 
     it("should decode legacy entities", () => {
@@ -77,7 +77,7 @@ describe("EntityDecoder", () => {
         expect(decoder.end()).toBe(4);
 
         expect(cb).toHaveBeenCalledTimes(1);
-        expect(cb).toHaveBeenCalledWith("&".charCodeAt(0));
+        expect(cb).toHaveBeenCalledWith("&".charCodeAt(0), 4);
     });
 
     it("should decode named entity written character by character", () => {
@@ -90,6 +90,19 @@ describe("EntityDecoder", () => {
         expect(decoder.write(";", 0)).toBe(5);
 
         expect(cb).toHaveBeenCalledTimes(1);
-        expect(cb).toHaveBeenCalledWith("&".charCodeAt(0));
+        expect(cb).toHaveBeenCalledWith("&".charCodeAt(0), 5);
+    });
+
+    it("should decode numeric entity written character by character", () => {
+        const cb = jest.fn();
+        const decoder = new entities.EntityDecoder(entities.htmlDecodeTree, cb);
+
+        for (const c of "#x3a") {
+            expect(decoder.write(c, 0)).toBe(-1);
+        }
+        expect(decoder.write(";", 0)).toBe(6);
+
+        expect(cb).toHaveBeenCalledTimes(1);
+        expect(cb).toHaveBeenCalledWith(":".charCodeAt(0), 6);
     });
 });
