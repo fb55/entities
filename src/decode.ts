@@ -66,9 +66,7 @@ export class EntityDecoder {
     constructor(
         private readonly decodeTree: Uint16Array,
         private readonly emitCodePoint: (cp: number, consumed: number) => void
-    ) {
-        this.treeCurrent = this.decodeTree[0];
-    }
+    ) {}
 
     private state = EntityDecoderState.EntityStart;
     /** Characters that were consumed while parsing an entity. */
@@ -81,7 +79,6 @@ export class EntityDecoder {
      */
     private result = 0;
 
-    private treeCurrent: number;
     private treeIdx = 0;
     private excess = 1;
     private decodeMode = EntityDecoderMode.Strict;
@@ -92,7 +89,6 @@ export class EntityDecoder {
         this.state = EntityDecoderState.EntityStart;
         this.result = 0;
         this.treeIdx = 0;
-        this.treeCurrent = this.decodeTree[0];
         this.excess = 1;
         this.consumed = 1;
     }
@@ -223,21 +219,22 @@ export class EntityDecoder {
         const { decodeTree } = this;
 
         for (; strIdx < str.length; strIdx++, this.excess++) {
+            const current = decodeTree[this.treeIdx];
             this.treeIdx = determineBranch(
                 decodeTree,
-                this.treeCurrent,
-                this.treeIdx + 1,
+                current,
+                this.treeIdx +
+                    // The mask is the number of bytes of the value, including the current byte.
+                    Math.max(1, (current & BinTrieFlags.VALUE_LENGTH) >> 14),
                 str.charCodeAt(strIdx)
             );
 
             if (this.treeIdx < 0) return this.emitNamedEntity();
 
-            this.treeCurrent = decodeTree[this.treeIdx];
-
-            const masked = this.treeCurrent & BinTrieFlags.VALUE_LENGTH;
+            const masked = decodeTree[this.treeIdx] & BinTrieFlags.VALUE_LENGTH;
 
             // If the branch is a value, store it and continue
-            if (masked) {
+            if (masked !== 0) {
                 // If we encounter a legacy entity while parsing strictly, just skip the number of bytes
                 if (
                     str.charCodeAt(strIdx) === CharCodes.SEMI ||
@@ -248,13 +245,10 @@ export class EntityDecoder {
                     this.excess = 0;
                 }
 
-                // The mask is the number of bytes of the value, including the current byte.
-                const valueLength = (masked >> 14) - 1;
-
                 // If the value is stored in the current byte, we are done.
-                if (valueLength === 0) return this.emitNamedEntity();
-
-                this.treeIdx += valueLength;
+                if (masked === 0b0100_0000_0000_0000) {
+                    return this.emitNamedEntity();
+                }
             }
         }
 
