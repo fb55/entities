@@ -12,13 +12,16 @@ export { replaceCodePoint, fromCodePoint } from "./decode_codepoint.js";
 const enum CharCodes {
     NUM = 35, // "#"
     SEMI = 59, // ";"
+    EQUALS = 61, // "="
     ZERO = 48, // "0"
     NINE = 57, // "9"
     LOWER_A = 97, // "a"
     LOWER_F = 102, // "f"
     LOWER_X = 120, // "x"
+    LOWER_Z = 122, // "z"
     UPPER_A = 65, // "A"
     UPPER_F = 70, // "F"
+    UPPER_Z = 90, // "Z"
     /** Bit that needs to be set to convert an upper case ASCII character to lower case */
     TO_LOWER_BIT = 0b100000,
 }
@@ -38,6 +41,24 @@ function isHexadecimalCharacter(code: number): boolean {
         (code >= CharCodes.UPPER_A && code <= CharCodes.UPPER_F) ||
         (code >= CharCodes.LOWER_A && code <= CharCodes.LOWER_F)
     );
+}
+
+function isAsciiAlphaNumeric(code: number): boolean {
+    return (
+        (code >= CharCodes.UPPER_A && code <= CharCodes.UPPER_Z) ||
+        (code >= CharCodes.LOWER_A && code <= CharCodes.LOWER_Z) ||
+        isNumber(code)
+    );
+}
+
+/**
+ * Checks if the given character is a valid end character for an entity in an attribute.
+ *
+ * Attribute values that aren't terminated properly aren't parsed, and shouldn't lead to a parser error.
+ * See the example in https://html.spec.whatwg.org/multipage/parsing.html#named-character-reference-state
+ */
+function isEntityInAttributeInvalidEnd(code: number): boolean {
+    return code === CharCodes.EQUALS || isAsciiAlphaNumeric(code);
 }
 
 const enum EntityDecoderState {
@@ -217,27 +238,35 @@ export class EntityDecoder {
 
     private stateNamedEntity(str: string, strIdx: number): number {
         const { decodeTree } = this;
+        let current = decodeTree[this.treeIdx];
+        // The mask is the number of bytes of the value, including the current byte.
+        let valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
 
         for (; strIdx < str.length; strIdx++, this.excess++) {
-            const current = decodeTree[this.treeIdx];
+            const char = str.charCodeAt(strIdx);
+
             this.treeIdx = determineBranch(
                 decodeTree,
                 current,
-                this.treeIdx +
-                    // The mask is the number of bytes of the value, including the current byte.
-                    Math.max(1, (current & BinTrieFlags.VALUE_LENGTH) >> 14),
-                str.charCodeAt(strIdx)
+                this.treeIdx + Math.max(1, valueLength),
+                char
             );
 
-            if (this.treeIdx < 0) return this.emitNamedEntity();
+            if (this.treeIdx < 0) {
+                return this.decodeMode === EntityDecoderMode.Attribute &&
+                    isEntityInAttributeInvalidEnd(char)
+                    ? 0
+                    : this.emitNamedEntity();
+            }
 
-            const masked = decodeTree[this.treeIdx] & BinTrieFlags.VALUE_LENGTH;
+            current = decodeTree[this.treeIdx];
+            valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
 
             // If the branch is a value, store it and continue
-            if (masked !== 0) {
-                // If we encounter a legacy entity while parsing strictly, just skip the number of bytes
+            if (valueLength !== 0) {
+                // If we encounter a legacy entity while parsing strictly, then ignore it.
                 if (
-                    str.charCodeAt(strIdx) === CharCodes.SEMI ||
+                    char === CharCodes.SEMI ||
                     this.decodeMode !== EntityDecoderMode.Strict
                 ) {
                     this.result = this.treeIdx;
@@ -245,8 +274,8 @@ export class EntityDecoder {
                     this.excess = 0;
                 }
 
-                // If the value is stored in the current byte, we are done.
-                if (masked === 0b0100_0000_0000_0000) {
+                // If the entity is terminated by a semicolon, we are done.
+                if (char === CharCodes.SEMI) {
                     return this.emitNamedEntity();
                 }
             }
