@@ -100,7 +100,7 @@ export class EntityDecoder {
      */
     private result = 0;
 
-    private treeIdx = 0;
+    private treeIndex = 0;
     private excess = 1;
     private decodeMode = EntityDecoderMode.Strict;
 
@@ -109,7 +109,7 @@ export class EntityDecoder {
         this.decodeMode = decodeMode;
         this.state = EntityDecoderState.EntityStart;
         this.result = 0;
-        this.treeIdx = 0;
+        this.treeIndex = 0;
         this.excess = 1;
         this.consumed = 1;
     }
@@ -238,21 +238,21 @@ export class EntityDecoder {
 
     private stateNamedEntity(str: string, strIdx: number): number {
         const { decodeTree } = this;
-        let current = decodeTree[this.treeIdx];
+        let current = decodeTree[this.treeIndex];
         // The mask is the number of bytes of the value, including the current byte.
         let valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
 
         for (; strIdx < str.length; strIdx++, this.excess++) {
             const char = str.charCodeAt(strIdx);
 
-            this.treeIdx = determineBranch(
+            this.treeIndex = determineBranch(
                 decodeTree,
                 current,
-                this.treeIdx + Math.max(1, valueLength),
+                this.treeIndex + Math.max(1, valueLength),
                 char
             );
 
-            if (this.treeIdx < 0) {
+            if (this.treeIndex < 0) {
                 return this.result === 0 ||
                     (this.decodeMode === EntityDecoderMode.Attribute &&
                         isEntityInAttributeInvalidEnd(char))
@@ -260,7 +260,7 @@ export class EntityDecoder {
                     : this.emitNamedEntity();
             }
 
-            current = decodeTree[this.treeIdx];
+            current = decodeTree[this.treeIndex];
             valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
 
             // If the branch is a value, store it and continue
@@ -268,7 +268,7 @@ export class EntityDecoder {
                 // If the entity is terminated by a semicolon, we are done.
                 if (char === CharCodes.SEMI) {
                     return this.emitNamedEntityData(
-                        this.treeIdx,
+                        this.treeIndex,
                         valueLength,
                         this.consumed + this.excess
                     );
@@ -276,7 +276,7 @@ export class EntityDecoder {
 
                 // If we encounter a non-terminated (legacy) entity while parsing strictly, then ignore it.
                 if (this.decodeMode !== EntityDecoderMode.Strict) {
-                    this.result = this.treeIdx;
+                    this.result = this.treeIndex;
                     this.consumed += this.excess;
                     this.excess = 0;
                 }
