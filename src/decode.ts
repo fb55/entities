@@ -223,7 +223,7 @@ export class EntityDecoder {
     }
 
     private emitNumericEntity(lastCp: number): number {
-        // TODO Figure out if this is a legit end of the entity
+        // Figure out if this is a legit end of the entity
         if (lastCp === CharCodes.SEMI) {
             this.consumed += 1;
         } else if (this.decodeMode === EntityDecoderMode.Strict) {
