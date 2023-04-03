@@ -155,20 +155,20 @@ export class EntityDecoder {
         }
     }
 
-    private stateNumericStart(str: string, strIdx: number): number {
-        if (strIdx >= str.length) {
+    private stateNumericStart(str: string, offset: number): number {
+        if (offset >= str.length) {
             return -1;
         }
 
-        const char = str.charCodeAt(strIdx);
+        const char = str.charCodeAt(offset);
         if ((char | CharCodes.TO_LOWER_BIT) === CharCodes.LOWER_X) {
             this.state = EntityDecoderState.NumericHex;
             this.consumed += 1;
-            return this.stateNumericHex(str, strIdx + 1);
+            return this.stateNumericHex(str, offset + 1);
         }
 
         this.state = EntityDecoderState.NumericDecimal;
-        return this.stateNumericDecimal(str, strIdx);
+        return this.stateNumericDecimal(str, offset);
     }
 
     private addToNumericResult(
@@ -184,40 +184,40 @@ export class EntityDecoder {
         }
     }
 
-    private stateNumericHex(str: string, strIdx: number): number {
-        const startIdx = strIdx;
+    private stateNumericHex(str: string, offset: number): number {
+        const startIdx = offset;
 
-        while (strIdx < str.length) {
-            const char = str.charCodeAt(strIdx);
+        while (offset < str.length) {
+            const char = str.charCodeAt(offset);
             if (isNumber(char) || isHexadecimalCharacter(char)) {
-                strIdx += 1;
+                offset += 1;
             } else {
-                this.addToNumericResult(str, startIdx, strIdx, 16);
+                this.addToNumericResult(str, startIdx, offset, 16);
 
                 return this.consumed > 3 ? this.emitNumericEntity(char) : 0;
             }
         }
 
-        this.addToNumericResult(str, startIdx, strIdx, 16);
+        this.addToNumericResult(str, startIdx, offset, 16);
 
         return -1;
     }
 
-    private stateNumericDecimal(str: string, strIdx: number): number {
-        const startIdx = strIdx;
+    private stateNumericDecimal(str: string, offset: number): number {
+        const startIdx = offset;
 
-        while (strIdx < str.length) {
-            const char = str.charCodeAt(strIdx);
+        while (offset < str.length) {
+            const char = str.charCodeAt(offset);
             if (isNumber(char)) {
-                strIdx += 1;
+                offset += 1;
             } else {
-                this.addToNumericResult(str, startIdx, strIdx, 10);
+                this.addToNumericResult(str, startIdx, offset, 10);
 
                 return this.consumed > 2 ? this.emitNumericEntity(char) : 0;
             }
         }
 
-        this.addToNumericResult(str, startIdx, strIdx, 10);
+        this.addToNumericResult(str, startIdx, offset, 10);
 
         return -1;
     }
@@ -236,14 +236,14 @@ export class EntityDecoder {
         return this.consumed;
     }
 
-    private stateNamedEntity(str: string, strIdx: number): number {
+    private stateNamedEntity(str: string, offset: number): number {
         const { decodeTree } = this;
         let current = decodeTree[this.treeIndex];
         // The mask is the number of bytes of the value, including the current byte.
         let valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
 
-        for (; strIdx < str.length; strIdx++, this.excess++) {
-            const char = str.charCodeAt(strIdx);
+        for (; offset < str.length; offset++, this.excess++) {
+            const char = str.charCodeAt(offset);
 
             this.treeIndex = determineBranch(
                 decodeTree,
@@ -356,27 +356,27 @@ function getDecoder(decodeTree: Uint16Array) {
             : EntityDecoderMode.Text;
 
         let lastIdx = 0;
-        let strIdx = 0;
+        let offset = 0;
 
-        while ((strIdx = str.indexOf("&", strIdx)) >= 0) {
-            ret += str.slice(lastIdx, strIdx);
+        while ((offset = str.indexOf("&", offset)) >= 0) {
+            ret += str.slice(lastIdx, offset);
 
             decoder.startEntity(decodeMode);
 
             const len = decoder.write(
                 str,
                 // Skip the "&"
-                strIdx + 1
+                offset + 1
             );
 
             if (len < 0) {
-                lastIdx = strIdx + decoder.end();
+                lastIdx = offset + decoder.end();
                 break;
             }
 
-            lastIdx = strIdx + len;
+            lastIdx = offset + len;
             // If `len` is 0, skip the current `&` and continue.
-            strIdx = len === 0 ? lastIdx + 1 : lastIdx;
+            offset = len === 0 ? lastIdx + 1 : lastIdx;
         }
 
         const result = ret + str.slice(lastIdx);
