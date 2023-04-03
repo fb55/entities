@@ -355,11 +355,11 @@ function getDecoder(decodeTree: Uint16Array) {
             ? EntityDecoderMode.Strict
             : EntityDecoderMode.Text;
 
-        let lastIdx = 0;
+        let lastIndex = 0;
         let offset = 0;
 
         while ((offset = str.indexOf("&", offset)) >= 0) {
-            ret += str.slice(lastIdx, offset);
+            ret += str.slice(lastIndex, offset);
 
             decoder.startEntity(decodeMode);
 
@@ -370,16 +370,16 @@ function getDecoder(decodeTree: Uint16Array) {
             );
 
             if (len < 0) {
-                lastIdx = offset + decoder.end();
+                lastIndex = offset + decoder.end();
                 break;
             }
 
-            lastIdx = offset + len;
+            lastIndex = offset + len;
             // If `len` is 0, skip the current `&` and continue.
-            offset = len === 0 ? lastIdx + 1 : lastIdx;
+            offset = len === 0 ? lastIndex + 1 : lastIndex;
         }
 
-        const result = ret + str.slice(lastIdx);
+        const result = ret + str.slice(lastIndex);
 
         // Make sure we don't keep a reference to the final string.
         ret = "";
