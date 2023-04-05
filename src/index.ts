@@ -1,4 +1,9 @@
-import { decodeXML, decodeHTML, decodeHTMLStrict } from "./decode.js";
+import {
+    decodeXML,
+    decodeHTML,
+    decodeHTMLStrict,
+    DecodingMode,
+} from "./decode.js";
 import { encodeHTML, encodeNonAsciiHTML } from "./encode.js";
 import {
     encodeXML,
@@ -13,14 +18,6 @@ export enum EntityLevel {
     XML = 0,
     /** Support HTML entities, which are a superset of XML entities. */
     HTML = 1,
-}
-
-/** Determines whether some entities are allowed to be written without a trailing `;`. */
-export enum DecodingMode {
-    /** Support legacy HTML entities. */
-    Legacy = 0,
-    /** Do not support legacy HTML entities. */
-    Strict = 1,
 }
 
 export enum EncodingMode {
@@ -108,10 +105,7 @@ export function decodeStrict(
     const opts = typeof options === "number" ? { level: options } : options;
 
     if (opts.level === EntityLevel.HTML) {
-        if (opts.mode === DecodingMode.Legacy) {
-            return decodeHTML(data);
-        }
-        return decodeHTMLStrict(data);
+        return decodeHTML(data, opts.mode);
     }
 
     return decodeXML(data);
@@ -179,9 +173,12 @@ export {
 } from "./encode.js";
 
 export {
+    EntityDecoder,
+    DecodingMode,
     decodeXML,
     decodeHTML,
     decodeHTMLStrict,
+    decodeHTMLAttribute,
     // Legacy aliases (deprecated)
     decodeHTML as decodeHTML4,
     decodeHTML as decodeHTML5,

@@ -70,13 +70,13 @@ const enum EntityDecoderState {
     NamedEntity,
 }
 
-export enum EntityDecoderMode {
+export enum DecodingMode {
+    /** Entities in text nodes that can end with any character. */
+    Legacy = 0,
     /** Only allow entities terminated with a semicolon. */
-    Strict,
+    Strict = 1,
     /** Entities in attributes have limitations on ending characters. */
-    Attribute,
-    /** Entities in text nodes can end with any character. */
-    Text,
+    Attribute = 2,
 }
 
 /**
@@ -126,10 +126,10 @@ export class EntityDecoder {
     /** The number of characters that were consumed in excess. */
     private excess = 1;
     /** The mode in which the decoder is operating. */
-    private decodeMode = EntityDecoderMode.Strict;
+    private decodeMode = DecodingMode.Strict;
 
     /** Resets the instance to make it reusable. */
-    startEntity(decodeMode: EntityDecoderMode): void {
+    startEntity(decodeMode: DecodingMode): void {
         this.decodeMode = decodeMode;
         this.state = EntityDecoderState.EntityStart;
         this.result = 0;
@@ -294,7 +294,7 @@ export class EntityDecoder {
         // Figure out if this is a legit end of the entity
         if (lastCp === CharCodes.SEMI) {
             this.consumed += 1;
-        } else if (this.decodeMode === EntityDecoderMode.Strict) {
+        } else if (this.decodeMode === DecodingMode.Strict) {
             return 0;
         }
 
@@ -338,7 +338,7 @@ export class EntityDecoder {
 
             if (this.treeIndex < 0) {
                 return this.result === 0 ||
-                    (this.decodeMode === EntityDecoderMode.Attribute &&
+                    (this.decodeMode === DecodingMode.Attribute &&
                         isEntityInAttributeInvalidEnd(char))
                     ? 0
                     : this.emitNotTerminatedNamedEntity();
@@ -359,7 +359,7 @@ export class EntityDecoder {
                 }
 
                 // If we encounter a non-terminated (legacy) entity while parsing strictly, then ignore it.
-                if (this.decodeMode !== EntityDecoderMode.Strict) {
+                if (this.decodeMode !== DecodingMode.Strict) {
                     this.result = this.treeIndex;
                     this.consumed += this.excess;
                     this.excess = 0;
@@ -458,11 +458,10 @@ function getDecoder(decodeTree: Uint16Array) {
         (str) => (ret += fromCodePoint(str))
     );
 
-    return function decodeWithTrie(str: string, strict: boolean): string {
-        const decodeMode = strict
-            ? EntityDecoderMode.Strict
-            : EntityDecoderMode.Text;
-
+    return function decodeWithTrie(
+        str: string,
+        decodeMode: DecodingMode
+    ): string {
         let lastIndex = 0;
         let offset = 0;
 
@@ -545,31 +544,42 @@ const htmlDecoder = getDecoder(htmlDecodeTree);
 const xmlDecoder = getDecoder(xmlDecodeTree);
 
 /**
- * Decodes an HTML string, allowing for entities not terminated by a semi-colon.
+ * Decodes an HTML string.
+ *
+ * @param str The string to decode.
+ * @param mode The decoding mode.
+ * @returns The decoded string.
+ */
+export function decodeHTML(str: string, mode = DecodingMode.Legacy): string {
+    return htmlDecoder(str, mode);
+}
+
+/**
+ * Decodes an HTML string in an attribute.
  *
  * @param str The string to decode.
  * @returns The decoded string.
  */
-export function decodeHTML(str: string): string {
-    return htmlDecoder(str, false);
+export function decodeHTMLAttribute(str: string): string {
+    return htmlDecoder(str, DecodingMode.Attribute);
 }
 
 /**
- * Decodes an HTML string, requiring all entities to be terminated by a semi-colon.
+ * Decodes an HTML string, requiring all entities to be terminated by a semicolon.
  *
  * @param str The string to decode.
  * @returns The decoded string.
  */
 export function decodeHTMLStrict(str: string): string {
-    return htmlDecoder(str, true);
+    return htmlDecoder(str, DecodingMode.Strict);
 }
 
 /**
- * Decodes an XML string, requiring all entities to be terminated by a semi-colon.
+ * Decodes an XML string, requiring all entities to be terminated by a semicolon.
  *
  * @param str The string to decode.
  * @returns The decoded string.
  */
 export function decodeXML(str: string): string {
-    return xmlDecoder(str, true);
+    return xmlDecoder(str, DecodingMode.Strict);
 }

@@ -76,7 +76,7 @@ describe("EntityDecoder", () => {
     it("should decode legacy entities", () => {
         const cb = jest.fn();
         const decoder = new entities.EntityDecoder(entities.htmlDecodeTree, cb);
-        decoder.startEntity(entities.EntityDecoderMode.Text);
+        decoder.startEntity(entities.DecodingMode.Legacy);
 
         expect(decoder.write("&amp", 1)).toBe(-1);
 
@@ -128,7 +128,7 @@ describe("EntityDecoder", () => {
                 errorHandlers
             );
 
-            decoder.startEntity(entities.EntityDecoderMode.Text);
+            decoder.startEntity(entities.DecodingMode.Legacy);
             expect(decoder.write("&amp;", 1)).toBe(5);
             expect(cb).toHaveBeenCalledTimes(1);
             expect(cb).toHaveBeenCalledWith("&".charCodeAt(0), 5);
@@ -136,7 +136,7 @@ describe("EntityDecoder", () => {
                 errorHandlers.missingSemicolonAfterCharacterReference
             ).toHaveBeenCalledTimes(0);
 
-            decoder.startEntity(entities.EntityDecoderMode.Text);
+            decoder.startEntity(entities.DecodingMode.Legacy);
             expect(decoder.write("&amp", 1)).toBe(-1);
             expect(decoder.end()).toBe(4);
 
@@ -160,7 +160,7 @@ describe("EntityDecoder", () => {
                 errorHandlers
             );
 
-            decoder.startEntity(entities.EntityDecoderMode.Text);
+            decoder.startEntity(entities.DecodingMode.Legacy);
             expect(decoder.write("&#x3a", 1)).toBe(-1);
             expect(decoder.end()).toBe(5);
 
@@ -193,7 +193,7 @@ describe("EntityDecoder", () => {
                 errorHandlers
             );
 
-            decoder.startEntity(entities.EntityDecoderMode.Text);
+            decoder.startEntity(entities.DecodingMode.Legacy);
             expect(decoder.write("&#", 1)).toBe(-1);
             expect(decoder.end()).toBe(0);
 
@@ -222,7 +222,7 @@ describe("EntityDecoder", () => {
                 errorHandlers
             );
 
-            decoder.startEntity(entities.EntityDecoderMode.Text);
+            decoder.startEntity(entities.DecodingMode.Legacy);
             expect(decoder.write("&#x", 1)).toBe(-1);
             expect(decoder.end()).toBe(0);
 
