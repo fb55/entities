@@ -79,6 +79,9 @@ export enum EntityDecoderMode {
     Text,
 }
 
+/**
+ * Producers for character reference errors as defined in the HTML spec.
+ */
 export interface EntityErrorProducer {
     missingSemicolonAfterCharacterReference(): void;
     absenceOfDigitsInNumericCharacterReference(): void;
@@ -86,17 +89,27 @@ export interface EntityErrorProducer {
 }
 
 /**
- * Implementation of `getDecoder`, but with support of writing partial entities.
- *
- * This is used by the `Tokenizer` to decode entities in chunks.
+ * Token decoder with support of writing partial entities.
  */
 export class EntityDecoder {
     constructor(
+        /** The tree used to decode entities. */
         private readonly decodeTree: Uint16Array,
+        /**
+         * The function that is called when a codepoint is decoded.
+         *
+         * For multi-byte named entities, this will be called multiple times,
+         * with the second codepoint, and the same `consumed` value.
+         *
+         * @param codepoint The decoded codepoint.
+         * @param consumed The number of bytes consumed by the decoder.
+         */
         private readonly emitCodePoint: (cp: number, consumed: number) => void,
+        /** An object that is used to produce errors. */
         private readonly errors?: EntityErrorProducer
     ) {}
 
+    /** The current state of the decoder. */
     private state = EntityDecoderState.EntityStart;
     /** Characters that were consumed while parsing an entity. */
     private consumed = 1;
@@ -108,8 +121,11 @@ export class EntityDecoder {
      */
     private result = 0;
 
+    /** The current index in the decode tree. */
     private treeIndex = 0;
+    /** The number of characters that were consumed in excess. */
     private excess = 1;
+    /** The mode in which the decoder is operating. */
     private decodeMode = EntityDecoderMode.Strict;
 
     /** Resets the instance to make it reusable. */
@@ -163,6 +179,15 @@ export class EntityDecoder {
         }
     }
 
+    /**
+     * Switches between the numeric decimal and hexadecimal states.
+     *
+     * Equivalent to the `Numeric character reference state` in the HTML spec.
+     *
+     * @param str The string containing the entity (or a continuation of the entity).
+     * @param offset The current offset.
+     * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+     */
     private stateNumericStart(str: string, offset: number): number {
         if (offset >= str.length) {
             return -1;
@@ -192,6 +217,15 @@ export class EntityDecoder {
         }
     }
 
+    /**
+     * Parses a hexadecimal numeric entity.
+     *
+     * Equivalent to the `Hexademical character reference state` in the HTML spec.
+     *
+     * @param str The string containing the entity (or a continuation of the entity).
+     * @param offset The current offset.
+     * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+     */
     private stateNumericHex(str: string, offset: number): number {
         const startIdx = offset;
 
@@ -210,6 +244,15 @@ export class EntityDecoder {
         return -1;
     }
 
+    /**
+     * Parses a decimal numeric entity.
+     *
+     * Equivalent to the `Decimal character reference state` in the HTML spec.
+     *
+     * @param str The string containing the entity (or a continuation of the entity).
+     * @param offset The current offset.
+     * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+     */
     private stateNumericDecimal(str: string, offset: number): number {
         const startIdx = offset;
 
@@ -228,6 +271,19 @@ export class EntityDecoder {
         return -1;
     }
 
+    /**
+     * Validate and emit a numeric entity.
+     *
+     * Implements the logic from the `Hexademical character reference start
+     * state` and `Numeric character reference end state` in the HTML spec.
+     *
+     * @param lastCp The last code point of the entity. Used to see if the
+     *               entity was terminated with a semicolon.
+     * @param expectedLength The minimum number of characters that should be
+     *                       consumed. Used to validate that at least one digit
+     *                       was consumed.
+     * @returns The number of characters that were consumed.
+     */
     private emitNumericEntity(lastCp: number, expectedLength: number): number {
         // Ensure we consumed at least one digit.
         if (this.consumed <= expectedLength) {
@@ -255,6 +311,15 @@ export class EntityDecoder {
         return this.consumed;
     }
 
+    /**
+     * Parses a named entity.
+     *
+     * Equivalent to the `Named character reference state` in the HTML spec.
+     *
+     * @param str The string containing the entity (or a continuation of the entity).
+     * @param offset The current offset.
+     * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+     */
     private stateNamedEntity(str: string, offset: number): number {
         const { decodeTree } = this;
         let current = decodeTree[this.treeIndex];
@@ -305,6 +370,11 @@ export class EntityDecoder {
         return -1;
     }
 
+    /**
+     * Emit a named entity that was not terminated with a semicolon.
+     *
+     * @returns The number of characters consumed.
+     */
     private emitNotTerminatedNamedEntity(): number {
         const { result, decodeTree } = this;
 
@@ -317,6 +387,15 @@ export class EntityDecoder {
         return this.consumed;
     }
 
+    /**
+     * Emit a named entity.
+     *
+     * @param result The index of the entity in the decode tree.
+     * @param valueLength The number of bytes in the entity.
+     * @param consumed The number of characters consumed.
+     *
+     * @returns The number of characters consumed.
+     */
     private emitNamedEntityData(
         result: number,
         valueLength: number,
@@ -338,6 +417,13 @@ export class EntityDecoder {
         return consumed;
     }
 
+    /**
+     * Signal to the parser that the end of the input was reached.
+     *
+     * Remaining data will be emitted and relevant errors will be produced.
+     *
+     * @returns The number of characters consumed.
+     */
     end(): number {
         switch (this.state) {
             case EntityDecoderState.NamedEntity: {
@@ -353,7 +439,11 @@ export class EntityDecoder {
             case EntityDecoderState.NumericHex: {
                 return this.emitNumericEntity(0, 3);
             }
-            default: {
+            case EntityDecoderState.NumericStart: {
+                this.errors?.absenceOfDigitsInNumericCharacterReference();
+                return 0;
+            }
+            case EntityDecoderState.EntityStart: {
                 // Return 0 if we have no entity.
                 return 0;
             }

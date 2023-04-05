@@ -80,7 +80,7 @@ describe("EntityDecoder", () => {
 
         expect(decoder.write("&amp", 1)).toBe(-1);
 
-        expect(cb).not.toHaveBeenCalled();
+        expect(cb).toHaveBeenCalledTimes(0);
 
         expect(decoder.end()).toBe(4);
 
@@ -112,5 +112,130 @@ describe("EntityDecoder", () => {
 
         expect(cb).toHaveBeenCalledTimes(1);
         expect(cb).toHaveBeenCalledWith(":".charCodeAt(0), 6);
+    });
+
+    describe("errors", () => {
+        it("should produce an error for a named entity without a semicolon", () => {
+            const errorHandlers = {
+                missingSemicolonAfterCharacterReference: jest.fn(),
+                absenceOfDigitsInNumericCharacterReference: jest.fn(),
+                validateNumericCharacterReference: jest.fn(),
+            };
+            const cb = jest.fn();
+            const decoder = new entities.EntityDecoder(
+                entities.htmlDecodeTree,
+                cb,
+                errorHandlers
+            );
+
+            decoder.startEntity(entities.EntityDecoderMode.Text);
+            expect(decoder.write("&amp;", 1)).toBe(5);
+            expect(cb).toHaveBeenCalledTimes(1);
+            expect(cb).toHaveBeenCalledWith("&".charCodeAt(0), 5);
+            expect(
+                errorHandlers.missingSemicolonAfterCharacterReference
+            ).toHaveBeenCalledTimes(0);
+
+            decoder.startEntity(entities.EntityDecoderMode.Text);
+            expect(decoder.write("&amp", 1)).toBe(-1);
+            expect(decoder.end()).toBe(4);
+
+            expect(cb).toHaveBeenCalledTimes(2);
+            expect(cb).toHaveBeenLastCalledWith("&".charCodeAt(0), 4);
+            expect(
+                errorHandlers.missingSemicolonAfterCharacterReference
+            ).toHaveBeenCalledTimes(1);
+        });
+
+        it("should produce an error for a numeric entity without a semicolon", () => {
+            const errorHandlers = {
+                missingSemicolonAfterCharacterReference: jest.fn(),
+                absenceOfDigitsInNumericCharacterReference: jest.fn(),
+                validateNumericCharacterReference: jest.fn(),
+            };
+            const cb = jest.fn();
+            const decoder = new entities.EntityDecoder(
+                entities.htmlDecodeTree,
+                cb,
+                errorHandlers
+            );
+
+            decoder.startEntity(entities.EntityDecoderMode.Text);
+            expect(decoder.write("&#x3a", 1)).toBe(-1);
+            expect(decoder.end()).toBe(5);
+
+            expect(cb).toHaveBeenCalledTimes(1);
+            expect(cb).toHaveBeenCalledWith(0x3a, 5);
+            expect(
+                errorHandlers.missingSemicolonAfterCharacterReference
+            ).toHaveBeenCalledTimes(1);
+            expect(
+                errorHandlers.absenceOfDigitsInNumericCharacterReference
+            ).toHaveBeenCalledTimes(0);
+            expect(
+                errorHandlers.validateNumericCharacterReference
+            ).toHaveBeenCalledTimes(1);
+            expect(
+                errorHandlers.validateNumericCharacterReference
+            ).toHaveBeenCalledWith(0x3a);
+        });
+
+        it("should produce an error for numeric entities without digits", () => {
+            const errorHandlers = {
+                missingSemicolonAfterCharacterReference: jest.fn(),
+                absenceOfDigitsInNumericCharacterReference: jest.fn(),
+                validateNumericCharacterReference: jest.fn(),
+            };
+            const cb = jest.fn();
+            const decoder = new entities.EntityDecoder(
+                entities.htmlDecodeTree,
+                cb,
+                errorHandlers
+            );
+
+            decoder.startEntity(entities.EntityDecoderMode.Text);
+            expect(decoder.write("&#", 1)).toBe(-1);
+            expect(decoder.end()).toBe(0);
+
+            expect(cb).toHaveBeenCalledTimes(0);
+            expect(
+                errorHandlers.missingSemicolonAfterCharacterReference
+            ).toHaveBeenCalledTimes(0);
+            expect(
+                errorHandlers.absenceOfDigitsInNumericCharacterReference
+            ).toHaveBeenCalledTimes(1);
+            expect(
+                errorHandlers.validateNumericCharacterReference
+            ).toHaveBeenCalledTimes(0);
+        });
+
+        it("should produce an error for hex entities without digits", () => {
+            const errorHandlers = {
+                missingSemicolonAfterCharacterReference: jest.fn(),
+                absenceOfDigitsInNumericCharacterReference: jest.fn(),
+                validateNumericCharacterReference: jest.fn(),
+            };
+            const cb = jest.fn();
+            const decoder = new entities.EntityDecoder(
+                entities.htmlDecodeTree,
+                cb,
+                errorHandlers
+            );
+
+            decoder.startEntity(entities.EntityDecoderMode.Text);
+            expect(decoder.write("&#x", 1)).toBe(-1);
+            expect(decoder.end()).toBe(0);
+
+            expect(cb).toHaveBeenCalledTimes(0);
+            expect(
+                errorHandlers.missingSemicolonAfterCharacterReference
+            ).toHaveBeenCalledTimes(0);
+            expect(
+                errorHandlers.absenceOfDigitsInNumericCharacterReference
+            ).toHaveBeenCalledTimes(1);
+            expect(
+                errorHandlers.validateNumericCharacterReference
+            ).toHaveBeenCalledTimes(0);
+        });
     });
 });

@@ -2,6 +2,7 @@
 
 const decodeMap = new Map([
     [0, 65533],
+    // C1 Unicode control character reference replacements
     [128, 8364],
     [130, 8218],
     [131, 402],
@@ -65,6 +66,13 @@ export function replaceCodePoint(codePoint: number) {
     return decodeMap.get(codePoint) ?? codePoint;
 }
 
+/**
+ * Replace the code point if relevant, then convert it to a string.
+ *
+ * @deprecated Use `fromCodePoint(replaceCodePoint(codePoint))` instead.
+ * @param codePoint The code point to decode.
+ * @returns The decoded code point.
+ */
 export default function decodeCodePoint(codePoint: number): string {
     return fromCodePoint(replaceCodePoint(codePoint));
 }
