@@ -22,9 +22,10 @@ const enum CharCodes {
     UPPER_A = 65, // "A"
     UPPER_F = 70, // "F"
     UPPER_Z = 90, // "Z"
-    /** Bit that needs to be set to convert an upper case ASCII character to lower case */
-    TO_LOWER_BIT = 0b100000,
 }
+
+/** Bit that needs to be set to convert an upper case ASCII character to lower case */
+const TO_LOWER_BIT = 0b100000;
 
 export enum BinTrieFlags {
     VALUE_LENGTH = 0b1100_0000_0000_0000,
@@ -78,6 +79,12 @@ export enum EntityDecoderMode {
     Text,
 }
 
+export interface EntityErrorProducer {
+    missingSemicolonAfterCharacterReference(): void;
+    absenceOfDigitsInNumericCharacterReference(): void;
+    validateNumericCharacterReference(code: number): void;
+}
+
 /**
  * Implementation of `getDecoder`, but with support of writing partial entities.
  *
@@ -86,7 +93,8 @@ export enum EntityDecoderMode {
 export class EntityDecoder {
     constructor(
         private readonly decodeTree: Uint16Array,
-        private readonly emitCodePoint: (cp: number, consumed: number) => void
+        private readonly emitCodePoint: (cp: number, consumed: number) => void,
+        private readonly errors?: EntityErrorProducer
     ) {}
 
     private state = EntityDecoderState.EntityStart;
@@ -161,7 +169,7 @@ export class EntityDecoder {
         }
 
         const char = str.charCodeAt(offset);
-        if ((char | CharCodes.TO_LOWER_BIT) === CharCodes.LOWER_X) {
+        if ((char | TO_LOWER_BIT) === CharCodes.LOWER_X) {
             this.state = EntityDecoderState.NumericHex;
             this.consumed += 1;
             return this.stateNumericHex(str, offset + 1);
@@ -193,8 +201,7 @@ export class EntityDecoder {
                 offset += 1;
             } else {
                 this.addToNumericResult(str, startIdx, offset, 16);
-
-                return this.consumed > 3 ? this.emitNumericEntity(char) : 0;
+                return this.emitNumericEntity(char, 3);
             }
         }
 
@@ -212,8 +219,7 @@ export class EntityDecoder {
                 offset += 1;
             } else {
                 this.addToNumericResult(str, startIdx, offset, 10);
-
-                return this.consumed > 2 ? this.emitNumericEntity(char) : 0;
+                return this.emitNumericEntity(char, 2);
             }
         }
 
@@ -222,7 +228,13 @@ export class EntityDecoder {
         return -1;
     }
 
-    private emitNumericEntity(lastCp: number): number {
+    private emitNumericEntity(lastCp: number, expectedLength: number): number {
+        // Ensure we consumed at least one digit.
+        if (this.consumed <= expectedLength) {
+            this.errors?.absenceOfDigitsInNumericCharacterReference();
+            return 0;
+        }
+
         // Figure out if this is a legit end of the entity
         if (lastCp === CharCodes.SEMI) {
             this.consumed += 1;
@@ -230,9 +242,16 @@ export class EntityDecoder {
             return 0;
         }
 
-        // TODO Produce errors
-
         this.emitCodePoint(replaceCodePoint(this.result), this.consumed);
+
+        if (this.errors) {
+            this.errors.validateNumericCharacterReference(this.result);
+
+            if (lastCp !== CharCodes.SEMI) {
+                this.errors.missingSemicolonAfterCharacterReference();
+            }
+        }
+
         return this.consumed;
     }
 
@@ -257,7 +276,7 @@ export class EntityDecoder {
                     (this.decodeMode === EntityDecoderMode.Attribute &&
                         isEntityInAttributeInvalidEnd(char))
                     ? 0
-                    : this.emitNamedEntity();
+                    : this.emitNotTerminatedNamedEntity();
             }
 
             current = decodeTree[this.treeIndex];
@@ -286,12 +305,16 @@ export class EntityDecoder {
         return -1;
     }
 
-    private emitNamedEntity(): number {
+    private emitNotTerminatedNamedEntity(): number {
         const { result, decodeTree } = this;
+
         const valueLength =
             (decodeTree[result] & BinTrieFlags.VALUE_LENGTH) >> 14;
 
-        return this.emitNamedEntityData(result, valueLength, this.consumed);
+        this.emitNamedEntityData(result, valueLength, this.consumed);
+        this.errors?.missingSemicolonAfterCharacterReference();
+
+        return this.consumed;
     }
 
     private emitNamedEntityData(
@@ -319,21 +342,16 @@ export class EntityDecoder {
         switch (this.state) {
             case EntityDecoderState.NamedEntity: {
                 // Emit a named entity if we have one.
-                return this.result !== 0 ? this.emitNamedEntity() : 0;
+                return this.result !== 0
+                    ? this.emitNotTerminatedNamedEntity()
+                    : 0;
             }
             // Otherwise, emit a numeric entity if we have one.
             case EntityDecoderState.NumericDecimal: {
-                // Ensure we consumed at least one numeric character.
-                if (this.consumed > 2) {
-                    return this.emitNumericEntity(0);
-                }
-                return 0;
+                return this.emitNumericEntity(0, 2);
             }
             case EntityDecoderState.NumericHex: {
-                if (this.consumed > 3) {
-                    return this.emitNumericEntity(0);
-                }
-                return 0;
+                return this.emitNumericEntity(0, 3);
             }
             default: {
                 // Return 0 if we have no entity.
