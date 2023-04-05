@@ -1,9 +1,4 @@
-import {
-    decodeXML,
-    decodeHTML,
-    decodeHTMLStrict,
-    DecodingMode,
-} from "./decode.js";
+import { decodeXML, decodeHTML, DecodingMode } from "./decode.js";
 import { encodeHTML, encodeNonAsciiHTML } from "./encode.js";
 import {
     encodeXML,
@@ -79,13 +74,11 @@ export function decode(
     data: string,
     options: DecodingOptions | EntityLevel = EntityLevel.XML
 ): string {
-    const opts = typeof options === "number" ? { level: options } : options;
+    const level = typeof options === "number" ? options : options.level;
 
-    if (opts.level === EntityLevel.HTML) {
-        if (opts.mode === DecodingMode.Strict) {
-            return decodeHTMLStrict(data);
-        }
-        return decodeHTML(data);
+    if (level === EntityLevel.HTML) {
+        const mode = typeof options === "object" ? options.mode : undefined;
+        return decodeHTML(data, mode);
     }
 
     return decodeXML(data);
@@ -103,12 +96,9 @@ export function decodeStrict(
     options: DecodingOptions | EntityLevel = EntityLevel.XML
 ): string {
     const opts = typeof options === "number" ? { level: options } : options;
+    opts.mode ??= DecodingMode.Strict;
 
-    if (opts.level === EntityLevel.HTML) {
-        return decodeHTML(data, opts.mode);
-    }
-
-    return decodeXML(data);
+    return decode(data, opts);
 }
 
 /**
