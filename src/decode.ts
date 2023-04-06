@@ -98,8 +98,8 @@ export class EntityDecoder {
         /**
          * The function that is called when a codepoint is decoded.
          *
-         * For multi-byte named entities, this will be called multiple times,
-         * with the second codepoint, and the same `consumed` value.
+         * For multi-byte named entities, this will be called a second time.
+         * For the second call, `consumed` will be 0.
          *
          * @param codepoint The decoded codepoint.
          * @param consumed The number of bytes consumed by the decoder.
@@ -415,7 +415,7 @@ export class EntityDecoder {
         );
         if (valueLength === 3) {
             // For multi-byte values, we need to emit the second byte.
-            this.emitCodePoint(decodeTree[result + 2], consumed);
+            this.emitCodePoint(decodeTree[result + 2], 0);
         }
 
         return consumed;
