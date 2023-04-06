@@ -301,11 +301,11 @@ export class EntityDecoder {
         this.emitCodePoint(replaceCodePoint(this.result), this.consumed);
 
         if (this.errors) {
-            this.errors.validateNumericCharacterReference(this.result);
-
             if (lastCp !== CharCodes.SEMI) {
                 this.errors.missingSemicolonAfterCharacterReference();
             }
+
+            this.errors.validateNumericCharacterReference(this.result);
         }
 
         return this.consumed;
