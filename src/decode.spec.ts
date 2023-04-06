@@ -50,6 +50,20 @@ describe("Decode test", () => {
     it("should decode multi-byte entities", () => {
         expect(entities.decodeHTML("&NotGreaterFullEqual;")).toBe("≧̸");
     });
+
+    it("should not decode legacy entities followed by text in attribute mode", () => {
+        expect(
+            entities.decodeHTML("&not", entities.DecodingMode.Attribute)
+        ).toBe("¬");
+
+        expect(
+            entities.decodeHTML("&noti", entities.DecodingMode.Attribute)
+        ).toBe("&noti");
+
+        expect(
+            entities.decodeHTML("&noti=", entities.DecodingMode.Attribute)
+        ).toBe("&noti=");
+    });
 });
 
 describe("EntityDecoder", () => {

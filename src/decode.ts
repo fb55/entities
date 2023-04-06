@@ -338,8 +338,12 @@ export class EntityDecoder {
 
             if (this.treeIndex < 0) {
                 return this.result === 0 ||
+                    // If we are parsing an attribute
                     (this.decodeMode === DecodingMode.Attribute &&
-                        isEntityInAttributeInvalidEnd(char))
+                        // We shouldn't have consumed any characters after the entity,
+                        (valueLength === 0 ||
+                            // And there should be no invalid characters.
+                            isEntityInAttributeInvalidEnd(char)))
                     ? 0
                     : this.emitNotTerminatedNamedEntity();
             }
@@ -428,7 +432,9 @@ export class EntityDecoder {
         switch (this.state) {
             case EntityDecoderState.NamedEntity: {
                 // Emit a named entity if we have one.
-                return this.result !== 0
+                return this.result !== 0 &&
+                    (this.decodeMode !== DecodingMode.Attribute ||
+                        this.result === this.treeIndex)
                     ? this.emitNotTerminatedNamedEntity()
                     : 0;
             }
