@@ -84,7 +84,9 @@ export enum DecodingMode {
  */
 export interface EntityErrorProducer {
     missingSemicolonAfterCharacterReference(): void;
-    absenceOfDigitsInNumericCharacterReference(): void;
+    absenceOfDigitsInNumericCharacterReference(
+        consumedCharacters: number
+    ): void;
     validateNumericCharacterReference(code: number): void;
 }
 
@@ -193,8 +195,7 @@ export class EntityDecoder {
             return -1;
         }
 
-        const char = str.charCodeAt(offset);
-        if ((char | TO_LOWER_BIT) === CharCodes.LOWER_X) {
+        if ((str.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
             this.state = EntityDecoderState.NumericHex;
             this.consumed += 1;
             return this.stateNumericHex(str, offset + 1);
@@ -287,7 +288,9 @@ export class EntityDecoder {
     private emitNumericEntity(lastCp: number, expectedLength: number): number {
         // Ensure we consumed at least one digit.
         if (this.consumed <= expectedLength) {
-            this.errors?.absenceOfDigitsInNumericCharacterReference();
+            this.errors?.absenceOfDigitsInNumericCharacterReference(
+                this.consumed
+            );
             return 0;
         }
 
@@ -446,7 +449,9 @@ export class EntityDecoder {
                 return this.emitNumericEntity(0, 3);
             }
             case EntityDecoderState.NumericStart: {
-                this.errors?.absenceOfDigitsInNumericCharacterReference();
+                this.errors?.absenceOfDigitsInNumericCharacterReference(
+                    this.consumed
+                );
                 return 0;
             }
             case EntityDecoderState.EntityStart: {
