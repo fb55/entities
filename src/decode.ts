@@ -462,6 +462,12 @@ export class EntityDecoder {
     }
 }
 
+/**
+ * Creates a function that decodes entities in a string.
+ *
+ * @param decodeTree The decode tree.
+ * @returns A function that decodes entities in a string.
+ */
 function getDecoder(decodeTree: Uint16Array) {
     let ret = "";
     const decoder = new EntityDecoder(
@@ -506,6 +512,16 @@ function getDecoder(decodeTree: Uint16Array) {
     };
 }
 
+/**
+ * Determines the branch of the current node that is taken given the current
+ * character. This function is used to traverse the trie.
+ *
+ * @param decodeTree The trie.
+ * @param current The current node.
+ * @param nodeIdx The index right after the current node and its value.
+ * @param char The current character.
+ * @returns The index of the next node, or -1 if no branch is taken.
+ */
 export function determineBranch(
     decodeTree: Uint16Array,
     current: number,
