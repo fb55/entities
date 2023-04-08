@@ -13,6 +13,7 @@ describe("Decode test", () => {
         { input: "&#x3A;", output: ":" },
         { input: "&#X3a;", output: ":" },
         { input: "&#X3A;", output: ":" },
+        { input: "&#", output: "&#" },
         { input: "&>", output: "&>" },
         { input: "id=770&#anchor", output: "id=770&#anchor" },
     ];
@@ -61,13 +62,28 @@ describe("Decode test", () => {
         ).toBe("&noti");
 
         expect(
-            entities.decodeHTML("&noti=", entities.DecodingMode.Attribute)
-        ).toBe("&noti=");
+            entities.decodeHTML("&not=", entities.DecodingMode.Attribute)
+        ).toBe("&not=");
+
+        expect(entities.decodeHTMLAttribute("&notp")).toBe("&notp");
+        expect(entities.decodeHTMLAttribute("&notP")).toBe("&notP");
+        expect(entities.decodeHTMLAttribute("&not3")).toBe("&not3");
     });
 });
 
 describe("EntityDecoder", () => {
-    it("should decode numeric entities", () => {
+    it("should decode decimal entities", () => {
+        const cb = jest.fn();
+        const decoder = new entities.EntityDecoder(entities.htmlDecodeTree, cb);
+
+        expect(decoder.write("&#5", 1)).toBe(-1);
+        expect(decoder.write("8;", 0)).toBe(5);
+
+        expect(cb).toHaveBeenCalledTimes(1);
+        expect(cb).toHaveBeenCalledWith(":".charCodeAt(0), 5);
+    });
+
+    it("should decode hex entities", () => {
         const cb = jest.fn();
         const decoder = new entities.EntityDecoder(entities.htmlDecodeTree, cb);
 
@@ -126,6 +142,14 @@ describe("EntityDecoder", () => {
 
         expect(cb).toHaveBeenCalledTimes(1);
         expect(cb).toHaveBeenCalledWith(":".charCodeAt(0), 6);
+    });
+
+    it("should not fail if nothing is written", () => {
+        const cb = jest.fn();
+        const decoder = new entities.EntityDecoder(entities.htmlDecodeTree, cb);
+
+        expect(decoder.end()).toBe(0);
+        expect(cb).toHaveBeenCalledTimes(0);
     });
 
     describe("errors", () => {
@@ -218,6 +242,9 @@ describe("EntityDecoder", () => {
             expect(
                 errorHandlers.absenceOfDigitsInNumericCharacterReference
             ).toHaveBeenCalledTimes(1);
+            expect(
+                errorHandlers.absenceOfDigitsInNumericCharacterReference
+            ).toHaveBeenCalledWith(2);
             expect(
                 errorHandlers.validateNumericCharacterReference
             ).toHaveBeenCalledTimes(0);
