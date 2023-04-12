@@ -1,4 +1,4 @@
-import { decodeXML, decodeHTML, decodeHTMLStrict } from "./decode.js";
+import { decodeXML, decodeHTML, DecodingMode } from "./decode.js";
 import { encodeHTML, encodeNonAsciiHTML } from "./encode.js";
 import {
     encodeXML,
@@ -13,14 +13,6 @@ export enum EntityLevel {
     XML = 0,
     /** Support HTML entities, which are a superset of XML entities. */
     HTML = 1,
-}
-
-/** Determines whether some entities are allowed to be written without a trailing `;`. */
-export enum DecodingMode {
-    /** Support legacy HTML entities. */
-    Legacy = 0,
-    /** Do not support legacy HTML entities. */
-    Strict = 1,
 }
 
 export enum EncodingMode {
@@ -82,13 +74,11 @@ export function decode(
     data: string,
     options: DecodingOptions | EntityLevel = EntityLevel.XML
 ): string {
-    const opts = typeof options === "number" ? { level: options } : options;
+    const level = typeof options === "number" ? options : options.level;
 
-    if (opts.level === EntityLevel.HTML) {
-        if (opts.mode === DecodingMode.Strict) {
-            return decodeHTMLStrict(data);
-        }
-        return decodeHTML(data);
+    if (level === EntityLevel.HTML) {
+        const mode = typeof options === "object" ? options.mode : undefined;
+        return decodeHTML(data, mode);
     }
 
     return decodeXML(data);
@@ -106,15 +96,9 @@ export function decodeStrict(
     options: DecodingOptions | EntityLevel = EntityLevel.XML
 ): string {
     const opts = typeof options === "number" ? { level: options } : options;
+    opts.mode ??= DecodingMode.Strict;
 
-    if (opts.level === EntityLevel.HTML) {
-        if (opts.mode === DecodingMode.Legacy) {
-            return decodeHTML(data);
-        }
-        return decodeHTMLStrict(data);
-    }
-
-    return decodeXML(data);
+    return decode(data, opts);
 }
 
 /**
@@ -179,9 +163,12 @@ export {
 } from "./encode.js";
 
 export {
+    EntityDecoder,
+    DecodingMode,
     decodeXML,
     decodeHTML,
     decodeHTMLStrict,
+    decodeHTMLAttribute,
     // Legacy aliases (deprecated)
     decodeHTML as decodeHTML4,
     decodeHTML as decodeHTML5,

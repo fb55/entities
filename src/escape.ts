@@ -68,6 +68,16 @@ export function encodeXML(str: string): string {
  */
 export const escape = encodeXML;
 
+/**
+ * Creates a function that escapes all characters matched by the given regular
+ * expression using the given map of characters to escape to their entities.
+ *
+ * @param regex Regular expression to match characters to escape.
+ * @param map Map of characters to escape to their entities.
+ *
+ * @returns Function that escapes all characters matched by the given regular
+ * expression using the given map of characters to escape to their entities.
+ */
 function getEscaper(
     regex: RegExp,
     map: Map<number, string>
