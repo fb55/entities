@@ -1,6 +1,6 @@
 export interface TrieNode {
     value?: string;
-    next?: Map<number, TrieNode>;
+    next?: Map<number, TrieNode> | undefined;
 }
 
 export function getTrie(

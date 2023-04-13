@@ -3,9 +3,9 @@ import { writeFileSync } from "fs";
 
 interface TrieNode {
     /** The value, if the node has a value. */
-    v?: string;
+    v?: string | undefined;
     /** A map with the next nodes, if there are any. */
-    n?: Map<number, TrieNode>;
+    n?: Map<number, TrieNode> | undefined;
 }
 
 const htmlTrie = getTrie(htmlMap);
