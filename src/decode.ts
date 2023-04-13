@@ -212,9 +212,11 @@ export class EntityDecoder {
         base: number
     ): void {
         if (start !== end) {
+            const digitCount = end - start;
             this.result =
-                this.result * base + parseInt(str.slice(start, end), base);
-            this.consumed += end - start;
+                this.result * Math.pow(base, digitCount) +
+                parseInt(str.substr(start, digitCount), base);
+            this.consumed += digitCount;
         }
     }
 

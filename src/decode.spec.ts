@@ -144,6 +144,19 @@ describe("EntityDecoder", () => {
         expect(cb).toHaveBeenCalledWith(":".charCodeAt(0), 6);
     });
 
+    it("should decode hex entities across several chunks", () => {
+        const cb = jest.fn();
+        const decoder = new entities.EntityDecoder(entities.htmlDecodeTree, cb);
+
+        for (const chunk of ["#x", "cf", "ff", "d"]) {
+            expect(decoder.write(chunk, 0)).toBe(-1);
+        }
+
+        expect(decoder.write(";", 0)).toBe(9);
+        expect(cb).toHaveBeenCalledTimes(1);
+        expect(cb).toHaveBeenCalledWith(0xcfffd, 9);
+    });
+
     it("should not fail if nothing is written", () => {
         const cb = jest.fn();
         const decoder = new entities.EntityDecoder(entities.htmlDecodeTree, cb);
