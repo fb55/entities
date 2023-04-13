@@ -61,7 +61,7 @@ export interface DecodingOptions {
      *
      * @default {@link DecodingMode.Legacy}
      */
-    mode?: DecodingMode;
+    mode?: DecodingMode | undefined;
 }
 
 /**
