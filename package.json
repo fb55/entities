@@ -51,7 +51,7 @@
         "prettier": "^2.8.8",
         "ts-jest": "^28.0.8",
         "typedoc": "^0.24.8",
-        "typescript": "^5.0.4"
+        "typescript": "^5.1.5"
     },
     "scripts": {
         "test": "npm run test:jest && npm run lint",
