@@ -61,7 +61,7 @@ jobs:
               if: matrix.node == env.NODE_COV
 
             - name: Run Coveralls
-              uses: coverallsapp/github-action@c7885c00cb7ec0b8f9f5ff3f53cddb980f7a4412
+              uses: coverallsapp/github-action@95b1a2355bd0e526ad2fd62da9fd386ad4c98474
               if: matrix.node == env.NODE_COV
               continue-on-error: true
               with:
