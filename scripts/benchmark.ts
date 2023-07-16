@@ -62,17 +62,17 @@ const textToEncode = `über & unter's sprießende <boo> ❤️👊😉`;
 
 console.log(
     "Escaping results",
-    escapers.map(([name, escape]) => [name, escape(textToEncode)])
+    escapers.map(([name, escape]) => [name, escape(textToEncode)]),
 );
 
 console.log(
     "Encoding results",
-    encoders.map(([name, encode]) => [name, encode(textToEncode)])
+    encoders.map(([name, encode]) => [name, encode(textToEncode)]),
 );
 
 console.log(
     "Decoding results",
-    decoders.map(([name, decode]) => [name, decode(textToDecode)])
+    decoders.map(([name, decode]) => [name, decode(textToDecode)]),
 );
 
 for (const [name, escape] of escapers) {

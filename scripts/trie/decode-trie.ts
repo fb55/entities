@@ -8,7 +8,7 @@ export function decodeNode(
     decodeMap: number[],
     resultMap: Record<string, string>,
     prefix: string,
-    startIndex: number
+    startIndex: number,
 ): void {
     const current = decodeMap[startIndex];
     const valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
@@ -17,13 +17,13 @@ export function decodeNode(
         resultMap[prefix] =
             valueLength === 1
                 ? String.fromCharCode(
-                      decodeMap[startIndex] & ~BinTrieFlags.VALUE_LENGTH
+                      decodeMap[startIndex] & ~BinTrieFlags.VALUE_LENGTH,
                   )
                 : valueLength === 2
                 ? String.fromCharCode(decodeMap[startIndex + 1])
                 : String.fromCharCode(
                       decodeMap[startIndex + 1],
-                      decodeMap[startIndex + 2]
+                      decodeMap[startIndex + 2],
                   );
     }
 
@@ -41,7 +41,7 @@ export function decodeNode(
             decodeMap,
             resultMap,
             prefix + String.fromCharCode(jumpOffset),
-            branchIdx
+            branchIdx,
         );
     }
 
@@ -55,7 +55,7 @@ export function decodeNode(
                     decodeMap,
                     resultMap,
                     prefix + String.fromCharCode(code),
-                    val
+                    val,
                 );
             }
         }
@@ -65,7 +65,7 @@ export function decodeNode(
                 decodeMap,
                 resultMap,
                 prefix + String.fromCharCode(decodeMap[branchIdx + i]),
-                decodeMap[branchIdx + branchLength + i]
+                decodeMap[branchIdx + branchLength + i],
             );
         }
     }

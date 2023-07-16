@@ -17,7 +17,7 @@ describe("Documents", () => {
                     for (let l = i; l < levels.length; l++) {
                         expect(entities.decode(`&${e};`, l)).toBe(doc[e]);
                         expect(entities.decode(`&${e};`, { level: l })).toBe(
-                            doc[e]
+                            doc[e],
                         );
                     }
                 }
@@ -33,7 +33,7 @@ describe("Documents", () => {
                             entities.decode(`&${e};`, {
                                 level: l,
                                 mode: entities.DecodingMode.Strict,
-                            })
+                            }),
                         ).toBe(doc[e]);
                     }
                 }
@@ -56,7 +56,7 @@ describe("Documents", () => {
                     entities.encode("Great #'s of 🎁", {
                         level: i,
                         mode: entities.EncodingMode.ASCII,
-                    })
+                    }),
                 ).toBe("Great #&apos;s of &#x1f381;"));
         });
     }
@@ -70,7 +70,7 @@ describe("Documents", () => {
                     entities.decodeStrict(`&${e}`, {
                         level: entities.EntityLevel.HTML,
                         mode: entities.DecodingMode.Legacy,
-                    })
+                    }),
                 ).toBe(legacyMap[e]);
             }
         });

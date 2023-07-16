@@ -47,7 +47,7 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
              * store the value in the node.
              */
             if (
-                node.next ||
+                node.next !== undefined ||
                 node.value.length > 1 ||
                 binaryLength(node.value.charCodeAt(0)) > 14
             ) {
@@ -59,7 +59,7 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
 
             assert.ok(
                 binaryLength(valueLength) <= 2,
-                "Too many bits for value length"
+                "Too many bits for value length",
             );
 
             enc[nodeIdx] |= valueLength << 14;
@@ -88,7 +88,7 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
 
         assert.ok(
             binaryLength(branches.length) <= 6,
-            "Too many bits for branches"
+            "Too many bits for branches",
         );
 
         // If we only have a single branch, we can write the next value directly
@@ -123,7 +123,7 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
         if (jumpTableOverhead <= maxJumpTableOverhead) {
             assert.ok(
                 binaryLength(jumpOffset) <= 16,
-                `Offset ${jumpOffset} too large at ${binaryLength(jumpOffset)}`
+                `Offset ${jumpOffset} too large at ${binaryLength(jumpOffset)}`,
             );
 
             // Write the length of the adjusted table, plus jump offset
@@ -131,7 +131,7 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
 
             assert.ok(
                 binaryLength(jumpTableLength) <= 7,
-                `Too many bits (${binaryLength(jumpTableLength)}) for branches`
+                `Too many bits (${binaryLength(jumpTableLength)}) for branches`,
             );
 
             // Reserve space for the jump table
@@ -152,13 +152,13 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
         enc.push(
             ...branches.map(([char]) => char),
             // Reserve space for destinations, using a value that is out of bounds
-            ...branches.map((_) => Number.MAX_SAFE_INTEGER)
+            ...branches.map((_) => Number.MAX_SAFE_INTEGER),
         );
 
         assert.strictEqual(
             enc.length,
             branchIndex + branches.length * 2,
-            "Did not reserve enough space"
+            "Did not reserve enough space",
         );
 
         // Encode the branches
@@ -169,12 +169,12 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
             assert.strictEqual(
                 enc[currentIndex - branches.length],
                 val,
-                "Should have the value as the first element"
+                "Should have the value as the first element",
             );
             assert.strictEqual(
                 enc[currentIndex],
                 Number.MAX_SAFE_INTEGER,
-                "Should have the placeholder as the second element"
+                "Should have the placeholder as the second element",
             );
             const offset = encodeNode(next);
 
@@ -189,9 +189,9 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
     assert.ok(
         enc.every(
             (val) =>
-                typeof val === "number" && val >= 0 && binaryLength(val) <= 16
+                typeof val === "number" && val >= 0 && binaryLength(val) <= 16,
         ),
-        "Too many bits"
+        "Too many bits",
     );
 
     return enc;

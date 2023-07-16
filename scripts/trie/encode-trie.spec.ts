@@ -24,7 +24,7 @@ describe("encode_trie", () => {
         expect(
             encodeTrie({
                 next: new Map([["b".charCodeAt(0), { value: "a" }]]),
-            })
+            }),
         ).toStrictEqual([
             "b".charCodeAt(0),
             0b0100_0000_0000_0000 | "a".charCodeAt(0),
@@ -69,7 +69,7 @@ describe("encode_trie", () => {
     it("should encode a recursive branch to a jump map", () => {
         const jumpRecursiveTrie = { next: new Map() };
         [48, 49, 52, 54, 56, 57].forEach((val) =>
-            jumpRecursiveTrie.next.set(val, jumpRecursiveTrie)
+            jumpRecursiveTrie.next.set(val, jumpRecursiveTrie),
         );
         expect(encodeTrie(jumpRecursiveTrie)).toStrictEqual([
             0b0000_0101_0011_0000, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1,

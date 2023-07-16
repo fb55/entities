@@ -5,7 +5,7 @@ type EncodeTrieNode =
     | { v?: string; n: number | Map<number, EncodeTrieNode>; o?: string };
 
 function restoreDiff<T extends ReadonlyArray<[number, EncodeTrieNode]>>(
-    arr: T
+    arr: T,
 ): T {
     for (let i = 1; i < arr.length; i++) {
         arr[i][0] += arr[i - 1][0] + 1;

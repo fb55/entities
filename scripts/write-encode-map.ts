@@ -33,7 +33,7 @@ export default ${
         // Fix the type of the first map to refer to trie nodes.
         serialized.replace("<number,string>", "<number,EncodeTrieNode>")
     };
-`
+`,
 );
 
 console.log("Done!");
@@ -67,7 +67,7 @@ function wrapValue(value: string | undefined): string {
 
 function serializeTrie(trie: Map<number, TrieNode>): string {
     const entries: [number, TrieNode][] = Array.from(trie.entries()).sort(
-        (a, b) => a[0] - b[0]
+        (a, b) => a[0] - b[0],
     );
 
     return `new Map<number,string>(/* #__PURE__ */restoreDiff([${entries

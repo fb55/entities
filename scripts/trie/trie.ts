@@ -5,7 +5,7 @@ export interface TrieNode {
 
 export function getTrie(
     map: Record<string, string>,
-    legacy: Record<string, string>
+    legacy: Record<string, string>,
 ): TrieNode {
     const trie = new Map<number, TrieNode>();
     const root = { next: trie };
