@@ -47,7 +47,7 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
              * store the value in the node.
              */
             if (
-                node.next === undefined ||
+                node.next !== undefined ||
                 node.value.length > 1 ||
                 binaryLength(node.value.charCodeAt(0)) > 14
             ) {
