@@ -45,11 +45,11 @@ export function encodeXML(str: string): string {
         } else {
             ret += `${str.substring(lastIdx, i)}&#x${getCodePoint(
                 str,
-                i
+                i,
             ).toString(16)};`;
             // Increase by 1 if we have a surrogate pair
             lastIdx = xmlReplacer.lastIndex += Number(
-                (char & 0xfc00) === 0xd800
+                (char & 0xfc00) === 0xd800,
             );
         }
     }
@@ -80,7 +80,7 @@ export const escape = encodeXML;
  */
 function getEscaper(
     regex: RegExp,
-    map: Map<number, string>
+    map: Map<number, string>,
 ): (data: string) => string {
     return function escape(data: string): string {
         let match;
@@ -124,7 +124,7 @@ export const escapeAttribute = getEscaper(
         [34, "&quot;"],
         [38, "&amp;"],
         [160, "&nbsp;"],
-    ])
+    ]),
 );
 
 /**
@@ -140,5 +140,5 @@ export const escapeText = getEscaper(
         [60, "&lt;"],
         [62, "&gt;"],
         [160, "&nbsp;"],
-    ])
+    ]),
 );

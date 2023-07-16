@@ -9,13 +9,13 @@ import { encodeTrie } from "./trie/encode-trie";
 function convertMapToBinaryTrie(
     name: string,
     map: Record<string, string>,
-    legacy: Record<string, string>
+    legacy: Record<string, string>,
 ) {
     const encoded = encodeTrie(getTrie(map, legacy));
     const stringified = JSON.stringify(String.fromCharCode(...encoded))
         .replace(
             /[^\x20-\x7e]/g,
-            (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`
+            (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
         )
         .replace(/\\u0000/g, "\\0")
         .replace(/\\u00([\da-f]{2})/g, "\\x$1");
@@ -31,7 +31,7 @@ export default new Uint16Array(
         .split("")
         .map((c) => c.charCodeAt(0))
 );
-`
+`,
     );
 }
 

@@ -85,7 +85,7 @@ export enum DecodingMode {
 export interface EntityErrorProducer {
     missingSemicolonAfterCharacterReference(): void;
     absenceOfDigitsInNumericCharacterReference(
-        consumedCharacters: number
+        consumedCharacters: number,
     ): void;
     validateNumericCharacterReference(code: number): void;
 }
@@ -108,7 +108,7 @@ export class EntityDecoder {
          */
         private readonly emitCodePoint: (cp: number, consumed: number) => void,
         /** An object that is used to produce errors. */
-        private readonly errors?: EntityErrorProducer
+        private readonly errors?: EntityErrorProducer,
     ) {}
 
     /** The current state of the decoder. */
@@ -209,7 +209,7 @@ export class EntityDecoder {
         str: string,
         start: number,
         end: number,
-        base: number
+        base: number,
     ): void {
         if (start !== end) {
             const digitCount = end - start;
@@ -291,7 +291,7 @@ export class EntityDecoder {
         // Ensure we consumed at least one digit.
         if (this.consumed <= expectedLength) {
             this.errors?.absenceOfDigitsInNumericCharacterReference(
-                this.consumed
+                this.consumed,
             );
             return 0;
         }
@@ -338,7 +338,7 @@ export class EntityDecoder {
                 decodeTree,
                 current,
                 this.treeIndex + Math.max(1, valueLength),
-                char
+                char,
             );
 
             if (this.treeIndex < 0) {
@@ -363,7 +363,7 @@ export class EntityDecoder {
                     return this.emitNamedEntityData(
                         this.treeIndex,
                         valueLength,
-                        this.consumed + this.excess
+                        this.consumed + this.excess,
                     );
                 }
 
@@ -408,7 +408,7 @@ export class EntityDecoder {
     private emitNamedEntityData(
         result: number,
         valueLength: number,
-        consumed: number
+        consumed: number,
     ): number {
         const { decodeTree } = this;
 
@@ -416,7 +416,7 @@ export class EntityDecoder {
             valueLength === 1
                 ? decodeTree[result] & ~BinTrieFlags.VALUE_LENGTH
                 : decodeTree[result + 1],
-            consumed
+            consumed,
         );
         if (valueLength === 3) {
             // For multi-byte values, we need to emit the second byte.
@@ -452,7 +452,7 @@ export class EntityDecoder {
             }
             case EntityDecoderState.NumericStart: {
                 this.errors?.absenceOfDigitsInNumericCharacterReference(
-                    this.consumed
+                    this.consumed,
                 );
                 return 0;
             }
@@ -474,12 +474,12 @@ function getDecoder(decodeTree: Uint16Array) {
     let ret = "";
     const decoder = new EntityDecoder(
         decodeTree,
-        (str) => (ret += fromCodePoint(str))
+        (str) => (ret += fromCodePoint(str)),
     );
 
     return function decodeWithTrie(
         str: string,
-        decodeMode: DecodingMode
+        decodeMode: DecodingMode,
     ): string {
         let lastIndex = 0;
         let offset = 0;
@@ -492,7 +492,7 @@ function getDecoder(decodeTree: Uint16Array) {
             const len = decoder.write(
                 str,
                 // Skip the "&"
-                offset + 1
+                offset + 1,
             );
 
             if (len < 0) {
@@ -528,7 +528,7 @@ export function determineBranch(
     decodeTree: Uint16Array,
     current: number,
     nodeIdx: number,
-    char: number
+    char: number,
 ): number {
     const branchCount = (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
     const jumpOffset = current & BinTrieFlags.JUMP_TABLE;

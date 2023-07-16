@@ -16,12 +16,12 @@ function decode(decodeMap: number[]) {
 
 function mergeMaps(
     map: Record<string, string>,
-    legacy: Record<string, string>
+    legacy: Record<string, string>,
 ): Record<string, string> {
     const merged = {
         ...legacy,
         ...Object.fromEntries(
-            Object.entries(map).map(([key, value]) => [`${key};`, value])
+            Object.entries(map).map(([key, value]) => [`${key};`, value]),
         ),
     };
 
@@ -48,8 +48,8 @@ describe("decode_trie", () => {
             decode(
                 encodeTrie({
                     next: new Map([["b".charCodeAt(0), { value: "a" }]]),
-                })
-            )
+                }),
+            ),
         ).toStrictEqual({
             b: "a",
         }));
@@ -62,8 +62,8 @@ describe("decode_trie", () => {
                         ["A".charCodeAt(0), { value: "a" }],
                         ["b".charCodeAt(0), { value: "B" }],
                     ]),
-                })
-            )
+                }),
+            ),
         ).toStrictEqual({
             A: "a",
             b: "B",
@@ -77,8 +77,8 @@ describe("decode_trie", () => {
                         ["a".charCodeAt(0), { value: "a" }],
                         ["b".charCodeAt(0), { value: "B" }],
                     ]),
-                })
-            )
+                }),
+            ),
         ).toStrictEqual({
             a: "a",
             b: "B",
@@ -86,12 +86,12 @@ describe("decode_trie", () => {
 
     it("should decode the XML map", () =>
         expect(decode(encodeTrie(getTrie(xmlMap, {})))).toStrictEqual(
-            mergeMaps(xmlMap, {})
+            mergeMaps(xmlMap, {}),
         ));
 
     // Test takes a long time — skipped by default
     it.skip("should decode the HTML map", () =>
         expect(decode(encodeTrie(getTrie(entityMap, legacyMap)))).toStrictEqual(
-            mergeMaps(entityMap, legacyMap)
+            mergeMaps(entityMap, legacyMap),
         ));
 });

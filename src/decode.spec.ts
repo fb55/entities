@@ -32,7 +32,7 @@ describe("Decode test", () => {
 
     it("should HTML decode legacy entities according to spec", () =>
         expect(entities.decodeHTML("?&image_uri=1&ℑ=2&image=3")).toBe(
-            "?&image_uri=1&ℑ=2&image=3"
+            "?&image_uri=1&ℑ=2&image=3",
         ));
 
     it("should back out of legacy entities", () =>
@@ -54,15 +54,15 @@ describe("Decode test", () => {
 
     it("should not decode legacy entities followed by text in attribute mode", () => {
         expect(
-            entities.decodeHTML("&not", entities.DecodingMode.Attribute)
+            entities.decodeHTML("&not", entities.DecodingMode.Attribute),
         ).toBe("¬");
 
         expect(
-            entities.decodeHTML("&noti", entities.DecodingMode.Attribute)
+            entities.decodeHTML("&noti", entities.DecodingMode.Attribute),
         ).toBe("&noti");
 
         expect(
-            entities.decodeHTML("&not=", entities.DecodingMode.Attribute)
+            entities.decodeHTML("&not=", entities.DecodingMode.Attribute),
         ).toBe("&not=");
 
         expect(entities.decodeHTMLAttribute("&notp")).toBe("&notp");
@@ -176,7 +176,7 @@ describe("EntityDecoder", () => {
             const decoder = new entities.EntityDecoder(
                 entities.htmlDecodeTree,
                 cb,
-                errorHandlers
+                errorHandlers,
             );
 
             decoder.startEntity(entities.DecodingMode.Legacy);
@@ -184,7 +184,7 @@ describe("EntityDecoder", () => {
             expect(cb).toHaveBeenCalledTimes(1);
             expect(cb).toHaveBeenCalledWith("&".charCodeAt(0), 5);
             expect(
-                errorHandlers.missingSemicolonAfterCharacterReference
+                errorHandlers.missingSemicolonAfterCharacterReference,
             ).toHaveBeenCalledTimes(0);
 
             decoder.startEntity(entities.DecodingMode.Legacy);
@@ -194,7 +194,7 @@ describe("EntityDecoder", () => {
             expect(cb).toHaveBeenCalledTimes(2);
             expect(cb).toHaveBeenLastCalledWith("&".charCodeAt(0), 4);
             expect(
-                errorHandlers.missingSemicolonAfterCharacterReference
+                errorHandlers.missingSemicolonAfterCharacterReference,
             ).toHaveBeenCalledTimes(1);
         });
 
@@ -208,7 +208,7 @@ describe("EntityDecoder", () => {
             const decoder = new entities.EntityDecoder(
                 entities.htmlDecodeTree,
                 cb,
-                errorHandlers
+                errorHandlers,
             );
 
             decoder.startEntity(entities.DecodingMode.Legacy);
@@ -218,16 +218,16 @@ describe("EntityDecoder", () => {
             expect(cb).toHaveBeenCalledTimes(1);
             expect(cb).toHaveBeenCalledWith(0x3a, 5);
             expect(
-                errorHandlers.missingSemicolonAfterCharacterReference
+                errorHandlers.missingSemicolonAfterCharacterReference,
             ).toHaveBeenCalledTimes(1);
             expect(
-                errorHandlers.absenceOfDigitsInNumericCharacterReference
+                errorHandlers.absenceOfDigitsInNumericCharacterReference,
             ).toHaveBeenCalledTimes(0);
             expect(
-                errorHandlers.validateNumericCharacterReference
+                errorHandlers.validateNumericCharacterReference,
             ).toHaveBeenCalledTimes(1);
             expect(
-                errorHandlers.validateNumericCharacterReference
+                errorHandlers.validateNumericCharacterReference,
             ).toHaveBeenCalledWith(0x3a);
         });
 
@@ -241,7 +241,7 @@ describe("EntityDecoder", () => {
             const decoder = new entities.EntityDecoder(
                 entities.htmlDecodeTree,
                 cb,
-                errorHandlers
+                errorHandlers,
             );
 
             decoder.startEntity(entities.DecodingMode.Legacy);
@@ -250,16 +250,16 @@ describe("EntityDecoder", () => {
 
             expect(cb).toHaveBeenCalledTimes(0);
             expect(
-                errorHandlers.missingSemicolonAfterCharacterReference
+                errorHandlers.missingSemicolonAfterCharacterReference,
             ).toHaveBeenCalledTimes(0);
             expect(
-                errorHandlers.absenceOfDigitsInNumericCharacterReference
+                errorHandlers.absenceOfDigitsInNumericCharacterReference,
             ).toHaveBeenCalledTimes(1);
             expect(
-                errorHandlers.absenceOfDigitsInNumericCharacterReference
+                errorHandlers.absenceOfDigitsInNumericCharacterReference,
             ).toHaveBeenCalledWith(2);
             expect(
-                errorHandlers.validateNumericCharacterReference
+                errorHandlers.validateNumericCharacterReference,
             ).toHaveBeenCalledTimes(0);
         });
 
@@ -273,7 +273,7 @@ describe("EntityDecoder", () => {
             const decoder = new entities.EntityDecoder(
                 entities.htmlDecodeTree,
                 cb,
-                errorHandlers
+                errorHandlers,
             );
 
             decoder.startEntity(entities.DecodingMode.Legacy);
@@ -282,13 +282,13 @@ describe("EntityDecoder", () => {
 
             expect(cb).toHaveBeenCalledTimes(0);
             expect(
-                errorHandlers.missingSemicolonAfterCharacterReference
+                errorHandlers.missingSemicolonAfterCharacterReference,
             ).toHaveBeenCalledTimes(0);
             expect(
-                errorHandlers.absenceOfDigitsInNumericCharacterReference
+                errorHandlers.absenceOfDigitsInNumericCharacterReference,
             ).toHaveBeenCalledTimes(1);
             expect(
-                errorHandlers.validateNumericCharacterReference
+                errorHandlers.validateNumericCharacterReference,
             ).toHaveBeenCalledTimes(0);
         });
     });

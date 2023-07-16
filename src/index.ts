@@ -72,7 +72,7 @@ export interface DecodingOptions {
  */
 export function decode(
     data: string,
-    options: DecodingOptions | EntityLevel = EntityLevel.XML
+    options: DecodingOptions | EntityLevel = EntityLevel.XML,
 ): string {
     const level = typeof options === "number" ? options : options.level;
 
@@ -93,7 +93,7 @@ export function decode(
  */
 export function decodeStrict(
     data: string,
-    options: DecodingOptions | EntityLevel = EntityLevel.XML
+    options: DecodingOptions | EntityLevel = EntityLevel.XML,
 ): string {
     const opts = typeof options === "number" ? { level: options } : options;
     opts.mode ??= DecodingMode.Strict;
@@ -125,7 +125,7 @@ export interface EncodingOptions {
  */
 export function encode(
     data: string,
-    options: EncodingOptions | EntityLevel = EntityLevel.XML
+    options: EncodingOptions | EntityLevel = EntityLevel.XML,
 ): string {
     const opts = typeof options === "number" ? { level: options } : options;
 

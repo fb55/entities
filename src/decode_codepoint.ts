@@ -44,7 +44,7 @@ export const fromCodePoint =
         if (codePoint > 0xffff) {
             codePoint -= 0x10000;
             output += String.fromCharCode(
-                ((codePoint >>> 10) & 0x3ff) | 0xd800
+                ((codePoint >>> 10) & 0x3ff) | 0xd800,
             );
             codePoint = 0xdc00 | (codePoint & 0x3ff);
         }
