@@ -9,27 +9,28 @@ on:
 env:
     CI: true
     FORCE_COLOR: 2
-    NODE_COV: "lts/*" # The Node.js version to run coveralls on
+    NODE_COV: lts/* # The Node.js version to run coveralls on
 
 permissions:
-    contents: read
+    contents: read #  to fetch code (actions/checkout)
 
 jobs:
     lint:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
-            - uses: actions/setup-node@e33196f7422957bea03ed53f6fbb155025ffc7b8
+            - uses: actions/checkout@v3
+            - uses: actions/setup-node@v3
               with:
-                  node-version: 16
+                  node-version: lts/*
                   cache: npm
             - run: npm ci
             - run: npm run lint
 
     test:
         permissions:
-            checks: write # for coverallsapp/github-action to create new checks
-            contents: read # for actions/checkout to fetch code
+            contents: read #  to fetch code (actions/checkout)
+            checks: write #  to create new checks (coverallsapp/github-action)
+
         name: Node ${{ matrix.node }}
         runs-on: ubuntu-latest
 
@@ -37,15 +38,15 @@ jobs:
             fail-fast: false
             matrix:
                 node:
-                    - 12
                     - 14
                     - 16
-                    - "lts/*"
+                    - 18
+                    - lts/*
 
         steps:
-            - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
+            - uses: actions/checkout@v3
             - name: Use Node.js ${{ matrix.node }}
-              uses: actions/setup-node@e33196f7422957bea03ed53f6fbb155025ffc7b8
+              uses: actions/setup-node@v3
               with:
                   node-version: ${{ matrix.node }}
                   cache: npm
@@ -61,7 +62,7 @@ jobs:
               if: matrix.node == env.NODE_COV
 
             - name: Run Coveralls
-              uses: coverallsapp/github-action@95b1a2355bd0e526ad2fd62da9fd386ad4c98474
+              uses: coverallsapp/github-action@v2.2.1
               if: matrix.node == env.NODE_COV
               continue-on-error: true
               with:
