@@ -19,6 +19,7 @@
     "main": "lib/index.js",
     "types": "lib/index.d.ts",
     "module": "lib/esm/index.js",
+    "browser": "lib/esm/index.js",
     "exports": {
         ".": {
             "require": "./lib/index.js",
