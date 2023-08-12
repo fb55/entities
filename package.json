@@ -22,16 +22,19 @@
     "browser": "lib/esm/index.js",
     "exports": {
         ".": {
-            "require": "./lib/index.js",
-            "import": "./lib/esm/index.js"
+            "browser": "./lib/esm/index.js",
+            "import": "./lib/esm/index.js",
+            "require": "./lib/index.js"
         },
         "./lib/decode.js": {
-            "require": "./lib/decode.js",
-            "import": "./lib/esm/decode.js"
+            "browser": "./lib/esm/decode.js",
+            "import": "./lib/esm/decode.js",
+            "require": "./lib/decode.js"
         },
         "./lib/escape.js": {
-            "require": "./lib/escape.js",
-            "import": "./lib/esm/escape.js"
+            "browser": "./lib/esm/escape.js",
+            "import": "./lib/esm/escape.js",
+            "require": "./lib/escape.js"
         }
     },
     "files": [
