@@ -19,7 +19,7 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac
-            - uses: actions/setup-node@v3
+            - uses: actions/setup-node@v4
               with:
                   node-version: lts/*
                   cache: npm
@@ -46,7 +46,7 @@ jobs:
         steps:
             - uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac
             - name: Use Node.js ${{ matrix.node }}
-              uses: actions/setup-node@v3
+              uses: actions/setup-node@v4
               with:
                   node-version: ${{ matrix.node }}
                   cache: npm
