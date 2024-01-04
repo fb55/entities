@@ -20,11 +20,11 @@ export function decodeNode(
                       decodeMap[startIndex] & ~BinTrieFlags.VALUE_LENGTH,
                   )
                 : valueLength === 2
-                ? String.fromCharCode(decodeMap[startIndex + 1])
-                : String.fromCharCode(
-                      decodeMap[startIndex + 1],
-                      decodeMap[startIndex + 2],
-                  );
+                  ? String.fromCharCode(decodeMap[startIndex + 1])
+                  : String.fromCharCode(
+                        decodeMap[startIndex + 1],
+                        decodeMap[startIndex + 2],
+                    );
     }
 
     const branchLength = (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
