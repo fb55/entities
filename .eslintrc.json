@@ -1,5 +1,5 @@
 {
-    "extends": ["eslint:recommended", "plugin:node/recommended", "prettier"],
+    "extends": ["eslint:recommended", "plugin:n/recommended", "prettier"],
     "env": {
         "node": true,
         "es6": true
@@ -23,8 +23,8 @@
         "curly": [2, "multi-line"],
         "no-else-return": 2,
 
-        "node/no-missing-import": 0,
-        "node/no-unsupported-features/es-syntax": 0
+        "n/no-missing-import": 0,
+        "n/no-unsupported-features/es-syntax": 0
     },
     "overrides": [
         {

@@ -1,4 +1,4 @@
-/* eslint-disable node/no-missing-import */
+/* eslint-disable n/no-missing-import */
 import * as entities from "../";
 import * as he from "he";
 import { parseEntities } from "parse-entities";
