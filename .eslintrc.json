@@ -28,6 +28,8 @@
         "curly": [2, "multi-line"],
         "no-else-return": 2,
 
+        "n/no-unpublished-import": 0,
+
         "unicorn/no-null": 0,
         "unicorn/prefer-code-point": 0,
         "unicorn/prefer-string-slice": 0,
