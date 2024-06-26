@@ -14,8 +14,8 @@ export function getTrie(
         // Resolve the key
         let lastMap = trie;
         let next!: TrieNode;
-        for (let i = 0; i < key.length; i++) {
-            const char = key.charCodeAt(i);
+        for (let index = 0; index < key.length; index++) {
+            const char = key.charCodeAt(index);
             next = lastMap.get(char) ?? {};
             lastMap.set(char, next);
             lastMap = next.next ??= new Map();
@@ -43,28 +43,29 @@ export function getTrie(
             return false;
         }
 
-        const next1 = Array.from(node1.next);
-        const next2 = Array.from(node2.next);
+        for (const [char, node] of node1.next) {
+            const value = node2.next.get(char);
+            if (value == null || !isEqual(node, value)) {
+                return false;
+            }
+        }
 
-        return next1.every(([char1, node1], idx) => {
-            const [char2, node2] = next2[idx];
-            return char1 === char2 && isEqual(node1, node2);
-        });
+        return true;
     }
 
     function mergeDuplicates(node: TrieNode) {
         const nodes = [node];
 
-        for (let nodeIdx = 0; nodeIdx < nodes.length; nodeIdx++) {
-            const { next } = nodes[nodeIdx];
+        for (let nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++) {
+            const { next } = nodes[nodeIndex];
 
             if (!next) continue;
 
-            for (const [char, node] of Array.from(next)) {
-                const idx = nodes.findIndex((n) => isEqual(n, node));
+            for (const [char, node] of next) {
+                const index = nodes.findIndex((n) => isEqual(n, node));
 
-                if (idx >= 0) {
-                    next.set(char, nodes[idx]);
+                if (index >= 0) {
+                    next.set(char, nodes[index]);
                 } else {
                     nodes.push(node);
                 }

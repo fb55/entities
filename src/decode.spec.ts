@@ -42,7 +42,7 @@ describe("Decode test", () => {
         expect(entities.decodeHTMLStrict("&#55")).toBe("&#55"));
 
     it("should parse &nbsp followed by < (#852)", () =>
-        expect(entities.decodeHTML("&nbsp<")).toBe("\u00a0<"));
+        expect(entities.decodeHTML("&nbsp<")).toBe("\u00A0<"));
 
     it("should decode trailing legacy entities", () => {
         expect(entities.decodeHTML("&timesbar;&timesbar")).toBe("⨱×bar");

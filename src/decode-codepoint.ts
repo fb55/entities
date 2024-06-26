@@ -1,7 +1,7 @@
 // Adapted from https://github.com/mathiasbynens/he/blob/36afe179392226cf1b6ccdb16ebbb7a5a844d93a/src/he.js#L106-L134
 
 const decodeMap = new Map([
-    [0, 65533],
+    [0, 65_533],
     // C1 Unicode control character reference replacements
     [128, 8364],
     [130, 8218],
@@ -41,12 +41,12 @@ export const fromCodePoint =
     function (codePoint: number): string {
         let output = "";
 
-        if (codePoint > 0xffff) {
-            codePoint -= 0x10000;
+        if (codePoint > 0xff_ff) {
+            codePoint -= 0x1_00_00;
             output += String.fromCharCode(
-                ((codePoint >>> 10) & 0x3ff) | 0xd800,
+                ((codePoint >>> 10) & 0x3_ff) | 0xd8_00,
             );
-            codePoint = 0xdc00 | (codePoint & 0x3ff);
+            codePoint = 0xdc_00 | (codePoint & 0x3_ff);
         }
 
         output += String.fromCharCode(codePoint);
@@ -59,8 +59,11 @@ export const fromCodePoint =
  * point unchanged.
  */
 export function replaceCodePoint(codePoint: number) {
-    if ((codePoint >= 0xd800 && codePoint <= 0xdfff) || codePoint > 0x10ffff) {
-        return 0xfffd;
+    if (
+        (codePoint >= 0xd8_00 && codePoint <= 0xdf_ff) ||
+        codePoint > 0x10_ff_ff
+    ) {
+        return 0xff_fd;
     }
 
     return decodeMap.get(codePoint) ?? codePoint;

@@ -1,4 +1,4 @@
-export const xmlReplacer = /["&'<>$\x80-\uFFFF]/g;
+export const xmlReplacer = /["$&'<>\u0080-\uFFFF]/g;
 
 const xmlCodeMap = new Map([
     [34, "&quot;"],
@@ -11,16 +11,16 @@ const xmlCodeMap = new Map([
 // For compatibility with node < 4, we wrap `codePointAt`
 export const getCodePoint =
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    String.prototype.codePointAt != null
-        ? (str: string, index: number): number => str.codePointAt(index)!
-        : // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
-          (c: string, index: number): number =>
-              (c.charCodeAt(index) & 0xfc00) === 0xd800
-                  ? (c.charCodeAt(index) - 0xd800) * 0x400 +
+    String.prototype.codePointAt == null
+        ? (c: string, index: number): number =>
+              (c.charCodeAt(index) & 0xfc_00) === 0xd8_00
+                  ? (c.charCodeAt(index) - 0xd8_00) * 0x4_00 +
                     c.charCodeAt(index + 1) -
-                    0xdc00 +
-                    0x10000
-                  : c.charCodeAt(index);
+                    0xdc_00 +
+                    0x1_00_00
+                  : c.charCodeAt(index)
+        : // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
+          (input: string, index: number): number => input.codePointAt(index)!;
 
 /**
  * Encodes all non-ASCII characters, as well as characters not valid in XML
@@ -29,32 +29,32 @@ export const getCodePoint =
  * If a character has no equivalent entity, a
  * numeric hexadecimal reference (eg. `&#xfc;`) will be used.
  */
-export function encodeXML(str: string): string {
-    let ret = "";
-    let lastIdx = 0;
+export function encodeXML(input: string): string {
+    let returnValue = "";
+    let lastIndex = 0;
     let match;
 
-    while ((match = xmlReplacer.exec(str)) !== null) {
-        const i = match.index;
-        const char = str.charCodeAt(i);
+    while ((match = xmlReplacer.exec(input)) !== null) {
+        const { index } = match;
+        const char = input.charCodeAt(index);
         const next = xmlCodeMap.get(char);
 
-        if (next !== undefined) {
-            ret += str.substring(lastIdx, i) + next;
-            lastIdx = i + 1;
-        } else {
-            ret += `${str.substring(lastIdx, i)}&#x${getCodePoint(
-                str,
-                i,
+        if (next === undefined) {
+            returnValue += `${input.substring(lastIndex, index)}&#x${getCodePoint(
+                input,
+                index,
             ).toString(16)};`;
             // Increase by 1 if we have a surrogate pair
-            lastIdx = xmlReplacer.lastIndex += Number(
-                (char & 0xfc00) === 0xd800,
+            lastIndex = xmlReplacer.lastIndex += Number(
+                (char & 0xfc_00) === 0xd8_00,
             );
+        } else {
+            returnValue += input.substring(lastIndex, index) + next;
+            lastIndex = index + 1;
         }
     }
 
-    return ret + str.substr(lastIdx);
+    return returnValue + input.substr(lastIndex);
 }
 
 /**
@@ -84,22 +84,22 @@ function getEscaper(
 ): (data: string) => string {
     return function escape(data: string): string {
         let match;
-        let lastIdx = 0;
+        let lastIndex = 0;
         let result = "";
 
         while ((match = regex.exec(data))) {
-            if (lastIdx !== match.index) {
-                result += data.substring(lastIdx, match.index);
+            if (lastIndex !== match.index) {
+                result += data.substring(lastIndex, match.index);
             }
 
             // We know that this character will be in the map.
             result += map.get(match[0].charCodeAt(0))!;
 
             // Every match will be of length 1
-            lastIdx = match.index + 1;
+            lastIndex = match.index + 1;
         }
 
-        return result + data.substring(lastIdx);
+        return result + data.substring(lastIndex);
     };
 }
 
@@ -110,7 +110,7 @@ function getEscaper(
  *
  * @param data String to escape.
  */
-export const escapeUTF8 = getEscaper(/[&<>'"]/g, xmlCodeMap);
+export const escapeUTF8 = getEscaper(/["&'<>]/g, xmlCodeMap);
 
 /**
  * Encodes all characters that have to be escaped in HTML attributes,

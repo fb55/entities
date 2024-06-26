@@ -67,38 +67,39 @@ export interface DecodingOptions {
 /**
  * Decodes a string with entities.
  *
- * @param data String to decode.
+ * @param input String to decode.
  * @param options Decoding options.
  */
 export function decode(
-    data: string,
+    input: string,
     options: DecodingOptions | EntityLevel = EntityLevel.XML,
 ): string {
     const level = typeof options === "number" ? options : options.level;
 
     if (level === EntityLevel.HTML) {
         const mode = typeof options === "object" ? options.mode : undefined;
-        return decodeHTML(data, mode);
+        return decodeHTML(input, mode);
     }
 
-    return decodeXML(data);
+    return decodeXML(input);
 }
 
 /**
  * Decodes a string with entities. Does not allow missing trailing semicolons for entities.
  *
- * @param data String to decode.
+ * @param input String to decode.
  * @param options Decoding options.
  * @deprecated Use `decode` with the `mode` set to `Strict`.
  */
 export function decodeStrict(
-    data: string,
+    input: string,
     options: DecodingOptions | EntityLevel = EntityLevel.XML,
 ): string {
-    const opts = typeof options === "number" ? { level: options } : options;
-    opts.mode ??= DecodingMode.Strict;
+    const normalizedOptions =
+        typeof options === "number" ? { level: options } : options;
+    normalizedOptions.mode ??= DecodingMode.Strict;
 
-    return decode(data, opts);
+    return decode(input, normalizedOptions);
 }
 
 /**
@@ -120,30 +121,36 @@ export interface EncodingOptions {
 /**
  * Encodes a string with entities.
  *
- * @param data String to encode.
+ * @param input String to encode.
  * @param options Encoding options.
  */
 export function encode(
-    data: string,
+    input: string,
     options: EncodingOptions | EntityLevel = EntityLevel.XML,
 ): string {
-    const opts = typeof options === "number" ? { level: options } : options;
+    const { mode = EncodingMode.Extensive, level = EntityLevel.XML } =
+        typeof options === "number" ? { level: options } : options;
 
-    // Mode `UTF8` just escapes XML entities
-    if (opts.mode === EncodingMode.UTF8) return escapeUTF8(data);
-    if (opts.mode === EncodingMode.Attribute) return escapeAttribute(data);
-    if (opts.mode === EncodingMode.Text) return escapeText(data);
-
-    if (opts.level === EntityLevel.HTML) {
-        if (opts.mode === EncodingMode.ASCII) {
-            return encodeNonAsciiHTML(data);
+    switch (mode) {
+        case EncodingMode.UTF8: {
+            return escapeUTF8(input);
         }
-
-        return encodeHTML(data);
+        case EncodingMode.Attribute: {
+            return escapeAttribute(input);
+        }
+        case EncodingMode.Text: {
+            return escapeText(input);
+        }
+        default: {
+            if (level === EntityLevel.HTML) {
+                if (mode === EncodingMode.ASCII) {
+                    return encodeNonAsciiHTML(input);
+                }
+                return encodeHTML(input);
+            }
+            return encodeXML(input);
+        }
     }
-
-    // ASCII and Extensive are equivalent
-    return encodeXML(data);
 }
 
 export {
