@@ -60,6 +60,10 @@
     },
     "main": "./dist/commonjs/index.js",
     "types": "./dist/commonjs/index.d.ts",
+    "files": [
+        "dist",
+        "src"
+    ],
     "scripts": {
         "build": "tshy",
         "build:docs": "typedoc --hideGenerator src/index.ts",
