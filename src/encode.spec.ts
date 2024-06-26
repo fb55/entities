@@ -1,4 +1,5 @@
-import * as entities from ".";
+import { describe, it, expect } from "vitest";
+import * as entities from "./index.js";
 
 describe("Encode->decode test", () => {
     const testcases = [

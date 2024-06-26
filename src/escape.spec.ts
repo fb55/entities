@@ -1,4 +1,5 @@
-import * as entities from ".";
+import { describe, it, expect } from "vitest";
+import * as entities from "./index.js";
 
 describe("escape HTML", () => {
     it("should escape HTML attribute values", () =>

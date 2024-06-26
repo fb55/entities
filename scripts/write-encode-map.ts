@@ -12,7 +12,7 @@ const htmlTrie = getTrie(htmlMap);
 const serialized = serializeTrie(htmlTrie);
 
 writeFileSync(
-    `${__dirname}/../src/generated/encode-html.ts`,
+    new URL("../src/generated/encode-html.ts", import.meta.url),
     `// Generated using scripts/write-encode-map.ts
 
 type EncodeTrieNode =
