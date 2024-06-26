@@ -13,13 +13,13 @@ const htmlEntitiesHtml5EncodeOptions: htmlEntities.EncodeOptions = {
 
 const heEscapeOptions = { useNamedReferences: true };
 
-const encoders: [string, (str: string) => string][] = [
-    ["entities", (str: string) => entities.encodeHTML(str)],
-    ["he", (str: string) => he.encode(str, heEscapeOptions)],
+const encoders: [string, (stringToEncode: string) => string][] = [
+    ["entities", (stringToEncode) => entities.encodeHTML(stringToEncode)],
+    ["he", (stringToEncode) => he.encode(stringToEncode, heEscapeOptions)],
     [
         "html-entities",
-        (str: string) =>
-            htmlEntities.encode(str, htmlEntitiesHtml5EncodeOptions),
+        (stringToEncode) =>
+            htmlEntities.encode(stringToEncode, htmlEntitiesHtml5EncodeOptions),
     ],
 ];
 
@@ -28,14 +28,14 @@ const htmlEntitiesHtml5DecodeOptions: htmlEntities.DecodeOptions = {
     scope: "body",
 };
 
-const decoders: [string, (str: string) => string][] = [
-    ["entities", (str: string) => entities.decodeHTML(str)],
-    ["he", (str: string) => he.decode(str)],
-    ["parse-entities", (str: string) => parseEntities(str)],
+const decoders: [string, (stringToDecode: string) => string][] = [
+    ["entities", (stringToDecode) => entities.decodeHTML(stringToDecode)],
+    ["he", (stringToDecode) => he.decode(stringToDecode)],
+    ["parse-entities", (stringToDecode) => parseEntities(stringToDecode)],
     [
         "html-entities",
-        (str: string) =>
-            htmlEntities.decode(str, htmlEntitiesHtml5DecodeOptions),
+        (stringToDecode) =>
+            htmlEntities.decode(stringToDecode, htmlEntitiesHtml5DecodeOptions),
     ],
 ];
 
@@ -44,13 +44,13 @@ const htmlEntitiesXmlEncodeOptions: htmlEntities.EncodeOptions = {
     mode: "specialChars",
 };
 
-const escapers: [string, (str: string) => string][] = [
-    ["entities", (str: string) => entities.escapeUTF8(str)],
-    ["he", (str: string) => he.escape(str)],
+const escapers: [string, (escapee: string) => string][] = [
+    ["entities", (escapee) => entities.escapeUTF8(escapee)],
+    ["he", (escapee) => he.escape(escapee)],
     // Html-entities cannot escape, so we use its simplest mode.
     [
         "html-entities",
-        (str: string) => htmlEntities.encode(str, htmlEntitiesXmlEncodeOptions),
+        (escapee) => htmlEntities.encode(escapee, htmlEntitiesXmlEncodeOptions),
     ],
 ];
 
@@ -77,7 +77,7 @@ console.log(
 
 for (const [name, escape] of escapers) {
     console.time(`Escaping ${name}`);
-    for (let i = 0; i < RUNS; i++) {
+    for (let index = 0; index < RUNS; index++) {
         escape(textToEncode);
     }
     console.timeEnd(`Escaping ${name}`);
@@ -85,7 +85,7 @@ for (const [name, escape] of escapers) {
 
 for (const [name, encode] of encoders) {
     console.time(`Encoding ${name}`);
-    for (let i = 0; i < RUNS; i++) {
+    for (let index = 0; index < RUNS; index++) {
         encode(textToEncode);
     }
     console.timeEnd(`Encoding ${name}`);
@@ -93,7 +93,7 @@ for (const [name, encode] of encoders) {
 
 for (const [name, decode] of decoders) {
     console.time(`Decoding ${name}`);
-    for (let i = 0; i < RUNS; i++) {
+    for (let index = 0; index < RUNS; index++) {
         decode(textToDecode);
     }
     console.timeEnd(`Decoding ${name}`);

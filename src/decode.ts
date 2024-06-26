@@ -1,13 +1,6 @@
 import htmlDecodeTree from "./generated/decode-data-html.js";
 import xmlDecodeTree from "./generated/decode-data-xml.js";
-import decodeCodePoint, {
-    replaceCodePoint,
-    fromCodePoint,
-} from "./decode_codepoint.js";
-
-// Re-export for use by eg. htmlparser2
-export { htmlDecodeTree, xmlDecodeTree, decodeCodePoint };
-export { replaceCodePoint, fromCodePoint } from "./decode_codepoint.js";
+import { replaceCodePoint, fromCodePoint } from "./decode-codepoint.js";
 
 const enum CharCodes {
     NUM = 35, // "#"
@@ -25,7 +18,7 @@ const enum CharCodes {
 }
 
 /** Bit that needs to be set to convert an upper case ASCII character to lower case */
-const TO_LOWER_BIT = 0b100000;
+const TO_LOWER_BIT = 0b10_0000;
 
 export enum BinTrieFlags {
     VALUE_LENGTH = 0b1100_0000_0000_0000,
@@ -147,36 +140,36 @@ export class EntityDecoder {
      * Mirrors the implementation of `getDecoder`, but with the ability to stop decoding if the
      * entity is incomplete, and resume when the next string is written.
      *
-     * @param string The string containing the entity (or a continuation of the entity).
+     * @param input The string containing the entity (or a continuation of the entity).
      * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
      */
-    write(str: string, offset: number): number {
+    write(input: string, offset: number): number {
         switch (this.state) {
             case EntityDecoderState.EntityStart: {
-                if (str.charCodeAt(offset) === CharCodes.NUM) {
+                if (input.charCodeAt(offset) === CharCodes.NUM) {
                     this.state = EntityDecoderState.NumericStart;
                     this.consumed += 1;
-                    return this.stateNumericStart(str, offset + 1);
+                    return this.stateNumericStart(input, offset + 1);
                 }
                 this.state = EntityDecoderState.NamedEntity;
-                return this.stateNamedEntity(str, offset);
+                return this.stateNamedEntity(input, offset);
             }
 
             case EntityDecoderState.NumericStart: {
-                return this.stateNumericStart(str, offset);
+                return this.stateNumericStart(input, offset);
             }
 
             case EntityDecoderState.NumericDecimal: {
-                return this.stateNumericDecimal(str, offset);
+                return this.stateNumericDecimal(input, offset);
             }
 
             case EntityDecoderState.NumericHex: {
-                return this.stateNumericHex(str, offset);
+                return this.stateNumericHex(input, offset);
             }
 
             case EntityDecoderState.NamedEntity: {
-                return this.stateNamedEntity(str, offset);
+                return this.stateNamedEntity(input, offset);
             }
         }
     }
@@ -186,27 +179,27 @@ export class EntityDecoder {
      *
      * Equivalent to the `Numeric character reference state` in the HTML spec.
      *
-     * @param str The string containing the entity (or a continuation of the entity).
+     * @param input The string containing the entity (or a continuation of the entity).
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
      */
-    private stateNumericStart(str: string, offset: number): number {
-        if (offset >= str.length) {
+    private stateNumericStart(input: string, offset: number): number {
+        if (offset >= input.length) {
             return -1;
         }
 
-        if ((str.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
+        if ((input.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
             this.state = EntityDecoderState.NumericHex;
             this.consumed += 1;
-            return this.stateNumericHex(str, offset + 1);
+            return this.stateNumericHex(input, offset + 1);
         }
 
         this.state = EntityDecoderState.NumericDecimal;
-        return this.stateNumericDecimal(str, offset);
+        return this.stateNumericDecimal(input, offset);
     }
 
     private addToNumericResult(
-        str: string,
+        input: string,
         start: number,
         end: number,
         base: number,
@@ -215,7 +208,7 @@ export class EntityDecoder {
             const digitCount = end - start;
             this.result =
                 this.result * Math.pow(base, digitCount) +
-                parseInt(str.substr(start, digitCount), base);
+                Number.parseInt(input.substr(start, digitCount), base);
             this.consumed += digitCount;
         }
     }
@@ -225,24 +218,24 @@ export class EntityDecoder {
      *
      * Equivalent to the `Hexademical character reference state` in the HTML spec.
      *
-     * @param str The string containing the entity (or a continuation of the entity).
+     * @param input The string containing the entity (or a continuation of the entity).
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
      */
-    private stateNumericHex(str: string, offset: number): number {
-        const startIdx = offset;
+    private stateNumericHex(input: string, offset: number): number {
+        const startIndex = offset;
 
-        while (offset < str.length) {
-            const char = str.charCodeAt(offset);
+        while (offset < input.length) {
+            const char = input.charCodeAt(offset);
             if (isNumber(char) || isHexadecimalCharacter(char)) {
                 offset += 1;
             } else {
-                this.addToNumericResult(str, startIdx, offset, 16);
+                this.addToNumericResult(input, startIndex, offset, 16);
                 return this.emitNumericEntity(char, 3);
             }
         }
 
-        this.addToNumericResult(str, startIdx, offset, 16);
+        this.addToNumericResult(input, startIndex, offset, 16);
 
         return -1;
     }
@@ -252,24 +245,24 @@ export class EntityDecoder {
      *
      * Equivalent to the `Decimal character reference state` in the HTML spec.
      *
-     * @param str The string containing the entity (or a continuation of the entity).
+     * @param input The string containing the entity (or a continuation of the entity).
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
      */
-    private stateNumericDecimal(str: string, offset: number): number {
-        const startIdx = offset;
+    private stateNumericDecimal(input: string, offset: number): number {
+        const startIndex = offset;
 
-        while (offset < str.length) {
-            const char = str.charCodeAt(offset);
+        while (offset < input.length) {
+            const char = input.charCodeAt(offset);
             if (isNumber(char)) {
                 offset += 1;
             } else {
-                this.addToNumericResult(str, startIdx, offset, 10);
+                this.addToNumericResult(input, startIndex, offset, 10);
                 return this.emitNumericEntity(char, 2);
             }
         }
 
-        this.addToNumericResult(str, startIdx, offset, 10);
+        this.addToNumericResult(input, startIndex, offset, 10);
 
         return -1;
     }
@@ -321,18 +314,18 @@ export class EntityDecoder {
      *
      * Equivalent to the `Named character reference state` in the HTML spec.
      *
-     * @param str The string containing the entity (or a continuation of the entity).
+     * @param input The string containing the entity (or a continuation of the entity).
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
      */
-    private stateNamedEntity(str: string, offset: number): number {
+    private stateNamedEntity(input: string, offset: number): number {
         const { decodeTree } = this;
         let current = decodeTree[this.treeIndex];
         // The mask is the number of bytes of the value, including the current byte.
         let valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
 
-        for (; offset < str.length; offset++, this.excess++) {
-            const char = str.charCodeAt(offset);
+        for (; offset < input.length; offset++, this.excess++) {
+            const char = input.charCodeAt(offset);
 
             this.treeIndex = determineBranch(
                 decodeTree,
@@ -471,44 +464,44 @@ export class EntityDecoder {
  * @returns A function that decodes entities in a string.
  */
 function getDecoder(decodeTree: Uint16Array) {
-    let ret = "";
+    let returnValue = "";
     const decoder = new EntityDecoder(
         decodeTree,
-        (str) => (ret += fromCodePoint(str)),
+        (data) => (returnValue += fromCodePoint(data)),
     );
 
     return function decodeWithTrie(
-        str: string,
+        input: string,
         decodeMode: DecodingMode,
     ): string {
         let lastIndex = 0;
         let offset = 0;
 
-        while ((offset = str.indexOf("&", offset)) >= 0) {
-            ret += str.slice(lastIndex, offset);
+        while ((offset = input.indexOf("&", offset)) >= 0) {
+            returnValue += input.slice(lastIndex, offset);
 
             decoder.startEntity(decodeMode);
 
-            const len = decoder.write(
-                str,
+            const length = decoder.write(
+                input,
                 // Skip the "&"
                 offset + 1,
             );
 
-            if (len < 0) {
+            if (length < 0) {
                 lastIndex = offset + decoder.end();
                 break;
             }
 
-            lastIndex = offset + len;
-            // If `len` is 0, skip the current `&` and continue.
-            offset = len === 0 ? lastIndex + 1 : lastIndex;
+            lastIndex = offset + length;
+            // If `length` is 0, skip the current `&` and continue.
+            offset = length === 0 ? lastIndex + 1 : lastIndex;
         }
 
-        const result = ret + str.slice(lastIndex);
+        const result = returnValue + input.slice(lastIndex);
 
         // Make sure we don't keep a reference to the final string.
-        ret = "";
+        returnValue = "";
 
         return result;
     };
@@ -527,7 +520,7 @@ function getDecoder(decodeTree: Uint16Array) {
 export function determineBranch(
     decodeTree: Uint16Array,
     current: number,
-    nodeIdx: number,
+    nodeIndex: number,
     char: number,
 ): number {
     const branchCount = (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
@@ -535,7 +528,7 @@ export function determineBranch(
 
     // Case 1: Single branch encoded in jump offset
     if (branchCount === 0) {
-        return jumpOffset !== 0 && char === jumpOffset ? nodeIdx : -1;
+        return jumpOffset !== 0 && char === jumpOffset ? nodeIndex : -1;
     }
 
     // Case 2: Multiple branches encoded in jump table
@@ -544,22 +537,22 @@ export function determineBranch(
 
         return value < 0 || value >= branchCount
             ? -1
-            : decodeTree[nodeIdx + value] - 1;
+            : decodeTree[nodeIndex + value] - 1;
     }
 
     // Case 3: Multiple branches encoded in dictionary
 
     // Binary search for the character.
-    let lo = nodeIdx;
+    let lo = nodeIndex;
     let hi = lo + branchCount - 1;
 
     while (lo <= hi) {
         const mid = (lo + hi) >>> 1;
-        const midVal = decodeTree[mid];
+        const midValue = decodeTree[mid];
 
-        if (midVal < char) {
+        if (midValue < char) {
             lo = mid + 1;
-        } else if (midVal > char) {
+        } else if (midValue > char) {
             hi = mid - 1;
         } else {
             return decodeTree[mid + branchCount];
@@ -575,40 +568,53 @@ const xmlDecoder = getDecoder(xmlDecodeTree);
 /**
  * Decodes an HTML string.
  *
- * @param str The string to decode.
+ * @param htmlString The string to decode.
  * @param mode The decoding mode.
  * @returns The decoded string.
  */
-export function decodeHTML(str: string, mode = DecodingMode.Legacy): string {
-    return htmlDecoder(str, mode);
+export function decodeHTML(
+    htmlString: string,
+    mode = DecodingMode.Legacy,
+): string {
+    return htmlDecoder(htmlString, mode);
 }
 
 /**
  * Decodes an HTML string in an attribute.
  *
- * @param str The string to decode.
+ * @param htmlAttribute The string to decode.
  * @returns The decoded string.
  */
-export function decodeHTMLAttribute(str: string): string {
-    return htmlDecoder(str, DecodingMode.Attribute);
+export function decodeHTMLAttribute(htmlAttribute: string): string {
+    return htmlDecoder(htmlAttribute, DecodingMode.Attribute);
 }
 
 /**
  * Decodes an HTML string, requiring all entities to be terminated by a semicolon.
  *
- * @param str The string to decode.
+ * @param htmlString The string to decode.
  * @returns The decoded string.
  */
-export function decodeHTMLStrict(str: string): string {
-    return htmlDecoder(str, DecodingMode.Strict);
+export function decodeHTMLStrict(htmlString: string): string {
+    return htmlDecoder(htmlString, DecodingMode.Strict);
 }
 
 /**
  * Decodes an XML string, requiring all entities to be terminated by a semicolon.
  *
- * @param str The string to decode.
+ * @param xmlString The string to decode.
  * @returns The decoded string.
  */
-export function decodeXML(str: string): string {
-    return xmlDecoder(str, DecodingMode.Strict);
+export function decodeXML(xmlString: string): string {
+    return xmlDecoder(xmlString, DecodingMode.Strict);
 }
+
+// Re-export for use by eg. htmlparser2
+export { default as htmlDecodeTree } from "./generated/decode-data-html.js";
+export { default as xmlDecodeTree } from "./generated/decode-data-xml.js";
+
+export {
+    default as decodeCodePoint,
+    replaceCodePoint,
+    fromCodePoint,
+} from "./decode-codepoint.js";

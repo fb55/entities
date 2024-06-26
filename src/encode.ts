@@ -1,7 +1,7 @@
 import htmlTrie from "./generated/encode-html.js";
 import { xmlReplacer, getCodePoint } from "./escape.js";
 
-const htmlReplacer = /[\t\n!-,./:-@[-`\f{-}$\x80-\uFFFF]/g;
+const htmlReplacer = /[\t\n\f!-,./:-@[-`{-}\u0080-\uFFFF]/g;
 
 /**
  * Encodes all characters in the input using HTML entities. This includes
@@ -14,8 +14,8 @@ const htmlReplacer = /[\t\n!-,./:-@[-`\f{-}$\x80-\uFFFF]/g;
  * If a character has no equivalent entity, a numeric hexadecimal reference
  * (eg. `&#xfc;`) will be used.
  */
-export function encodeHTML(data: string): string {
-    return encodeHTMLTrieRe(htmlReplacer, data);
+export function encodeHTML(input: string): string {
+    return encodeHTMLTrieRe(htmlReplacer, input);
 }
 /**
  * Encodes all non-ASCII characters, as well as characters not valid in HTML
@@ -25,25 +25,25 @@ export function encodeHTML(data: string): string {
  * If a character has no equivalent entity, a numeric hexadecimal reference
  * (eg. `&#xfc;`) will be used.
  */
-export function encodeNonAsciiHTML(data: string): string {
-    return encodeHTMLTrieRe(xmlReplacer, data);
+export function encodeNonAsciiHTML(input: string): string {
+    return encodeHTMLTrieRe(xmlReplacer, input);
 }
 
-function encodeHTMLTrieRe(regExp: RegExp, str: string): string {
-    let ret = "";
-    let lastIdx = 0;
+function encodeHTMLTrieRe(regExp: RegExp, input: string): string {
+    let returnValue = "";
+    let lastIndex = 0;
     let match;
 
-    while ((match = regExp.exec(str)) !== null) {
-        const i = match.index;
-        ret += str.substring(lastIdx, i);
-        const char = str.charCodeAt(i);
+    while ((match = regExp.exec(input)) !== null) {
+        const { index } = match;
+        returnValue += input.substring(lastIndex, index);
+        const char = input.charCodeAt(index);
         let next = htmlTrie.get(char);
 
         if (typeof next === "object") {
             // We are in a branch. Try to match the next char.
-            if (i + 1 < str.length) {
-                const nextChar = str.charCodeAt(i + 1);
+            if (index + 1 < input.length) {
+                const nextChar = input.charCodeAt(index + 1);
                 const value =
                     typeof next.n === "number"
                         ? next.n === nextChar
@@ -52,8 +52,8 @@ function encodeHTMLTrieRe(regExp: RegExp, str: string): string {
                         : next.n.get(nextChar);
 
                 if (value !== undefined) {
-                    ret += value;
-                    lastIdx = regExp.lastIndex += 1;
+                    returnValue += value;
+                    lastIndex = regExp.lastIndex += 1;
                     continue;
                 }
             }
@@ -62,16 +62,16 @@ function encodeHTMLTrieRe(regExp: RegExp, str: string): string {
         }
 
         // We might have a tree node without a value; skip and use a numeric entity.
-        if (next !== undefined) {
-            ret += next;
-            lastIdx = i + 1;
-        } else {
-            const cp = getCodePoint(str, i);
-            ret += `&#x${cp.toString(16)};`;
+        if (next === undefined) {
+            const cp = getCodePoint(input, index);
+            returnValue += `&#x${cp.toString(16)};`;
             // Increase by 1 if we have a surrogate pair
-            lastIdx = regExp.lastIndex += Number(cp !== char);
+            lastIndex = regExp.lastIndex += Number(cp !== char);
+        } else {
+            returnValue += next;
+            lastIndex = index + 1;
         }
     }
 
-    return ret + str.substr(lastIdx);
+    return returnValue + input.substr(lastIndex);
 }

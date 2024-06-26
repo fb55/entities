@@ -44,8 +44,8 @@ describe("Encode->decode test", () => {
     });
 
     it("should HTML encode all ASCII characters", () => {
-        for (let i = 0; i < 128; i++) {
-            const char = String.fromCharCode(i);
+        for (let index = 0; index < 128; index++) {
+            const char = String.fromCharCode(index);
             const encoded = entities.encodeHTML(char);
             const decoded = entities.decodeHTML(encoded);
             expect(decoded).toBe(char);
@@ -53,10 +53,10 @@ describe("Encode->decode test", () => {
     });
 
     it("should encode trailing parts of entities", () =>
-        expect(entities.encodeHTML("\ud835")).toBe("&#xd835;"));
+        expect(entities.encodeHTML("\uD835")).toBe("&#xd835;"));
 
     it("should encode surrogate pair with first surrogate equivalent of entity, without corresponding entity", () =>
-        expect(entities.encodeHTML("\u{1d4a4}")).toBe("&#x1d4a4;"));
+        expect(entities.encodeHTML("\u{1D4A4}")).toBe("&#x1d4a4;"));
 });
 
 describe("encodeNonAsciiHTML", () => {

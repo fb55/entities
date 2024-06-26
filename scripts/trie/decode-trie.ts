@@ -34,39 +34,39 @@ export function decodeNode(
         return;
     }
 
-    const branchIdx = startIndex + Math.max(valueLength, 1);
+    const branchIndex = startIndex + Math.max(valueLength, 1);
 
     if (branchLength === 0) {
         return decodeNode(
             decodeMap,
             resultMap,
             prefix + String.fromCharCode(jumpOffset),
-            branchIdx,
+            branchIndex,
         );
     }
 
-    if (jumpOffset !== 0) {
-        for (let i = 0; i < branchLength; i++) {
-            const val = decodeMap[branchIdx + i] - 1;
-            if (val !== -1) {
-                const code = jumpOffset + i;
+    if (jumpOffset === 0) {
+        for (let index = 0; index < branchLength; index++) {
+            decodeNode(
+                decodeMap,
+                resultMap,
+                prefix + String.fromCharCode(decodeMap[branchIndex + index]),
+                decodeMap[branchIndex + branchLength + index],
+            );
+        }
+    } else {
+        for (let index = 0; index < branchLength; index++) {
+            const value = decodeMap[branchIndex + index] - 1;
+            if (value !== -1) {
+                const code = jumpOffset + index;
 
                 decodeNode(
                     decodeMap,
                     resultMap,
                     prefix + String.fromCharCode(code),
-                    val,
+                    value,
                 );
             }
-        }
-    } else {
-        for (let i = 0; i < branchLength; i++) {
-            decodeNode(
-                decodeMap,
-                resultMap,
-                prefix + String.fromCharCode(decodeMap[branchIdx + i]),
-                decodeMap[branchIdx + branchLength + i],
-            );
         }
     }
 }

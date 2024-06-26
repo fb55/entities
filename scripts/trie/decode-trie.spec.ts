@@ -1,8 +1,6 @@
 import { encodeTrie } from "./encode-trie.js";
 import { decodeNode } from "./decode-trie.js";
-
 import { getTrie } from "./trie.js";
-
 import xmlMap from "../../maps/xml.json";
 import entityMap from "../../maps/entities.json";
 import legacyMap from "../../maps/legacy.json";
@@ -89,8 +87,7 @@ describe("decode_trie", () => {
             mergeMaps(xmlMap, {}),
         ));
 
-    // Test takes a long time — skipped by default
-    it.skip("should decode the HTML map", () =>
+    it("should decode the HTML map", () =>
         expect(decode(encodeTrie(getTrie(entityMap, legacyMap)))).toStrictEqual(
             mergeMaps(entityMap, legacyMap),
         ));

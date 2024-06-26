@@ -1,11 +1,11 @@
 import htmlMap from "../maps/entities.json";
-import { writeFileSync } from "fs";
+import { writeFileSync } from "node:fs";
 
 interface TrieNode {
     /** The value, if the node has a value. */
-    v?: string | undefined;
+    value?: string | undefined;
     /** A map with the next nodes, if there are any. */
-    n?: Map<number, TrieNode> | undefined;
+    next?: Map<number, TrieNode> | undefined;
 }
 
 const htmlTrie = getTrie(htmlMap);
@@ -20,12 +20,12 @@ type EncodeTrieNode =
     | { v?: string; n: number | Map<number, EncodeTrieNode>; o?: string };
 
 function restoreDiff<T extends ReadonlyArray<[number, EncodeTrieNode]>>(
-    arr: T
+    array: T
 ): T {
-    for (let i = 1; i < arr.length; i++) {
-        arr[i][0] += arr[i - 1][0] + 1;
+    for (let index = 1; index < array.length; index++) {
+        array[index][0] += array[index - 1][0] + 1;
     }
-    return arr;
+    return array;
 }
 
 // prettier-ignore
@@ -45,15 +45,15 @@ function getTrie(map: Record<string, string>): Map<number, TrieNode> {
         const decoded = map[entity];
         // Resolve the key
         let lastMap = trie;
-        for (let i = 0; i < decoded.length - 1; i++) {
-            const char = decoded.charCodeAt(i);
+        for (let index = 0; index < decoded.length - 1; index++) {
+            const char = decoded.charCodeAt(index);
             const next = lastMap.get(char) ?? {};
             lastMap.set(char, next);
-            lastMap = next.n ??= new Map();
+            lastMap = next.next ??= new Map();
         }
-        const val = lastMap.get(decoded.charCodeAt(decoded.length - 1)) ?? {};
-        val.v ??= entity;
-        lastMap.set(decoded.charCodeAt(decoded.length - 1), val);
+        const value = lastMap.get(decoded.charCodeAt(decoded.length - 1)) ?? {};
+        value.value ??= entity;
+        lastMap.set(decoded.charCodeAt(decoded.length - 1), value);
     }
 
     return trie;
@@ -66,25 +66,25 @@ function wrapValue(value: string | undefined): string {
 }
 
 function serializeTrie(trie: Map<number, TrieNode>): string {
-    const entries: [number, TrieNode][] = Array.from(trie.entries()).sort(
+    const entries: [number, TrieNode][] = [...trie.entries()].sort(
         (a, b) => a[0] - b[0],
     );
 
     return `new Map<number,string>(/* #__PURE__ */restoreDiff([${entries
-        .map(([key, value], i, arr) => {
-            if (i !== 0) {
-                key -= arr[i - 1][0] + 1;
+        .map(([key, value], index, array) => {
+            if (index !== 0) {
+                key -= array[index - 1][0] + 1;
             }
-            if (!value.n) {
-                if (value.v == null) throw new Error("unexpected null");
+            if (!value.next) {
+                if (value.value == null) throw new Error("unexpected null");
 
-                return `[${key},${wrapValue(value.v)}]`;
+                return `[${key},${wrapValue(value.value)}]`;
             }
 
             const entries: string[] = [];
 
-            if (value.v != null) {
-                entries.push(`v:${wrapValue(value.v)}`);
+            if (value.value != null) {
+                entries.push(`v:${wrapValue(value.value)}`);
             }
 
             /*
@@ -93,12 +93,12 @@ function serializeTrie(trie: Map<number, TrieNode>): string {
              *
              * We use a map if there are more than one character in the key.
              */
-            if (value.n.size > 1) {
-                entries.push(`n:${serializeTrie(value.n)}`);
+            if (value.next.size > 1) {
+                entries.push(`n:${serializeTrie(value.next)}`);
             } else {
-                const [cond, other] = Array.from(value.n)[0];
+                const [condition, other] = [...value.next][0];
 
-                entries.push(`n:${cond},o:${wrapValue(other.v)}`);
+                entries.push(`n:${condition},o:${wrapValue(other.value)}`);
             }
 
             return `[${key},{${entries.join(",")}}]`;

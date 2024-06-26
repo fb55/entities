@@ -5,48 +5,52 @@ import legacy from "../maps/legacy.json";
 const levels = ["xml", "entities"];
 
 describe("Documents", () => {
-    const levelDocs = levels
+    const levelDocuments = levels
         .map((n) => path.join("..", "maps", n))
         .map(require)
         .map((doc, i) => [i, doc]);
 
-    for (const [i, doc] of levelDocs) {
+    for (const [level, document] of levelDocuments) {
         describe("Decode", () => {
-            it(levels[i], () => {
-                for (const e of Object.keys(doc)) {
-                    for (let l = i; l < levels.length; l++) {
-                        expect(entities.decode(`&${e};`, l)).toBe(doc[e]);
-                        expect(entities.decode(`&${e};`, { level: l })).toBe(
-                            doc[e],
+            it(levels[level], () => {
+                for (const entity of Object.keys(document)) {
+                    for (let l = level; l < levels.length; l++) {
+                        expect(entities.decode(`&${entity};`, l)).toBe(
+                            document[entity],
                         );
+                        expect(
+                            entities.decode(`&${entity};`, { level: l }),
+                        ).toBe(document[entity]);
                     }
                 }
             });
         });
 
         describe("Decode strict", () => {
-            it(levels[i], () => {
-                for (const e of Object.keys(doc)) {
-                    for (let l = i; l < levels.length; l++) {
-                        expect(entities.decodeStrict(`&${e};`, l)).toBe(doc[e]);
+            it(levels[level], () => {
+                for (const entity of Object.keys(document)) {
+                    for (let l = level; l < levels.length; l++) {
+                        expect(entities.decodeStrict(`&${entity};`, l)).toBe(
+                            document[entity],
+                        );
                         expect(
-                            entities.decode(`&${e};`, {
+                            entities.decode(`&${entity};`, {
                                 level: l,
                                 mode: entities.DecodingMode.Strict,
                             }),
-                        ).toBe(doc[e]);
+                        ).toBe(document[entity]);
                     }
                 }
             });
         });
 
         describe("Encode", () => {
-            it(levels[i], () => {
-                for (const e of Object.keys(doc)) {
-                    for (let l = i; l < levels.length; l++) {
-                        const encoded = entities.encode(doc[e], l);
+            it(levels[level], () => {
+                for (const entity of Object.keys(document)) {
+                    for (let l = level; l < levels.length; l++) {
+                        const encoded = entities.encode(document[entity], l);
                         const decoded = entities.decode(encoded, l);
-                        expect(decoded).toBe(doc[e]);
+                        expect(decoded).toBe(document[entity]);
                     }
                 }
             });
@@ -54,7 +58,7 @@ describe("Documents", () => {
             it("should only encode non-ASCII values if asked", () =>
                 expect(
                     entities.encode("Great #'s of 🎁", {
-                        level: i,
+                        level,
                         mode: entities.EncodingMode.ASCII,
                     }),
                 ).toBe("Great #&apos;s of &#x1f381;"));
@@ -64,14 +68,16 @@ describe("Documents", () => {
     describe("Legacy", () => {
         const legacyMap: Record<string, string> = legacy;
         it("should decode", () => {
-            for (const e of Object.keys(legacyMap)) {
-                expect(entities.decodeHTML(`&${e}`)).toBe(legacyMap[e]);
+            for (const entity of Object.keys(legacyMap)) {
+                expect(entities.decodeHTML(`&${entity}`)).toBe(
+                    legacyMap[entity],
+                );
                 expect(
-                    entities.decodeStrict(`&${e}`, {
+                    entities.decodeStrict(`&${entity}`, {
                         level: entities.EntityLevel.HTML,
                         mode: entities.DecodingMode.Legacy,
                     }),
-                ).toBe(legacyMap[e]);
+                ).toBe(legacyMap[entity]);
             }
         });
     });
@@ -107,8 +113,8 @@ describe("Astral entities", () => {
 
 describe("Escape", () => {
     it("should always decode ASCII chars", () => {
-        for (let i = 0; i < 0x7f; i++) {
-            const c = String.fromCharCode(i);
+        for (let index = 0; index < 0x7f; index++) {
+            const c = String.fromCharCode(index);
             expect(entities.decodeXML(entities.escape(c))).toBe(c);
         }
     });

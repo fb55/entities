@@ -1,4 +1,4 @@
-import * as fs from "fs";
+import * as fs from "node:fs";
 import entityMap from "../maps/entities.json";
 import legacyMap from "../maps/legacy.json";
 import xmlMap from "../maps/xml.json";
@@ -14,22 +14,22 @@ function convertMapToBinaryTrie(
     const encoded = encodeTrie(getTrie(map, legacy));
     const stringified = JSON.stringify(String.fromCharCode(...encoded))
         .replace(
-            /[^\x20-\x7e]/g,
+            /[^\u0020-\u007E]/g,
             (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
         )
-        .replace(/\\u0000/g, "\\0")
-        .replace(/\\u00([\da-f]{2})/g, "\\x$1");
+        .replace(/\\u0{4}/g, String.raw`\0`)
+        .replace(/\\u00([\da-f]{2})/g, String.raw`\x$1`);
 
     // Write the encoded trie to disk
     fs.writeFileSync(
-        `${__dirname}/../src/generated/decode-data-${name}.ts`,
+        new URL(`../src/generated/decode-data-${name}.ts`, import.meta.url),
         `// Generated using scripts/write-decode-map.ts
 
 export default new Uint16Array(
     // prettier-ignore
     ${stringified}
         .split("")
-        .map((c) => c.charCodeAt(0))
+        .map((c) => c.charCodeAt(0)),
 );
 `,
     );
