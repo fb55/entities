@@ -1,3 +1,4 @@
+import { describe, it, expect, vitest } from "vitest";
 import * as entities from "./decode.js";
 
 describe("Decode test", () => {
@@ -73,116 +74,140 @@ describe("Decode test", () => {
 
 describe("EntityDecoder", () => {
     it("should decode decimal entities", () => {
-        const cb = jest.fn();
-        const decoder = new entities.EntityDecoder(entities.htmlDecodeTree, cb);
+        const callback = vitest.fn();
+        const decoder = new entities.EntityDecoder(
+            entities.htmlDecodeTree,
+            callback,
+        );
 
         expect(decoder.write("&#5", 1)).toBe(-1);
         expect(decoder.write("8;", 0)).toBe(5);
 
-        expect(cb).toHaveBeenCalledTimes(1);
-        expect(cb).toHaveBeenCalledWith(":".charCodeAt(0), 5);
+        expect(callback).toHaveBeenCalledTimes(1);
+        expect(callback).toHaveBeenCalledWith(":".charCodeAt(0), 5);
     });
 
     it("should decode hex entities", () => {
-        const cb = jest.fn();
-        const decoder = new entities.EntityDecoder(entities.htmlDecodeTree, cb);
+        const callback = vitest.fn();
+        const decoder = new entities.EntityDecoder(
+            entities.htmlDecodeTree,
+            callback,
+        );
 
         expect(decoder.write("&#x3a;", 1)).toBe(6);
 
-        expect(cb).toHaveBeenCalledTimes(1);
-        expect(cb).toHaveBeenCalledWith(":".charCodeAt(0), 6);
+        expect(callback).toHaveBeenCalledTimes(1);
+        expect(callback).toHaveBeenCalledWith(":".charCodeAt(0), 6);
     });
 
     it("should decode named entities", () => {
-        const cb = jest.fn();
-        const decoder = new entities.EntityDecoder(entities.htmlDecodeTree, cb);
+        const callback = vitest.fn();
+        const decoder = new entities.EntityDecoder(
+            entities.htmlDecodeTree,
+            callback,
+        );
 
         expect(decoder.write("&amp;", 1)).toBe(5);
 
-        expect(cb).toHaveBeenCalledTimes(1);
-        expect(cb).toHaveBeenCalledWith("&".charCodeAt(0), 5);
+        expect(callback).toHaveBeenCalledTimes(1);
+        expect(callback).toHaveBeenCalledWith("&".charCodeAt(0), 5);
     });
 
     it("should decode legacy entities", () => {
-        const cb = jest.fn();
-        const decoder = new entities.EntityDecoder(entities.htmlDecodeTree, cb);
+        const callback = vitest.fn();
+        const decoder = new entities.EntityDecoder(
+            entities.htmlDecodeTree,
+            callback,
+        );
         decoder.startEntity(entities.DecodingMode.Legacy);
 
         expect(decoder.write("&amp", 1)).toBe(-1);
 
-        expect(cb).toHaveBeenCalledTimes(0);
+        expect(callback).toHaveBeenCalledTimes(0);
 
         expect(decoder.end()).toBe(4);
 
-        expect(cb).toHaveBeenCalledTimes(1);
-        expect(cb).toHaveBeenCalledWith("&".charCodeAt(0), 4);
+        expect(callback).toHaveBeenCalledTimes(1);
+        expect(callback).toHaveBeenCalledWith("&".charCodeAt(0), 4);
     });
 
     it("should decode named entity written character by character", () => {
-        const cb = jest.fn();
-        const decoder = new entities.EntityDecoder(entities.htmlDecodeTree, cb);
+        const callback = vitest.fn();
+        const decoder = new entities.EntityDecoder(
+            entities.htmlDecodeTree,
+            callback,
+        );
 
         for (const c of "amp") {
             expect(decoder.write(c, 0)).toBe(-1);
         }
         expect(decoder.write(";", 0)).toBe(5);
 
-        expect(cb).toHaveBeenCalledTimes(1);
-        expect(cb).toHaveBeenCalledWith("&".charCodeAt(0), 5);
+        expect(callback).toHaveBeenCalledTimes(1);
+        expect(callback).toHaveBeenCalledWith("&".charCodeAt(0), 5);
     });
 
     it("should decode numeric entity written character by character", () => {
-        const cb = jest.fn();
-        const decoder = new entities.EntityDecoder(entities.htmlDecodeTree, cb);
+        const callback = vitest.fn();
+        const decoder = new entities.EntityDecoder(
+            entities.htmlDecodeTree,
+            callback,
+        );
 
         for (const c of "#x3a") {
             expect(decoder.write(c, 0)).toBe(-1);
         }
         expect(decoder.write(";", 0)).toBe(6);
 
-        expect(cb).toHaveBeenCalledTimes(1);
-        expect(cb).toHaveBeenCalledWith(":".charCodeAt(0), 6);
+        expect(callback).toHaveBeenCalledTimes(1);
+        expect(callback).toHaveBeenCalledWith(":".charCodeAt(0), 6);
     });
 
     it("should decode hex entities across several chunks", () => {
-        const cb = jest.fn();
-        const decoder = new entities.EntityDecoder(entities.htmlDecodeTree, cb);
+        const callback = vitest.fn();
+        const decoder = new entities.EntityDecoder(
+            entities.htmlDecodeTree,
+            callback,
+        );
 
         for (const chunk of ["#x", "cf", "ff", "d"]) {
             expect(decoder.write(chunk, 0)).toBe(-1);
         }
 
         expect(decoder.write(";", 0)).toBe(9);
-        expect(cb).toHaveBeenCalledTimes(1);
-        expect(cb).toHaveBeenCalledWith(0xcfffd, 9);
+        expect(callback).toHaveBeenCalledTimes(1);
+        expect(callback).toHaveBeenCalledWith(0xc_ff_fd, 9);
     });
 
     it("should not fail if nothing is written", () => {
-        const cb = jest.fn();
-        const decoder = new entities.EntityDecoder(entities.htmlDecodeTree, cb);
+        const callback = vitest.fn();
+        const decoder = new entities.EntityDecoder(
+            entities.htmlDecodeTree,
+            callback,
+        );
 
         expect(decoder.end()).toBe(0);
-        expect(cb).toHaveBeenCalledTimes(0);
+        expect(callback).toHaveBeenCalledTimes(0);
     });
 
     describe("errors", () => {
         it("should produce an error for a named entity without a semicolon", () => {
             const errorHandlers = {
-                missingSemicolonAfterCharacterReference: jest.fn(),
-                absenceOfDigitsInNumericCharacterReference: jest.fn(),
-                validateNumericCharacterReference: jest.fn(),
+                missingSemicolonAfterCharacterReference: vitest.fn(),
+                absenceOfDigitsInNumericCharacterReference: vitest.fn(),
+                validateNumericCharacterReference: vitest.fn(),
             };
-            const cb = jest.fn();
+            const callback = vitest.fn();
             const decoder = new entities.EntityDecoder(
                 entities.htmlDecodeTree,
-                cb,
+                callback,
                 errorHandlers,
             );
 
             decoder.startEntity(entities.DecodingMode.Legacy);
             expect(decoder.write("&amp;", 1)).toBe(5);
-            expect(cb).toHaveBeenCalledTimes(1);
-            expect(cb).toHaveBeenCalledWith("&".charCodeAt(0), 5);
+            expect(callback).toHaveBeenCalledTimes(1);
+            expect(callback).toHaveBeenCalledWith("&".charCodeAt(0), 5);
             expect(
                 errorHandlers.missingSemicolonAfterCharacterReference,
             ).toHaveBeenCalledTimes(0);
@@ -191,8 +216,8 @@ describe("EntityDecoder", () => {
             expect(decoder.write("&amp", 1)).toBe(-1);
             expect(decoder.end()).toBe(4);
 
-            expect(cb).toHaveBeenCalledTimes(2);
-            expect(cb).toHaveBeenLastCalledWith("&".charCodeAt(0), 4);
+            expect(callback).toHaveBeenCalledTimes(2);
+            expect(callback).toHaveBeenLastCalledWith("&".charCodeAt(0), 4);
             expect(
                 errorHandlers.missingSemicolonAfterCharacterReference,
             ).toHaveBeenCalledTimes(1);
@@ -200,14 +225,14 @@ describe("EntityDecoder", () => {
 
         it("should produce an error for a numeric entity without a semicolon", () => {
             const errorHandlers = {
-                missingSemicolonAfterCharacterReference: jest.fn(),
-                absenceOfDigitsInNumericCharacterReference: jest.fn(),
-                validateNumericCharacterReference: jest.fn(),
+                missingSemicolonAfterCharacterReference: vitest.fn(),
+                absenceOfDigitsInNumericCharacterReference: vitest.fn(),
+                validateNumericCharacterReference: vitest.fn(),
             };
-            const cb = jest.fn();
+            const callback = vitest.fn();
             const decoder = new entities.EntityDecoder(
                 entities.htmlDecodeTree,
-                cb,
+                callback,
                 errorHandlers,
             );
 
@@ -215,8 +240,8 @@ describe("EntityDecoder", () => {
             expect(decoder.write("&#x3a", 1)).toBe(-1);
             expect(decoder.end()).toBe(5);
 
-            expect(cb).toHaveBeenCalledTimes(1);
-            expect(cb).toHaveBeenCalledWith(0x3a, 5);
+            expect(callback).toHaveBeenCalledTimes(1);
+            expect(callback).toHaveBeenCalledWith(0x3a, 5);
             expect(
                 errorHandlers.missingSemicolonAfterCharacterReference,
             ).toHaveBeenCalledTimes(1);
@@ -233,14 +258,14 @@ describe("EntityDecoder", () => {
 
         it("should produce an error for numeric entities without digits", () => {
             const errorHandlers = {
-                missingSemicolonAfterCharacterReference: jest.fn(),
-                absenceOfDigitsInNumericCharacterReference: jest.fn(),
-                validateNumericCharacterReference: jest.fn(),
+                missingSemicolonAfterCharacterReference: vitest.fn(),
+                absenceOfDigitsInNumericCharacterReference: vitest.fn(),
+                validateNumericCharacterReference: vitest.fn(),
             };
-            const cb = jest.fn();
+            const callback = vitest.fn();
             const decoder = new entities.EntityDecoder(
                 entities.htmlDecodeTree,
-                cb,
+                callback,
                 errorHandlers,
             );
 
@@ -248,7 +273,7 @@ describe("EntityDecoder", () => {
             expect(decoder.write("&#", 1)).toBe(-1);
             expect(decoder.end()).toBe(0);
 
-            expect(cb).toHaveBeenCalledTimes(0);
+            expect(callback).toHaveBeenCalledTimes(0);
             expect(
                 errorHandlers.missingSemicolonAfterCharacterReference,
             ).toHaveBeenCalledTimes(0);
@@ -265,14 +290,14 @@ describe("EntityDecoder", () => {
 
         it("should produce an error for hex entities without digits", () => {
             const errorHandlers = {
-                missingSemicolonAfterCharacterReference: jest.fn(),
-                absenceOfDigitsInNumericCharacterReference: jest.fn(),
-                validateNumericCharacterReference: jest.fn(),
+                missingSemicolonAfterCharacterReference: vitest.fn(),
+                absenceOfDigitsInNumericCharacterReference: vitest.fn(),
+                validateNumericCharacterReference: vitest.fn(),
             };
-            const cb = jest.fn();
+            const callback = vitest.fn();
             const decoder = new entities.EntityDecoder(
                 entities.htmlDecodeTree,
-                cb,
+                callback,
                 errorHandlers,
             );
 
@@ -280,7 +305,7 @@ describe("EntityDecoder", () => {
             expect(decoder.write("&#x", 1)).toBe(-1);
             expect(decoder.end()).toBe(0);
 
-            expect(cb).toHaveBeenCalledTimes(0);
+            expect(callback).toHaveBeenCalledTimes(0);
             expect(
                 errorHandlers.missingSemicolonAfterCharacterReference,
             ).toHaveBeenCalledTimes(0);

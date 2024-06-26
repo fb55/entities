@@ -1,5 +1,10 @@
 {
-    "extends": ["eslint:recommended", "plugin:n/recommended", "prettier"],
+    "extends": [
+        "eslint:recommended",
+        "prettier",
+        "plugin:n/recommended",
+        "plugin:unicorn/recommended"
+    ],
     "env": {
         "node": true,
         "es6": true
@@ -23,8 +28,14 @@
         "curly": [2, "multi-line"],
         "no-else-return": 2,
 
-        "n/no-missing-import": 0,
-        "n/no-unsupported-features/es-syntax": 0
+        "n/no-unpublished-import": 0,
+
+        "unicorn/no-null": 0,
+        "unicorn/prefer-code-point": 0,
+        "unicorn/prefer-string-slice": 0,
+        "unicorn/prefer-add-event-listener": 0,
+        "unicorn/prefer-at": 0,
+        "unicorn/prefer-string-replace-all": 0
     },
     "overrides": [
         {
@@ -36,20 +47,15 @@
             ],
             "parserOptions": {
                 "sourceType": "module",
-                "project": "./tsconfig.eslint.json"
-            },
-            "settings": {
-                "node": {
-                    "tryExtensions": [".js", ".json", ".node", ".ts"]
-                }
+                "project": "./tsconfig.json"
             },
             "rules": {
-                "@typescript-eslint/no-non-null-assertion": 0,
-                "@typescript-eslint/no-unused-vars": [
-                    2,
-                    { "argsIgnorePattern": "^_" }
-                ],
-                "@typescript-eslint/strict-boolean-expressions": 2,
+                "curly": [2, "multi-line"],
+
+                "@typescript-eslint/prefer-for-of": 0,
+                "@typescript-eslint/member-ordering": 0,
+                "@typescript-eslint/explicit-function-return-type": 0,
+                "@typescript-eslint/no-unused-vars": 0,
                 "@typescript-eslint/no-use-before-define": [
                     2,
                     { "functions": false }
@@ -65,7 +71,21 @@
                 "@typescript-eslint/prefer-includes": 2,
                 "@typescript-eslint/no-unnecessary-condition": 2,
                 "@typescript-eslint/switch-exhaustiveness-check": 2,
-                "@typescript-eslint/prefer-nullish-coalescing": 2
+                "@typescript-eslint/prefer-nullish-coalescing": 2,
+                "@typescript-eslint/consistent-type-imports": [
+                    2,
+                    { "fixStyle": "inline-type-imports" }
+                ],
+                "@typescript-eslint/consistent-type-exports": 2,
+
+                "n/no-missing-import": 0,
+                "n/no-unsupported-features/es-syntax": 0
+            }
+        },
+        {
+            "files": "*.spec.ts",
+            "rules": {
+                "n/no-unsupported-features/node-builtins": 0
             }
         }
     ]

@@ -1,14 +1,15 @@
-import path from "path";
-import * as entities from ".";
+import { readFileSync } from "node:fs";
+import { describe, it, expect } from "vitest";
+import * as entities from "./index.js";
 import legacy from "../maps/legacy.json";
 
 const levels = ["xml", "entities"];
 
 describe("Documents", () => {
     const levelDocuments = levels
-        .map((n) => path.join("..", "maps", n))
-        .map(require)
-        .map((doc, i) => [i, doc]);
+        .map((name) => new URL(`../maps/${name}.json`, import.meta.url))
+        .map((url) => JSON.parse(readFileSync(url, "utf8")))
+        .map((document, index) => [index, document]);
 
     for (const [level, document] of levelDocuments) {
         describe("Decode", () => {

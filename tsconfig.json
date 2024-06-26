@@ -2,12 +2,10 @@
     "compilerOptions": {
         /* Basic Options */
         "target": "es2019",
-        "module": "commonjs",
-        "lib": ["ES2015.Core"],
+        "module": "nodenext",
         "declaration": true,
         "declarationMap": true,
         "sourceMap": true,
-        "outDir": "lib",
 
         /* Strict Type-Checking Options */
         "strict": true,
@@ -25,14 +23,6 @@
 
         /* Module Resolution Options */
         "esModuleInterop": true,
-        "moduleResolution": "node",
         "resolveJsonModule": true
-    },
-    "include": ["src"],
-    "exclude": [
-        "**/*.spec.ts",
-        "**/__fixtures__/*",
-        "**/__tests__/*",
-        "**/__snapshots__/*"
-    ]
+    }
 }

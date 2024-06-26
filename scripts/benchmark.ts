@@ -1,7 +1,10 @@
 /* eslint-disable n/no-missing-import */
-import * as entities from "../";
+import * as entities from "../src/index.js";
+// @ts-expect-error Not a dependency; only added for benchmarking.
 import * as he from "he";
+// @ts-expect-error Not a dependency; only added for benchmarking.
 import { parseEntities } from "parse-entities";
+// @ts-expect-error Not a dependency; only added for benchmarking.
 import * as htmlEntities from "html-entities";
 
 const RUNS = 1e7;
