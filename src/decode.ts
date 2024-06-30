@@ -562,8 +562,8 @@ export function determineBranch(
     return -1;
 }
 
-const htmlDecoder = getDecoder(htmlDecodeTree);
-const xmlDecoder = getDecoder(xmlDecodeTree);
+const htmlDecoder = /* #__PURE__ */ getDecoder(htmlDecodeTree);
+const xmlDecoder = /* #__PURE__ */ getDecoder(xmlDecodeTree);
 
 /**
  * Decodes an HTML string.
