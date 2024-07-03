@@ -95,7 +95,7 @@
         "eslint-plugin-n": "^17.9.0",
         "eslint-plugin-unicorn": "^54.0.0",
         "prettier": "^3.3.2",
-        "tshy": "^1.16.1",
+        "tshy": "^1.17.0",
         "tsx": "^4.16.0",
         "typedoc": "^0.26.3",
         "typescript": "^5.5.3",
