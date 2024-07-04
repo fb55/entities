@@ -110,7 +110,7 @@ function getEscaper(
  *
  * @param data String to escape.
  */
-export const escapeUTF8 = getEscaper(/["&'<>]/g, xmlCodeMap);
+export const escapeUTF8 = /* #__PURE__ */ getEscaper(/["&'<>]/g, xmlCodeMap);
 
 /**
  * Encodes all characters that have to be escaped in HTML attributes,
@@ -118,7 +118,7 @@ export const escapeUTF8 = getEscaper(/["&'<>]/g, xmlCodeMap);
  *
  * @param data String to escape.
  */
-export const escapeAttribute = getEscaper(
+export const escapeAttribute = /* #__PURE__ */ getEscaper(
     /["&\u00A0]/g,
     new Map([
         [34, "&quot;"],
@@ -133,7 +133,7 @@ export const escapeAttribute = getEscaper(
  *
  * @param data String to escape.
  */
-export const escapeText = getEscaper(
+export const escapeText = /* #__PURE__ */ getEscaper(
     /[&<>\u00A0]/g,
     new Map([
         [38, "&amp;"],

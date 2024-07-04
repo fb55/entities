@@ -70,7 +70,7 @@ function serializeTrie(trie: Map<number, TrieNode>): string {
         (a, b) => a[0] - b[0],
     );
 
-    return `new Map<number,string>(/* #__PURE__ */restoreDiff([${entries
+    return `/* #__PURE__ */ new Map<number,string>(/* #__PURE__ */restoreDiff([${entries
         .map(([key, value], index, array) => {
             if (index !== 0) {
                 key -= array[index - 1][0] + 1;

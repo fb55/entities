@@ -25,9 +25,9 @@ function convertMapToBinaryTrie(
         new URL(`../src/generated/decode-data-${name}.ts`, import.meta.url),
         `// Generated using scripts/write-decode-map.ts
 
-export default new Uint16Array(
+export default /* #__PURE__ */ new Uint16Array(
     // prettier-ignore
-    ${stringified}
+    /* #__PURE__ */ ${stringified}
         .split("")
         .map((c) => c.charCodeAt(0)),
 );
