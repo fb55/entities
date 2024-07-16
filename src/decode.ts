@@ -1,5 +1,5 @@
-import htmlDecodeTree from "./generated/decode-data-html.js";
-import xmlDecodeTree from "./generated/decode-data-xml.js";
+import { htmlDecodeTree } from "./generated/decode-data-html.js";
+import { xmlDecodeTree } from "./generated/decode-data-xml.js";
 import { replaceCodePoint, fromCodePoint } from "./decode-codepoint.js";
 
 const enum CharCodes {
@@ -101,7 +101,7 @@ export class EntityDecoder {
          */
         private readonly emitCodePoint: (cp: number, consumed: number) => void,
         /** An object that is used to produce errors. */
-        private readonly errors?: EntityErrorProducer,
+        private readonly errors?: EntityErrorProducer | undefined,
     ) {}
 
     /** The current state of the decoder. */
@@ -574,7 +574,7 @@ const xmlDecoder = /* #__PURE__ */ getDecoder(xmlDecodeTree);
  */
 export function decodeHTML(
     htmlString: string,
-    mode = DecodingMode.Legacy,
+    mode: DecodingMode = DecodingMode.Legacy,
 ): string {
     return htmlDecoder(htmlString, mode);
 }
@@ -610,11 +610,11 @@ export function decodeXML(xmlString: string): string {
 }
 
 // Re-export for use by eg. htmlparser2
-export { default as htmlDecodeTree } from "./generated/decode-data-html.js";
-export { default as xmlDecodeTree } from "./generated/decode-data-xml.js";
+export { htmlDecodeTree } from "./generated/decode-data-html.js";
+export { xmlDecodeTree } from "./generated/decode-data-xml.js";
 
 export {
-    default as decodeCodePoint,
+    decodeCodePoint,
     replaceCodePoint,
     fromCodePoint,
 } from "./decode-codepoint.js";

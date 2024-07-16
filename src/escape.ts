@@ -1,4 +1,4 @@
-export const xmlReplacer = /["$&'<>\u0080-\uFFFF]/g;
+export const xmlReplacer: RegExp = /["$&'<>\u0080-\uFFFF]/g;
 
 const xmlCodeMap = new Map([
     [34, "&quot;"],
@@ -9,7 +9,7 @@ const xmlCodeMap = new Map([
 ]);
 
 // For compatibility with node < 4, we wrap `codePointAt`
-export const getCodePoint =
+export const getCodePoint: (c: string, index: number) => number =
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     String.prototype.codePointAt == null
         ? (c: string, index: number): number =>
@@ -66,7 +66,7 @@ export function encodeXML(input: string): string {
  *
  * @param data String to escape.
  */
-export const escape = encodeXML;
+export const escape: typeof encodeXML = encodeXML;
 
 /**
  * Creates a function that escapes all characters matched by the given regular
@@ -110,7 +110,10 @@ function getEscaper(
  *
  * @param data String to escape.
  */
-export const escapeUTF8 = /* #__PURE__ */ getEscaper(/["&'<>]/g, xmlCodeMap);
+export const escapeUTF8: (data: string) => string = /* #__PURE__ */ getEscaper(
+    /["&'<>]/g,
+    xmlCodeMap,
+);
 
 /**
  * Encodes all characters that have to be escaped in HTML attributes,
@@ -118,14 +121,15 @@ export const escapeUTF8 = /* #__PURE__ */ getEscaper(/["&'<>]/g, xmlCodeMap);
  *
  * @param data String to escape.
  */
-export const escapeAttribute = /* #__PURE__ */ getEscaper(
-    /["&\u00A0]/g,
-    new Map([
-        [34, "&quot;"],
-        [38, "&amp;"],
-        [160, "&nbsp;"],
-    ]),
-);
+export const escapeAttribute: (data: string) => string =
+    /* #__PURE__ */ getEscaper(
+        /["&\u00A0]/g,
+        new Map([
+            [34, "&quot;"],
+            [38, "&amp;"],
+            [160, "&nbsp;"],
+        ]),
+    );
 
 /**
  * Encodes all characters that have to be escaped in HTML text,
@@ -133,7 +137,7 @@ export const escapeAttribute = /* #__PURE__ */ getEscaper(
  *
  * @param data String to escape.
  */
-export const escapeText = /* #__PURE__ */ getEscaper(
+export const escapeText: (data: string) => string = /* #__PURE__ */ getEscaper(
     /[&<>\u00A0]/g,
     new Map([
         [38, "&amp;"],
