@@ -7,7 +7,7 @@ import { getTrie } from "./trie/trie.js";
 import { encodeTrie } from "./trie/encode-trie.js";
 
 function convertMapToBinaryTrie(
-    name: string,
+    name: "xml" | "html",
     map: Record<string, string>,
     legacy: Record<string, string>,
 ) {
@@ -25,7 +25,7 @@ function convertMapToBinaryTrie(
         new URL(`../src/generated/decode-data-${name}.ts`, import.meta.url),
         `// Generated using scripts/write-decode-map.ts
 
-export default /* #__PURE__ */ new Uint16Array(
+export const ${name}DecodeTree: Uint16Array = /* #__PURE__ */ new Uint16Array(
     // prettier-ignore
     /* #__PURE__ */ ${stringified}
         .split("")

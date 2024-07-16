@@ -1,4 +1,4 @@
-import htmlTrie from "./generated/encode-html.js";
+import { htmlTrie } from "./generated/encode-html.js";
 import { xmlReplacer, getCodePoint } from "./escape.js";
 
 const htmlReplacer = /[\t\n\f!-,./:-@[-`{-}\u0080-\uFFFF]/g;

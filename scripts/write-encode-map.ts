@@ -29,7 +29,7 @@ function restoreDiff<T extends ReadonlyArray<[number, EncodeTrieNode]>>(
 }
 
 // prettier-ignore
-export default ${
+export const htmlTrie: Map<number,EncodeTrieNode> = ${
         // Fix the type of the first map to refer to trie nodes.
         serialized.replace("<number,string>", "<number,EncodeTrieNode>")
     };

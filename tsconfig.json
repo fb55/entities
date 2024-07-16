@@ -13,6 +13,7 @@
         /* Additional Checks */
         "exactOptionalPropertyTypes": true,
         "forceConsistentCasingInFileNames": true,
+        "isolatedDeclarations": true,
         "isolatedModules": true,
         "noFallthroughCasesInSwitch": true,
         "noImplicitOverride": true,
