@@ -31,7 +31,7 @@
                 "default": "./dist/commonjs/index.js"
             }
         },
-        "./dist/decode.js": {
+        "./decode": {
             "import": {
                 "types": "./dist/esm/decode.d.ts",
                 "default": "./dist/esm/decode.js"
@@ -41,7 +41,7 @@
                 "default": "./dist/commonjs/decode.js"
             }
         },
-        "./dist/escape.js": {
+        "./escape": {
             "import": {
                 "types": "./dist/esm/escape.d.ts",
                 "default": "./dist/esm/escape.js"
@@ -107,8 +107,8 @@
         ],
         "exports": {
             ".": "./src/index.ts",
-            "./dist/decode.js": "./src/decode.ts",
-            "./dist/escape.js": "./src/escape.ts"
+            "./decode": "./src/decode.ts",
+            "./escape": "./src/escape.ts"
         }
     }
 }
