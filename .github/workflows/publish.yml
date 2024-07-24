@@ -1,0 +1,49 @@
+name: Publish
+on:
+    release:
+        types: [published]
+
+jobs:
+    publish:
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+            id-token: write
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: lts/*
+                  registry-url: https://registry.npmjs.org
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Update package version to latest tag
+              run: |
+                  npm version from-git --allowSameVersion
+                  git push --follow-tags
+
+            - name: Create jsr.json based on package.json
+              run: |
+                  node -e '
+                    const p = require("./package.json");
+                    const jsrJson = {
+                        name: `@cheerio/${p.name}`,
+                        version: p.version,
+                        ...p.tshy,
+                    };
+                    require("fs").writeFileSync("./jsr.json", JSON.stringify(jsrJson, null, 2));
+                  '
+
+            - name: Publish package to JSR
+              run: npx jsr publish
+
+            - name: Publish package to NPM
+              run: npm publish --provenance --access public
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

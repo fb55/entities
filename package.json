@@ -60,7 +60,6 @@
         "src"
     ],
     "scripts": {
-        "build": "tshy",
         "build:docs": "typedoc --hideGenerator src/index.ts",
         "build:encode-trie": "node --import=tsx scripts/write-encode-map.ts",
         "build:trie": "node --import=tsx scripts/write-decode-map.ts",
@@ -71,7 +70,7 @@
         "lint:es": "eslint . --ignore-path .gitignore",
         "lint:prettier": "npm run prettier -- --check",
         "lint:ts": "tsc --noEmit",
-        "prepare": "npm run build",
+        "prepublishOnly": "tshy",
         "prettier": "prettier '**/*.{ts,md,json,yml}'",
         "test": "npm run test:vi && npm run lint",
         "test:vi": "vitest run"
