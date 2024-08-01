@@ -90,7 +90,7 @@
         "eslint-plugin-unicorn": "^55.0.0",
         "prettier": "^3.3.3",
         "tshy": "^3.0.2",
-        "tsx": "^4.16.3",
+        "tsx": "^4.16.5",
         "typedoc": "^0.26.5",
         "typescript": "^5.5.4",
         "vitest": "^2.0.2"
