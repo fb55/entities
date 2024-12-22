@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest";
 import { encodeTrie } from "./encode-trie.js";
 import { decodeNode } from "./decode-trie.js";
 import { getTrie } from "./trie.js";
-import xmlMap from "../../maps/xml.json";
-import entityMap from "../../maps/entities.json";
-import legacyMap from "../../maps/legacy.json";
+import xmlMap from "../../maps/xml.json" assert { type: "json" };
+import entityMap from "../../maps/entities.json" assert { type: "json" };
+import legacyMap from "../../maps/legacy.json" assert { type: "json" };
 
 function decode(decodeMap: number[]) {
     const map = {};
