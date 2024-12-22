@@ -1,6 +1,6 @@
 {
     "name": "entities",
-    "version": "5.0.0",
+    "version": "6.0.0",
     "description": "Encode & decode XML and HTML entities with ease & speed",
     "keywords": [
         "html entities",
