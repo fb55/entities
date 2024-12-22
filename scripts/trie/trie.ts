@@ -64,10 +64,10 @@ export function getTrie(
             for (const [char, node] of next) {
                 const index = nodes.findIndex((n) => isEqual(n, node));
 
-                if (index >= 0) {
-                    next.set(char, nodes[index]);
-                } else {
+                if (index === -1) {
                     nodes.push(node);
+                } else {
+                    next.set(char, nodes[index]);
                 }
             }
         }
