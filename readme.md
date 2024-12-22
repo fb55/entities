@@ -4,16 +4,16 @@ Encode & decode HTML & XML entities with ease & speed.
 
 ## Features
 
--   😇 Tried and true: `entities` is used by many popular libraries; eg.
-    [`htmlparser2`](https://github.com/fb55/htmlparser2), the official
-    [AWS SDK](https://github.com/aws/aws-sdk-js-v3) and
-    [`commonmark`](https://github.com/commonmark/commonmark.js) use it to
-    process HTML entities.
--   ⚡️ Fast: `entities` is the fastest library for decoding HTML entities (as
-    of April 2022); see [performance](#performance).
--   🎛 Configurable: Get an output tailored for your needs. You are fine with
-    UTF8? That'll save you some bytes. Prefer to only have ASCII characters? We
-    can do that as well!
+- 😇 Tried and true: `entities` is used by many popular libraries; eg.
+  [`htmlparser2`](https://github.com/fb55/htmlparser2), the official
+  [AWS SDK](https://github.com/aws/aws-sdk-js-v3) and
+  [`commonmark`](https://github.com/commonmark/commonmark.js) use it to process
+  HTML entities.
+- ⚡️ Fast: `entities` is the fastest library for decoding HTML entities (as of
+  April 2022); see [performance](#performance).
+- 🎛 Configurable: Get an output tailored for your needs. You are fine with
+  UTF8? That'll save you some bytes. Prefer to only have ASCII characters? We
+  can do that as well!
 
 ## How to…
 
@@ -90,15 +90,15 @@ Instead, use the functions that you need directly.
 This library wouldn't be possible without the work of these individuals. Thanks
 to
 
--   [@mathiasbynens](https://github.com/mathiasbynens) for his explanations
-    about character encodings, and his library `he`, which was one of the
-    inspirations for `entities`
--   [@inikulin](https://github.com/inikulin) for his work on optimized tries for
-    decoding HTML entities for the `parse5` project
--   [@mdevils](https://github.com/mdevils) for taking on the challenge of
-    producing a quick entity library with his `html-entities` library.
-    `entities` would be quite a bit slower if there wasn't any competition.
-    Right now `entities` is on top, but we'll see how long that lasts!
+- [@mathiasbynens](https://github.com/mathiasbynens) for his explanations about
+  character encodings, and his library `he`, which was one of the inspirations
+  for `entities`
+- [@inikulin](https://github.com/inikulin) for his work on optimized tries for
+  decoding HTML entities for the `parse5` project
+- [@mdevils](https://github.com/mdevils) for taking on the challenge of
+  producing a quick entity library with his `html-entities` library. `entities`
+  would be quite a bit slower if there wasn't any competition. Right now
+  `entities` is on top, but we'll see how long that lasts!
 
 ---
 
