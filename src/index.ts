@@ -141,14 +141,17 @@ export function encode(
         case EncodingMode.Text: {
             return escapeText(input);
         }
+        case EncodingMode.ASCII: {
+            return level === EntityLevel.HTML
+                ? encodeNonAsciiHTML(input)
+                : encodeXML(input);
+        }
+        // eslint-disable-next-line unicorn/no-useless-switch-case
+        case EncodingMode.Extensive:
         default: {
-            if (level === EntityLevel.HTML) {
-                if (mode === EncodingMode.ASCII) {
-                    return encodeNonAsciiHTML(input);
-                }
-                return encodeHTML(input);
-            }
-            return encodeXML(input);
+            return level === EntityLevel.HTML
+                ? encodeHTML(input)
+                : encodeXML(input);
         }
     }
 }
