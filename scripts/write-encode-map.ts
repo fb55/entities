@@ -1,4 +1,4 @@
-import htmlMap from "../maps/entities.json";
+import htmlMap from "../maps/entities.json" assert { type: "json" };
 import { writeFileSync } from "node:fs";
 
 interface TrieNode {
