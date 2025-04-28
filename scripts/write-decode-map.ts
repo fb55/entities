@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
-import entityMap from "../maps/entities.json" assert { type: "json" };
-import legacyMap from "../maps/legacy.json" assert { type: "json" };
-import xmlMap from "../maps/xml.json" assert { type: "json" };
+import entityMap from "../maps/entities.json" with { type: "json" };
+import legacyMap from "../maps/legacy.json" with { type: "json" };
+import xmlMap from "../maps/xml.json" with { type: "json" };
 
 import { getTrie } from "./trie/trie.js";
 import { encodeTrie } from "./trie/encode-trie.js";

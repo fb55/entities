@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest";
 import { encodeTrie } from "./encode-trie.js";
 import { decodeNode } from "./decode-trie.js";
 import { getTrie } from "./trie.js";
-import xmlMap from "../../maps/xml.json" assert { type: "json" };
-import entityMap from "../../maps/entities.json" assert { type: "json" };
-import legacyMap from "../../maps/legacy.json" assert { type: "json" };
+import xmlMap from "../../maps/xml.json" with { type: "json" };
+import entityMap from "../../maps/entities.json" with { type: "json" };
+import legacyMap from "../../maps/legacy.json" with { type: "json" };
 
 function decode(decodeMap: number[]) {
     const map = {};
@@ -49,9 +49,7 @@ describe("decode_trie", () => {
                     next: new Map([["b".charCodeAt(0), { value: "a" }]]),
                 }),
             ),
-        ).toStrictEqual({
-            b: "a",
-        }));
+        ).toStrictEqual({ b: "a" }));
 
     it("should decode a dictionary of size 2", () =>
         expect(
@@ -63,10 +61,7 @@ describe("decode_trie", () => {
                     ]),
                 }),
             ),
-        ).toStrictEqual({
-            A: "a",
-            b: "B",
-        }));
+        ).toStrictEqual({ A: "a", b: "B" }));
 
     it("should decode a jump table of size 2", () =>
         expect(
@@ -78,10 +73,7 @@ describe("decode_trie", () => {
                     ]),
                 }),
             ),
-        ).toStrictEqual({
-            a: "a",
-            b: "B",
-        }));
+        ).toStrictEqual({ a: "a", b: "B" }));
 
     it("should decode the XML map", () =>
         expect(decode(encodeTrie(getTrie(xmlMap, {})))).toStrictEqual(
