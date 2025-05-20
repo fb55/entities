@@ -82,7 +82,7 @@
         "tabWidth": 4
     },
     "devDependencies": {
-        "@types/node": "^22.15.19",
+        "@types/node": "^22.15.20",
         "@typescript-eslint/eslint-plugin": "^8.32.1",
         "@typescript-eslint/parser": "^8.32.1",
         "@vitest/coverage-v8": "^2.1.8",
