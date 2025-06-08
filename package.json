@@ -57,7 +57,9 @@
     "types": "./dist/commonjs/index.d.ts",
     "files": [
         "decode.js",
+        "decode.d.ts",
         "escape.js",
+        "escape.d.ts",
         "dist",
         "src"
     ],
