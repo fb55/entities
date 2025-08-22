@@ -61,21 +61,19 @@ node is as follows:
 ```
 2 bit |  7 bit  |  7 bit
  \        \         \
-  \        \         \
-   \        \         \
-    \        \         jump table offset
-     \        number of branches
-      value length
+  \        \         jump table offset
+   \        number of branches
+    value length
 ```
 
-The _value length_ is the number of bytes used for the value. If the length is
-0, we don't have a value. If the length is 1, the node does not have any
-branches and the value will be stored inside the lower 14 bit of the node
-itself. Otherwise, the value will be stored in the next one or two bytes of the
-array.
+The *value length* field tells how many bytes store the value:
 
-If it has any branch data (indicated by the _number of branches_ or the _jump
-table offset_ being set), the node will be followed by the branch data.
+- 0: no value; the node is a branch.
+- 1: value is inlined in the node’s lower 14 bits.
+- > 1: value is stored in the next 1–2 bytes of the array.
+
+If the node has branch data (number of branches > 0 or jump table offset ≠ 0),
+that branch data immediately follows the node.
 
 ### Branch data
 
