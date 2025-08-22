@@ -92,7 +92,7 @@
         "eslint-config-prettier": "^10.1.8",
         "eslint-plugin-n": "^17.21.3",
         "eslint-plugin-unicorn": "^56.0.1",
-        "prettier": "^3.5.3",
+        "prettier": "^3.6.2",
         "tshy": "^3.0.2",
         "tsx": "^4.20.4",
         "typedoc": "^0.28.10",
