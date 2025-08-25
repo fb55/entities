@@ -41,15 +41,16 @@ describe("encode_trie", () => {
                 ["b".charCodeAt(0), nodeC],
             ]),
         };
+        // With packed dictionary keys, A & b share one uint16; destinations follow.
+        const packed = "A".charCodeAt(0) | ("b".charCodeAt(0) << 8);
         expect(encodeTrie(trie)).toStrictEqual([
             0b0000_0001_0000_0000,
-            "A".charCodeAt(0),
-            "b".charCodeAt(0),
+            packed,
+            0b100,
             0b101,
-            0b110,
             0b0100_0000_0000_0000 | "a".charCodeAt(0),
             0b0000_0000_1000_0000 | "c".charCodeAt(0),
-            0b110, // Index plus one
+            0b101, // Index plus one
         ]);
     });
 
@@ -57,12 +58,12 @@ describe("encode_trie", () => {
         const recursiveTrie = { next: new Map() };
         recursiveTrie.next.set("a".charCodeAt(0), { value: "a" });
         recursiveTrie.next.set("0".charCodeAt(0), recursiveTrie);
+        const packed = "0".charCodeAt(0) | ("a".charCodeAt(0) << 8);
         expect(encodeTrie(recursiveTrie)).toStrictEqual([
             0b0000_0001_0000_0000,
-            "0".charCodeAt(0),
-            "a".charCodeAt(0),
+            packed,
             0,
-            5,
+            4,
             0b0100_0000_0000_0000 | "a".charCodeAt(0),
         ]);
     });

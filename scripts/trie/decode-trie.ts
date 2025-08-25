@@ -1,8 +1,4 @@
-enum BinTrieFlags {
-    VALUE_LENGTH = 0b1100_0000_0000_0000,
-    BRANCH_LENGTH = 0b0011_1111_1000_0000,
-    JUMP_TABLE = 0b0000_0000_0111_1111,
-}
+import { BinTrieFlags } from "../../src/internal/bin-trie-flags.js";
 
 export function decodeNode(
     decodeMap: number[],
@@ -14,10 +10,12 @@ export function decodeNode(
     const valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
 
     if (valueLength > 0) {
+        // For single-char values, mask out all flag bits (value length bits + flag13)
         resultMap[prefix] =
             valueLength === 1
                 ? String.fromCharCode(
-                      decodeMap[startIndex] & ~BinTrieFlags.VALUE_LENGTH,
+                      decodeMap[startIndex] &
+                          ~(BinTrieFlags.VALUE_LENGTH | BinTrieFlags.FLAG13),
                   )
                 : valueLength === 2
                   ? String.fromCharCode(decodeMap[startIndex + 1])
@@ -25,6 +23,37 @@ export function decodeNode(
                         decodeMap[startIndex + 1],
                         decodeMap[startIndex + 2],
                     );
+        if (current & BinTrieFlags.FLAG13) {
+            // Only emit suffixed variant
+            const suffixed = `${prefix};`;
+            resultMap[suffixed] = resultMap[prefix];
+            delete resultMap[prefix];
+        }
+    } else if (current & BinTrieFlags.FLAG13) {
+        // Compact run: bits12..7 length (6 bits), bits6..0 first char.
+        const runLength = (current & BinTrieFlags.BRANCH_LENGTH) >> 7; // 6 bits
+        const firstChar = current & BinTrieFlags.JUMP_TABLE;
+        let runPrefix = prefix + String.fromCharCode(firstChar);
+        const remaining = runLength - 1;
+        const packedWords = Math.ceil(remaining / 2);
+        // Packed words start at startIndex+1
+        for (let index = 0; index < packedWords; index++) {
+            const packed = decodeMap[startIndex + 1 + index];
+            const low = packed & 0xff;
+            const high = (packed >> 8) & 0xff;
+            const globalPos = 1 + 2 * index; // Position of low char in run (0-based within remaining)
+            if (globalPos <= remaining) runPrefix += String.fromCharCode(low);
+            if (globalPos + 1 <= remaining) {
+                runPrefix += String.fromCharCode(high);
+            }
+        }
+        // Recurse to final node after packed words
+        return decodeNode(
+            decodeMap,
+            resultMap,
+            runPrefix,
+            startIndex + 1 + packedWords,
+        );
     }
 
     const branchLength = (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
@@ -46,12 +75,22 @@ export function decodeNode(
     }
 
     if (jumpOffset === 0) {
-        for (let index = 0; index < branchLength; index++) {
+        /*
+         * Dictionary: Keys are packed (two per uint16). Treat packed keys as a virtual
+         * sorted array of length `branchLength` where key(i) is the low (even i)
+         * or high (odd i) byte of slot i>>1.
+         */
+        const packedKeySlots = Math.ceil(branchLength / 2);
+        for (let keyIndex = 0; keyIndex < branchLength; keyIndex++) {
+            const slot = keyIndex >> 1;
+            const packed = decodeMap[branchIndex + slot];
+            const key = (packed >> ((keyIndex & 1) * 8)) & 0xff;
+            const destinationIndex = branchIndex + packedKeySlots + keyIndex;
             decodeNode(
                 decodeMap,
                 resultMap,
-                prefix + String.fromCharCode(decodeMap[branchIndex + index]),
-                decodeMap[branchIndex + branchLength + index],
+                prefix + String.fromCharCode(key),
+                decodeMap[destinationIndex],
             );
         }
     } else {

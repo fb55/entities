@@ -1,6 +1,7 @@
 import { htmlDecodeTree } from "./generated/decode-data-html.js";
 import { xmlDecodeTree } from "./generated/decode-data-xml.js";
 import { replaceCodePoint, fromCodePoint } from "./decode-codepoint.js";
+import { BinTrieFlags } from "./internal/bin-trie-flags.js";
 
 const enum CharCodes {
     NUM = 35, // "#"
@@ -19,12 +20,6 @@ const enum CharCodes {
 
 /** Bit that needs to be set to convert an upper case ASCII character to lower case */
 const TO_LOWER_BIT = 0b10_0000;
-
-export enum BinTrieFlags {
-    VALUE_LENGTH = 0b1100_0000_0000_0000,
-    BRANCH_LENGTH = 0b0011_1111_1000_0000,
-    JUMP_TABLE = 0b0000_0000_0111_1111,
-}
 
 function isNumber(code: number): boolean {
     return code >= CharCodes.ZERO && code <= CharCodes.NINE;
@@ -321,11 +316,80 @@ export class EntityDecoder {
     private stateNamedEntity(input: string, offset: number): number {
         const { decodeTree } = this;
         let current = decodeTree[this.treeIndex];
-        // The mask is the number of bytes of the value, including the current byte.
+        // The length is the number of bytes of the value, including the current byte.
         let valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
 
-        for (; offset < input.length; offset++, this.excess++) {
+        while (offset < input.length) {
+            // Handle compact runs (possibly inline): valueLength == 0 and SEMI_REQUIRED bit set.
+            if (valueLength === 0 && (current & BinTrieFlags.FLAG13) !== 0) {
+                const runLength =
+                    (current & BinTrieFlags.BRANCH_LENGTH) >> 7; /* 2..63 */
+                const firstChar = current & BinTrieFlags.JUMP_TABLE;
+                // Verify first char
+                if (offset >= input.length) return -1;
+                const gotFirst = input.charCodeAt(offset);
+                if (gotFirst !== firstChar) {
+                    return this.result === 0
+                        ? 0
+                        : this.emitNotTerminatedNamedEntity();
+                }
+                offset++;
+                this.excess++;
+                const remaining = runLength - 1;
+                for (let runPos = 1; runPos < runLength; runPos += 2) {
+                    const packedWord =
+                        decodeTree[this.treeIndex + 1 + ((runPos - 1) >> 1)];
+                    const low = packedWord & 0xff;
+                    if (runPos < runLength) {
+                        if (offset >= input.length) return -1;
+                        if (input.charCodeAt(offset) !== low) {
+                            return this.result === 0
+                                ? 0
+                                : this.emitNotTerminatedNamedEntity();
+                        }
+                        offset++;
+                        this.excess++;
+                    }
+                    const high = (packedWord >> 8) & 0xff;
+                    if (runPos + 1 < runLength) {
+                        if (offset >= input.length) return -1;
+                        if (input.charCodeAt(offset) !== high) {
+                            return this.result === 0
+                                ? 0
+                                : this.emitNotTerminatedNamedEntity();
+                        }
+                        offset++;
+                        this.excess++;
+                    }
+                }
+                const packedWords = Math.ceil(remaining / 2);
+                this.treeIndex += 1 + packedWords;
+                current = decodeTree[this.treeIndex];
+                valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
+            }
+
+            if (offset >= input.length) break;
+
             const char = input.charCodeAt(offset);
+
+            /*
+             * Implicit semicolon handling for nodes that require a semicolon but
+             * don't have an explicit ';' branch stored in the trie. If we have
+             * a value on the current node, it requires a semicolon, and the
+             * current input character is a semicolon, emit the entity using the
+             * current node (without descending further).
+             */
+            if (
+                char === CharCodes.SEMI &&
+                valueLength !== 0 &&
+                (current & BinTrieFlags.FLAG13) !== 0
+            ) {
+                return this.emitNamedEntityData(
+                    this.treeIndex,
+                    valueLength,
+                    this.consumed + this.excess,
+                );
+            }
 
             this.treeIndex = determineBranch(
                 decodeTree,
@@ -361,12 +425,18 @@ export class EntityDecoder {
                 }
 
                 // If we encounter a non-terminated (legacy) entity while parsing strictly, then ignore it.
-                if (this.decodeMode !== DecodingMode.Strict) {
+                if (
+                    this.decodeMode !== DecodingMode.Strict &&
+                    (current & BinTrieFlags.FLAG13) === 0
+                ) {
                     this.result = this.treeIndex;
                     this.consumed += this.excess;
                     this.excess = 0;
                 }
             }
+            // Increment offset & excess for next iteration
+            offset++;
+            this.excess++;
         }
 
         return -1;
@@ -407,7 +477,8 @@ export class EntityDecoder {
 
         this.emitCodePoint(
             valueLength === 1
-                ? decodeTree[result] & ~BinTrieFlags.VALUE_LENGTH
+                ? decodeTree[result] &
+                      ~(BinTrieFlags.VALUE_LENGTH | BinTrieFlags.FLAG13)
                 : decodeTree[result + 1],
             consumed,
         );
@@ -540,22 +611,28 @@ export function determineBranch(
             : decodeTree[nodeIndex + value] - 1;
     }
 
-    // Case 3: Multiple branches encoded in dictionary
+    // Case 3: Multiple branches encoded in packed dictionary (two keys per uint16)
+    const packedKeySlots = Math.ceil(branchCount / 2);
 
-    // Binary search for the character.
-    let lo = nodeIndex;
-    let hi = lo + branchCount - 1;
+    /*
+     * Treat packed keys as a virtual sorted array of length `branchCount`.
+     * Key(i) = low byte for even i, high byte for odd i in slot i>>1.
+     */
+    let lo = 0;
+    let hi = branchCount - 1;
 
     while (lo <= hi) {
         const mid = (lo + hi) >>> 1;
-        const midValue = decodeTree[mid];
+        const slot = mid >> 1;
+        const packed = decodeTree[nodeIndex + slot];
+        const midKey = (packed >> ((mid & 1) * 8)) & 0xff;
 
-        if (midValue < char) {
+        if (midKey < char) {
             lo = mid + 1;
-        } else if (midValue > char) {
+        } else if (midKey > char) {
             hi = mid - 1;
         } else {
-            return decodeTree[mid + branchCount];
+            return decodeTree[nodeIndex + packedKeySlots + mid];
         }
     }
 
