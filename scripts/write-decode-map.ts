@@ -16,7 +16,7 @@ function generateFile(variableName: string, data: Uint16Array): string {
 
 import { decodeBase64 } from "./decode-shared.js";
 export const ${variableName}: Uint16Array = /* #__PURE__ */ decodeBase64(
-    ${JSON.stringify(b64)}
+    ${JSON.stringify(b64)},
 );`;
 }
 

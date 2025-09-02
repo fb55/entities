@@ -193,21 +193,6 @@ export class EntityDecoder {
         return this.stateNumericDecimal(input, offset);
     }
 
-    private addToNumericResult(
-        input: string,
-        start: number,
-        end: number,
-        base: number,
-    ): void {
-        if (start !== end) {
-            const digitCount = end - start;
-            this.result =
-                this.result * Math.pow(base, digitCount) +
-                Number.parseInt(input.substr(start, digitCount), base);
-            this.consumed += digitCount;
-        }
-    }
-
     /**
      * Parses a hexadecimal numeric entity.
      *
@@ -218,21 +203,22 @@ export class EntityDecoder {
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
      */
     private stateNumericHex(input: string, offset: number): number {
-        const startIndex = offset;
-
         while (offset < input.length) {
             const char = input.charCodeAt(offset);
             if (isNumber(char) || isHexadecimalCharacter(char)) {
-                offset += 1;
+                // Convert hex digit to value (0-15); 'a'/'A' -> 10.
+                const digit =
+                    char <= CharCodes.NINE
+                        ? char - CharCodes.ZERO
+                        : (char | TO_LOWER_BIT) - CharCodes.LOWER_A + 10;
+                this.result = this.result * 16 + digit;
+                this.consumed++;
+                offset++;
             } else {
-                this.addToNumericResult(input, startIndex, offset, 16);
                 return this.emitNumericEntity(char, 3);
             }
         }
-
-        this.addToNumericResult(input, startIndex, offset, 16);
-
-        return -1;
+        return -1; // Incomplete entity
     }
 
     /**
@@ -245,21 +231,17 @@ export class EntityDecoder {
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
      */
     private stateNumericDecimal(input: string, offset: number): number {
-        const startIndex = offset;
-
         while (offset < input.length) {
             const char = input.charCodeAt(offset);
             if (isNumber(char)) {
-                offset += 1;
+                this.result = this.result * 10 + (char - CharCodes.ZERO);
+                this.consumed++;
+                offset++;
             } else {
-                this.addToNumericResult(input, startIndex, offset, 10);
                 return this.emitNumericEntity(char, 2);
             }
         }
-
-        this.addToNumericResult(input, startIndex, offset, 10);
-
-        return -1;
+        return -1; // Incomplete entity
     }
 
     /**
@@ -325,22 +307,23 @@ export class EntityDecoder {
                 const runLength =
                     (current & BinTrieFlags.BRANCH_LENGTH) >> 7; /* 2..63 */
                 const firstChar = current & BinTrieFlags.JUMP_TABLE;
+                // Fast-fail if we don't have enough remaining input for the full run (incomplete entity)
+                if (offset + runLength > input.length) return -1;
                 // Verify first char
-                if (offset >= input.length) return -1;
-                const gotFirst = input.charCodeAt(offset);
-                if (gotFirst !== firstChar) {
+                if (input.charCodeAt(offset) !== firstChar) {
                     return this.result === 0
                         ? 0
                         : this.emitNotTerminatedNamedEntity();
                 }
                 offset++;
                 this.excess++;
+                // Remaining characters after the first
                 const remaining = runLength - 1;
+                // Iterate over packed 2-char words
                 for (let runPos = 1; runPos < runLength; runPos += 2) {
                     const packedWord =
                         decodeTree[this.treeIndex + 1 + ((runPos - 1) >> 1)];
                     const low = packedWord & 0xff;
-                    if (offset >= input.length) return -1;
                     if (input.charCodeAt(offset) !== low) {
                         return this.result === 0
                             ? 0
@@ -350,7 +333,6 @@ export class EntityDecoder {
                     this.excess++;
                     const high = (packedWord >> 8) & 0xff;
                     if (runPos + 1 < runLength) {
-                        if (offset >= input.length) return -1;
                         if (input.charCodeAt(offset) !== high) {
                             return this.result === 0
                                 ? 0
@@ -360,8 +342,7 @@ export class EntityDecoder {
                         this.excess++;
                     }
                 }
-                const packedWords = Math.ceil(remaining / 2);
-                this.treeIndex += 1 + packedWords;
+                this.treeIndex += 1 + ((remaining + 1) >> 1);
                 current = decodeTree[this.treeIndex];
                 valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
             }
@@ -610,7 +591,7 @@ export function determineBranch(
     }
 
     // Case 3: Multiple branches encoded in packed dictionary (two keys per uint16)
-    const packedKeySlots = Math.ceil(branchCount / 2);
+    const packedKeySlots = (branchCount + 1) >> 1;
 
     /*
      * Treat packed keys as a virtual sorted array of length `branchCount`.

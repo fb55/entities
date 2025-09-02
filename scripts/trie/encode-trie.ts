@@ -120,7 +120,7 @@ export function encodeTrie(
                         for (let index = 1; index < runLength; index += 2) {
                             const low = runChars[index];
                             const high = runChars[index + 1];
-                            enc.push(low | ((high ?? 0) << 8));
+                            enc.push(low | (high << 8));
                         }
                         encodeNode(finalNode);
                         if (stats) {
