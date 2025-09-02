@@ -340,16 +340,14 @@ export class EntityDecoder {
                     const packedWord =
                         decodeTree[this.treeIndex + 1 + ((runPos - 1) >> 1)];
                     const low = packedWord & 0xff;
-                    if (runPos < runLength) {
-                        if (offset >= input.length) return -1;
-                        if (input.charCodeAt(offset) !== low) {
-                            return this.result === 0
-                                ? 0
-                                : this.emitNotTerminatedNamedEntity();
-                        }
-                        offset++;
-                        this.excess++;
+                    if (offset >= input.length) return -1;
+                    if (input.charCodeAt(offset) !== low) {
+                        return this.result === 0
+                            ? 0
+                            : this.emitNotTerminatedNamedEntity();
                     }
+                    offset++;
+                    this.excess++;
                     const high = (packedWord >> 8) & 0xff;
                     if (runPos + 1 < runLength) {
                         if (offset >= input.length) return -1;
