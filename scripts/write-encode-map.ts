@@ -15,18 +15,7 @@ writeFileSync(
     new URL("../src/generated/encode-html.ts", import.meta.url),
     `// Generated using scripts/write-encode-map.ts
 
-type EncodeTrieNode =
-    | string
-    | { v?: string; n: number | Map<number, EncodeTrieNode>; o?: string };
-
-function restoreDiff<T extends ReadonlyArray<[number, EncodeTrieNode]>>(
-    array: T
-): T {
-    for (let index = 1; index < array.length; index++) {
-        array[index][0] += array[index - 1][0] + 1;
-    }
-    return array;
-}
+import { type EncodeTrieNode, restoreDiff } from "../internal/encode-shared.js";
 
 // prettier-ignore
 export const htmlTrie: Map<number,EncodeTrieNode> = ${
@@ -61,8 +50,8 @@ function getTrie(map: Record<string, string>): Map<number, TrieNode> {
 
 function wrapValue(value: string | undefined): string {
     if (value == null) throw new Error("unexpected null");
-
-    return `"&${value};"`;
+    // Store raw entity name; wrapping is done at load time.
+    return JSON.stringify(value);
 }
 
 function serializeTrie(trie: Map<number, TrieNode>): string {
@@ -70,7 +59,7 @@ function serializeTrie(trie: Map<number, TrieNode>): string {
         (a, b) => a[0] - b[0],
     );
 
-    return `/* #__PURE__ */ new Map<number,string>(/* #__PURE__ */restoreDiff([${entries
+    return `/* #__PURE__ */new Map<number,string>(/* #__PURE__ */restoreDiff([${entries
         .map(([key, value], index, array) => {
             if (index !== 0) {
                 key -= array[index - 1][0] + 1;
