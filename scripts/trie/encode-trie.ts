@@ -85,13 +85,12 @@ export function encodeTrie(
                     if (stats) {
                         stats.runCandidates = (stats.runCandidates ?? 0) + 1;
                     }
-                    const finalNode = current as TrieNode;
-                    if (!encodeCache.has(finalNode)) {
+                    if (!encodeCache.has(current)) {
                         const semicolonCode = ";".charCodeAt(0);
                         if (
-                            finalNode.next?.has(semicolonCode) &&
-                            finalNode.value ===
-                                finalNode.next.get(semicolonCode)?.value
+                            current.next?.has(semicolonCode) &&
+                            current.value ===
+                                current.next.get(semicolonCode)?.value
                         ) {
                             if (stats) {
                                 stats.rejectedLegacy =
@@ -122,7 +121,7 @@ export function encodeTrie(
                             const high = runChars[index + 1];
                             enc.push(low | (high << 8));
                         }
-                        encodeNode(finalNode);
+                        encodeNode(current);
                         if (stats) {
                             stats.runsEmitted = (stats.runsEmitted ?? 0) + 1;
                         }
