@@ -41,15 +41,16 @@ export function parseEncodeTrie(
 
     const readDiff = (): number => {
         const start = cursor;
-        // Advance until a structural delimiter ('&', '{', '}') or end.
         while (cursor < totalLength) {
-            const ch = serialized[cursor];
-            if (ch === "&" || ch === "{") break;
+            const char = serialized.charAt(cursor);
+
+            if ((char < "0" || char > "9") && (char < "a" || char > "z")) {
+                break;
+            }
             cursor++;
         }
-        return cursor === start
-            ? 0
-            : Number.parseInt(serialized.slice(start, cursor), 36);
+        if (cursor === start) return 0;
+        return Number.parseInt(serialized.slice(start, cursor), 36);
     };
 
     const readEntity = (): string => {
@@ -72,37 +73,47 @@ export function parseEncodeTrie(
 
         if (serialized[cursor] === "{") {
             cursor++; // Skip '{'
-            const childMap = new Map<number, EncodeTrieNode>();
-            let lastChildKey = -1;
-            while (cursor < totalLength && serialized[cursor] !== "}") {
-                const childDiff = readDiff();
-                const childKey =
-                    lastChildKey === -1
-                        ? childDiff
-                        : lastChildKey + childDiff + 1;
-                if (serialized[cursor] !== "&") {
-                    throw new Error(
-                        `Child entry missing value near index ${cursor}`,
-                    );
-                }
-                const childValue = readEntity();
-                if (serialized[cursor] === "{") {
-                    throw new Error("Unexpected nested '{' beyond depth 2");
-                }
-                childMap.set(childKey, childValue);
-                lastChildKey = childKey;
+            // Parse first child
+            let diff = readDiff();
+            let childKey = diff; // First key (lastChildKey = -1)
+            if (serialized[cursor] !== "&") {
+                throw new Error(
+                    `Child entry missing value near index ${cursor}`,
+                );
             }
-            if (serialized[cursor] !== "}") {
-                throw new Error("Unterminated child block");
+            const firstValue = readEntity();
+            if (serialized[cursor] === "{") {
+                throw new Error("Unexpected nested '{' beyond depth 2");
             }
-            if (childMap.size === 1) {
-                const [onlyKey, onlyValue] = childMap.entries().next()
-                    .value as [number, string];
-                top.set(key, { value, next: onlyKey, nextValue: onlyValue });
+            // If end of block -> single child optimization
+            if (serialized[cursor] === "}") {
+                top.set(key, { value, next: childKey, nextValue: firstValue });
+                cursor++; // Skip '}'
             } else {
+                const childMap = new Map<number, EncodeTrieNode>();
+                childMap.set(childKey, firstValue);
+                let lastChildKey = childKey;
+                while (cursor < totalLength && serialized[cursor] !== "}") {
+                    diff = readDiff();
+                    childKey = lastChildKey + diff + 1;
+                    if (serialized[cursor] !== "&") {
+                        throw new Error(
+                            `Child entry missing value near index ${cursor}`,
+                        );
+                    }
+                    const childValue = readEntity();
+                    if (serialized[cursor] === "{") {
+                        throw new Error("Unexpected nested '{' beyond depth 2");
+                    }
+                    childMap.set(childKey, childValue);
+                    lastChildKey = childKey;
+                }
+                if (serialized[cursor] !== "}") {
+                    throw new Error("Unterminated child block");
+                }
+                cursor++; // Skip '}'
                 top.set(key, { value, next: childMap });
             }
-            cursor++; // Skip '}' after processing
         } else if (value === undefined) {
             throw new Error(
                 `Malformed encode trie: missing value at index ${cursor}`,
