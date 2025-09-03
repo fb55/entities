@@ -17,12 +17,12 @@ function mergeMaps(
     map: Record<string, string>,
     legacy: Record<string, string>,
 ): Record<string, string> {
-    const merged = {
-        ...legacy,
-        ...Object.fromEntries(
-            Object.entries(map).map(([key, value]) => [`${key};`, value]),
-        ),
-    };
+    const merged: Record<string, string> = {};
+    for (const [k, v] of Object.entries(map)) merged[`${k};`] = v; // Strict default
+    for (const [k, v] of Object.entries(legacy)) {
+        merged[k] = v; // Legacy unsuffixed
+        merged[`${k};`] = v; // And suffixed
+    }
 
     return merged;
 }

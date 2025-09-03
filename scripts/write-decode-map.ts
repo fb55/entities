@@ -2,36 +2,34 @@ import * as fs from "node:fs";
 import entityMap from "../maps/entities.json" with { type: "json" };
 import legacyMap from "../maps/legacy.json" with { type: "json" };
 import xmlMap from "../maps/xml.json" with { type: "json" };
-
 import { getTrie } from "./trie/trie.js";
 import { encodeTrie } from "./trie/encode-trie.js";
 
+function encodeUint16ArrayToBase64LittleEndian(data: Uint16Array): string {
+    const buffer = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+    return buffer.toString("base64");
+}
+
+function generateFile(variableName: string, data: Uint16Array): string {
+    const b64 = encodeUint16ArrayToBase64LittleEndian(data);
+    return `// Generated using scripts/write-decode-map.ts
+
+import { decodeBase64 } from "./decode-shared.js";
+export const ${variableName}: Uint16Array = /* #__PURE__ */ decodeBase64(
+    ${JSON.stringify(b64)},
+);`;
+}
+
 function convertMapToBinaryTrie(
-    name: "xml" | "html",
+    name: "html" | "xml",
     map: Record<string, string>,
     legacy: Record<string, string>,
 ) {
-    const encoded = encodeTrie(getTrie(map, legacy));
-    const stringified = JSON.stringify(String.fromCharCode(...encoded))
-        .replace(
-            /[^\u0020-\u007E]/g,
-            (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
-        )
-        .replace(/\\u0{4}/g, String.raw`\0`)
-        .replace(/\\u00([\da-f]{2})/g, String.raw`\x$1`);
-
-    // Write the encoded trie to disk
+    const encoded = new Uint16Array(encodeTrie(getTrie(map, legacy), 2));
+    const code = `${generateFile(`${name}DecodeTree`, encoded)}\n`;
     fs.writeFileSync(
         new URL(`../src/generated/decode-data-${name}.ts`, import.meta.url),
-        `// Generated using scripts/write-decode-map.ts
-
-export const ${name}DecodeTree: Uint16Array = /* #__PURE__ */ new Uint16Array(
-    // prettier-ignore
-    /* #__PURE__ */ ${stringified}
-        .split("")
-        .map((c) => c.charCodeAt(0)),
-);
-`,
+        code,
     );
 }
 
