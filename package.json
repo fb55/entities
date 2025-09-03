@@ -96,7 +96,7 @@
         "tshy": "^3.0.2",
         "tsx": "^4.20.5",
         "typedoc": "^0.28.10",
-        "typescript": "^5.8.3",
+        "typescript": "^5.9.2",
         "vitest": "^2.1.9"
     },
     "engines": {
