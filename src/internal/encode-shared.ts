@@ -34,87 +34,83 @@ export type EncodeTrieNode =
 export function parseEncodeTrie(
     serialized: string,
 ): Map<number, EncodeTrieNode> {
-    let index = 0;
+    const top = new Map<number, EncodeTrieNode>();
+    const totalLength = serialized.length;
+    let cursor = 0;
+    let lastTopKey = -1;
 
-    function parseEntries(
-        terminator: string | null,
-    ): Map<number, EncodeTrieNode> {
-        const map = new Map<number, EncodeTrieNode>();
-        let lastKey = -1;
-        const totalLength = serialized.length;
-
-        while (
-            index < totalLength &&
-            (terminator == null || serialized[index] !== terminator)
-        ) {
-            // Parse optional base36 diff (digits / a-z)
-            let diff = 0;
-            while (index < totalLength) {
-                const code = serialized.charCodeAt(index);
-                let value;
-                if (code >= 48 && code <= 57) {
-                    value = code - 48; // Digits 0-9
-                } else if (code >= 97 && code <= 122) {
-                    value = code - 87; // Letters a-z map to 10-35
-                } else {
-                    break;
-                }
-                diff = diff * 36 + value;
-                index++;
-            }
-
-            const key = lastKey === -1 ? diff : lastKey + diff + 1;
-
-            // Optional value
-            let nodeValue: string | undefined;
-            if (serialized[index] === "&") {
-                index++;
-                const start = index;
-                while (index < totalLength && serialized[index] !== ";") {
-                    index++;
-                }
-                nodeValue = `&${serialized.slice(start, index)};`;
-                index++; // Skip ';'
-            }
-
-            let node: EncodeTrieNode;
-            if (serialized[index] === "{") {
-                index++; // Skip '{'
-                const child = parseEntries("}");
-                index++; // Skip '}'
-                // Inline single-leaf optimization
-                if (child.size === 1) {
-                    const first = child.entries().next().value as [
-                        number,
-                        EncodeTrieNode,
-                    ];
-                    const [onlyKey, onlyNode] = first;
-                    if (typeof onlyNode === "string") {
-                        node = {
-                            value: nodeValue,
-                            next: onlyKey,
-                            nextValue: onlyNode,
-                        };
-                        map.set(key, node);
-                        lastKey = key;
-                        continue;
-                    }
-                }
-                node = { value: nodeValue, next: child };
-            } else if (nodeValue) {
-                node = nodeValue;
-            } else {
-                throw new Error(
-                    `Malformed encode trie serialization near index ${index}`,
-                );
-            }
-
-            map.set(key, node);
-            lastKey = key;
+    const readDiff = (): number => {
+        const start = cursor;
+        // Advance until a structural delimiter ('&', '{', '}') or end.
+        while (cursor < totalLength) {
+            const ch = serialized[cursor];
+            if (ch === "&" || ch === "{") break;
+            cursor++;
         }
+        return cursor === start
+            ? 0
+            : Number.parseInt(serialized.slice(start, cursor), 36);
+    };
 
-        return map;
+    const readEntity = (): string => {
+        // Cursor currently points at '&'
+        const start = cursor;
+        const end = serialized.indexOf(";", cursor + 1);
+        if (end === -1) {
+            throw new Error(`Unterminated entity starting at index ${start}`);
+        }
+        cursor = end + 1; // Move past ';'
+        return serialized.slice(start, cursor); // Includes & ... ;
+    };
+
+    while (cursor < totalLength) {
+        const keyDiff = readDiff();
+        const key = lastTopKey === -1 ? keyDiff : lastTopKey + keyDiff + 1;
+
+        let value: string | undefined;
+        if (serialized[cursor] === "&") value = readEntity();
+
+        if (serialized[cursor] === "{") {
+            cursor++; // Skip '{'
+            const childMap = new Map<number, EncodeTrieNode>();
+            let lastChildKey = -1;
+            while (cursor < totalLength && serialized[cursor] !== "}") {
+                const childDiff = readDiff();
+                const childKey =
+                    lastChildKey === -1
+                        ? childDiff
+                        : lastChildKey + childDiff + 1;
+                if (serialized[cursor] !== "&") {
+                    throw new Error(
+                        `Child entry missing value near index ${cursor}`,
+                    );
+                }
+                const childValue = readEntity();
+                if (serialized[cursor] === "{") {
+                    throw new Error("Unexpected nested '{' beyond depth 2");
+                }
+                childMap.set(childKey, childValue);
+                lastChildKey = childKey;
+            }
+            if (serialized[cursor] !== "}") {
+                throw new Error("Unterminated child block");
+            }
+            if (childMap.size === 1) {
+                const [onlyKey, onlyValue] = childMap.entries().next()
+                    .value as [number, string];
+                top.set(key, { value, next: onlyKey, nextValue: onlyValue });
+            } else {
+                top.set(key, { value, next: childMap });
+            }
+            cursor++; // Skip '}' after processing
+        } else if (value === undefined) {
+            throw new Error(
+                `Malformed encode trie: missing value at index ${cursor}`,
+            );
+        } else {
+            top.set(key, value);
+        }
+        lastTopKey = key;
     }
-
-    return parseEntries(null);
+    return top;
 }
