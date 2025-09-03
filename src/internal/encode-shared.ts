@@ -1,6 +1,27 @@
+/**
+ * A node inside the encoding trie used by `encode.ts`.
+ *
+ * There are two physical shapes to minimize allocations and lookup cost:
+ *
+ * 1. Leaf node (string)
+ *    - A plain string (already in the form `"&name;"`).
+ *    - Represents a terminal match with no children.
+ *
+ * 2. Branch / value node (object)
+ */
 export type EncodeTrieNode =
     | string
-    | { v?: string; n: number | Map<number, EncodeTrieNode>; o?: string };
+    | {
+          /**
+           * Entity value for the current code point sequence (wrapped: `&...;`).
+           * Present when the path to this node itself is a valid named entity.
+           */
+          value: string | undefined;
+          /** If a number, the next code unit of the only next character. */
+          next: number | Map<number, EncodeTrieNode>;
+          /** If next is a number, `nextValue` contains the entity value. */
+          nextValue?: string;
+      };
 
 /**
  * Parse a compact encode trie string into a Map structure used for encoding.
@@ -69,15 +90,17 @@ export function parseEncodeTrie(
                     ];
                     const [onlyKey, onlyNode] = first;
                     if (typeof onlyNode === "string") {
-                        node = nodeValue
-                            ? { v: nodeValue, n: onlyKey, o: onlyNode }
-                            : { n: onlyKey, o: onlyNode };
+                        node = {
+                            value: nodeValue,
+                            next: onlyKey,
+                            nextValue: onlyNode,
+                        };
                         map.set(key, node);
                         lastKey = key;
                         continue;
                     }
                 }
-                node = nodeValue ? { v: nodeValue, n: child } : { n: child };
+                node = { value: nodeValue, next: child };
             } else if (nodeValue) {
                 node = nodeValue;
             } else {
