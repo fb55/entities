@@ -9,18 +9,7 @@ function binaryLength(integer: number): number {
     return Math.ceil(Math.log2(integer));
 }
 
-export function encodeTrie(
-    trie: TrieNode,
-    maxJumpTableOverhead = 2,
-    stats?: {
-        runCandidates?: number;
-        runsEmitted?: number;
-        rejectedFinalEncoded?: number;
-        rejectedNotBeneficial?: number;
-        rejectedTooLong?: number;
-        rejectedLegacy?: number;
-    },
-): number[] {
+export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
     const encodeCache = new Map<TrieNode, number>();
     const enc: number[] = [];
 
@@ -80,58 +69,39 @@ export function encodeTrie(
                 if (
                     runChars.length > 2 &&
                     (current.value != null ||
-                        (current.next && current.next.size !== 1))
+                        (current.next && current.next.size !== 1)) &&
+                    !encodeCache.has(current)
                 ) {
-                    if (stats) {
-                        stats.runCandidates = (stats.runCandidates ?? 0) + 1;
-                    }
-                    if (!encodeCache.has(current)) {
-                        const semicolonCode = ";".charCodeAt(0);
-                        if (
-                            current.next?.has(semicolonCode) &&
-                            current.value ===
-                                current.next.get(semicolonCode)?.value
-                        ) {
-                            if (stats) {
-                                stats.rejectedLegacy =
-                                    (stats.rejectedLegacy ?? 0) + 1;
-                            }
-                            addBranches(node.next, nodeIndex);
-                            assert.strictEqual(nodeIndex, startIndex);
-                            return startIndex;
-                        }
-                        const runLength = runChars.length;
-                        if (runLength > 63) {
-                            addBranches(node.next, nodeIndex);
-                            assert.strictEqual(nodeIndex, startIndex);
-                            return startIndex;
-                        }
-                        const firstChar = runChars[0];
-                        assert.ok(
-                            firstChar < 0x80,
-                            "run first char must be < 128",
-                        );
-                        const maskedRunLength = runLength & 0x3f;
-                        enc[nodeIndex] =
-                            BinTrieFlags.FLAG13 | // Compact run flag (same bit position)
-                            (maskedRunLength << 7) |
-                            firstChar;
-                        for (let index = 1; index < runLength; index += 2) {
-                            const low = runChars[index];
-                            const high = runChars[index + 1];
-                            enc.push(low | (high << 8));
-                        }
-                        encodeNode(current);
-                        if (stats) {
-                            stats.runsEmitted = (stats.runsEmitted ?? 0) + 1;
-                        }
+                    const semicolonCode = ";".charCodeAt(0);
+                    if (
+                        current.next?.has(semicolonCode) &&
+                        current.value === current.next.get(semicolonCode)?.value
+                    ) {
+                        addBranches(node.next, nodeIndex);
                         assert.strictEqual(nodeIndex, startIndex);
                         return startIndex;
                     }
-                    if (stats) {
-                        stats.rejectedFinalEncoded =
-                            (stats.rejectedFinalEncoded ?? 0) + 1;
+                    const runLength = runChars.length;
+                    if (runLength > 63) {
+                        addBranches(node.next, nodeIndex);
+                        assert.strictEqual(nodeIndex, startIndex);
+                        return startIndex;
                     }
+                    const firstChar = runChars[0];
+                    assert.ok(firstChar < 0x80, "run first char must be < 128");
+                    const maskedRunLength = runLength & 0x3f;
+                    enc[nodeIndex] =
+                        BinTrieFlags.FLAG13 | // Compact run flag (same bit position)
+                        (maskedRunLength << 7) |
+                        firstChar;
+                    for (let index = 1; index < runLength; index += 2) {
+                        const low = runChars[index];
+                        const high = runChars[index + 1];
+                        enc.push(low | (high << 8));
+                    }
+                    encodeNode(current);
+                    assert.strictEqual(nodeIndex, startIndex);
+                    return startIndex;
                 }
             }
             addBranches(node.next, nodeIndex);

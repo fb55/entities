@@ -190,6 +190,49 @@ describe("EntityDecoder", () => {
         expect(callback).toHaveBeenCalledTimes(0);
     });
 
+    /*
+     * Focused tests exercising early exit paths inside a compact run in the real trie.
+     * Discovered prefix: "zi" followed by compact run "grarr"; mismatching inside this run should
+     * return 0 with no emission (result still 0).
+     */
+    describe("compact run mismatches", () => {
+        it("first run character mismatch returns 0", () => {
+            const callback = vitest.fn();
+            const d = new entities.EntityDecoder(
+                entities.htmlDecodeTree,
+                callback,
+            );
+            d.startEntity(entities.DecodingMode.Strict);
+            // After '&': correct prefix 'zi', wrong first run char 'X' (expected 'g').
+            expect(d.write("ziXgrar", 0)).toBe(0);
+            expect(callback).not.toHaveBeenCalled();
+        });
+
+        it("mismatch after one correct run char returns 0", () => {
+            const callback = vitest.fn();
+            const d = new entities.EntityDecoder(
+                entities.htmlDecodeTree,
+                callback,
+            );
+            d.startEntity(entities.DecodingMode.Strict);
+            // 'zig' matches prefix + first run char; next char 'X' mismatches expected 'r'.
+            expect(d.write("zigXarr", 0)).toBe(0);
+            expect(callback).not.toHaveBeenCalled();
+        });
+
+        it("mismatch after two correct run chars returns 0", () => {
+            const callback = vitest.fn();
+            const d = new entities.EntityDecoder(
+                entities.htmlDecodeTree,
+                callback,
+            );
+            d.startEntity(entities.DecodingMode.Strict);
+            // 'zigr' matches prefix + first two run chars; next char 'X' mismatches expected 'a'.
+            expect(d.write("zigrXrr", 0)).toBe(0);
+            expect(callback).not.toHaveBeenCalled();
+        });
+    });
+
     describe("errors", () => {
         it("should produce an error for a named entity without a semicolon", () => {
             const errorHandlers = {

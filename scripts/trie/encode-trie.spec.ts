@@ -7,6 +7,12 @@ describe("encode_trie", () => {
         expect(encodeTrie({})).toStrictEqual([0b0000_0000_0000_0000]);
     });
 
+    it("should encode a node with an empty next map", () => {
+        const trie = { next: new Map() };
+        // This exercises the early return in addBranches when there are zero entries.
+        expect(encodeTrie(trie)).toStrictEqual([0]);
+    });
+
     it("should encode a node with a value", () => {
         expect(encodeTrie({ value: "a" })).toStrictEqual([
             0b0100_0000_0000_0000 | "a".charCodeAt(0),

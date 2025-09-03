@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { encodeTrie } from "./encode-trie.js";
 import { decodeNode } from "./decode-trie.js";
 import { BinTrieFlags } from "../../src/internal/bin-trie-flags.js";
+import type { TrieNode } from "./trie.js";
 
 function decode(map: number[]) {
     const out: Record<string, string> = {};
@@ -59,5 +60,29 @@ describe("compact_run", () => {
         const enc = encodeTrie(trie);
         expect(enc[0] & BinTrieFlags.FLAG13).toBe(0); // Not a run
         expect(decode(enc)).toStrictEqual({ a: "X" });
+    });
+
+    it("falls back when run longer than 63 characters", () => {
+        // Build a chain of 64 ASCII characters (codes 48..111) so runLength === 64 (>63)
+        const root: TrieNode = { next: new Map() };
+        let cursor: TrieNode = root;
+        const chars: number[] = Array.from(
+            { length: 64 },
+            (_, index) => 48 + index,
+        ); // '0'..'o'
+        for (let index = 0; index < chars.length; index++) {
+            const code = chars[index];
+            const child: TrieNode =
+                index === chars.length - 1
+                    ? { value: "X" }
+                    : { next: new Map() };
+            cursor.next!.set(code, child);
+            cursor = child;
+        }
+        const enc = encodeTrie(root);
+        // Should not emit compact run header due to length >63
+        expect(enc[0] & BinTrieFlags.FLAG13).toBe(0);
+        const key = String.fromCharCode(...chars);
+        expect(decode(enc)).toHaveProperty(key, "X");
     });
 });
