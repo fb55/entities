@@ -9,19 +9,24 @@ interface TrieNode {
 }
 
 const htmlTrie = getTrie(htmlMap);
-const serialized = serializeTrie(htmlTrie);
+const serialized = serializeTrieToString(htmlTrie);
 
 writeFileSync(
     new URL("../src/generated/encode-html.ts", import.meta.url),
     `// Generated using scripts/write-encode-map.ts
+// This file contains a compact, single-string serialization of the HTML encode trie.
+// Format per entry (sequence in ascending code point order using diff encoding):
+//   <diffBase36>[&name;][{<children>}]  -- diff omitted when 0.
+// "&name;" gives the entity value for the node. A following { starts a nested sub-map.
+// Diffs use the same scheme as before: diff = currentKey - previousKey - 1, first entry stores key.
 
-import { type EncodeTrieNode, restoreDiff } from "../internal/encode-shared.js";
+import { parseEncodeTrie, type EncodeTrieNode } from "../internal/encode-shared.js";
 
+// Compact serialized trie (intended to stay small & JS engine friendly)
 // prettier-ignore
-export const htmlTrie: Map<number,EncodeTrieNode> = ${
-        // Fix the type of the first map to refer to trie nodes.
-        serialized.replace("<number,string>", "<number,EncodeTrieNode>")
-    };
+const DATA = ${JSON.stringify(serialized)} as const;
+
+export const htmlTrie: Map<number, EncodeTrieNode> = /* #__PURE__ */ parseEncodeTrie(DATA);
 `,
 );
 
@@ -48,49 +53,31 @@ function getTrie(map: Record<string, string>): Map<number, TrieNode> {
     return trie;
 }
 
-function wrapValue(value: string | undefined): string {
-    if (value == null) throw new Error("unexpected null");
-    // Store raw entity name; wrapping is done at load time.
-    return JSON.stringify(value);
-}
-
-function serializeTrie(trie: Map<number, TrieNode>): string {
-    const entries: [number, TrieNode][] = [...trie.entries()].sort(
-        (a, b) => a[0] - b[0],
-    );
-
-    return `/* #__PURE__ */new Map<number,string>(/* #__PURE__ */restoreDiff([${entries
-        .map(([key, value], index, array) => {
-            if (index !== 0) {
-                key -= array[index - 1][0] + 1;
+function serializeTrieToString(trie: Map<number, TrieNode>): string {
+    const entries = [...trie.entries()].sort((a, b) => a[0] - b[0]);
+    let out = "";
+    let lastKey = -1;
+    for (const [key, node] of entries) {
+        if (lastKey === -1) {
+            out += key.toString(36);
+        } else {
+            const diff = key - lastKey - 1;
+            if (diff !== 0) out += diff.toString(36);
+        }
+        if (node.value) out += `&${node.value};`;
+        if (node.next) {
+            if (node.next.size === 1) {
+                // Child optimization handled at parse time; no special serialization needed.
+                const [, childNode] = [...node.next.entries()][0];
+                if (!childNode.next && childNode.value) {
+                    // Leave as normal block.
+                }
             }
-            if (!value.next) {
-                if (value.value == null) throw new Error("unexpected null");
-
-                return `[${key},${wrapValue(value.value)}]`;
-            }
-
-            const entries: string[] = [];
-
-            if (value.value != null) {
-                entries.push(`v:${wrapValue(value.value)}`);
-            }
-
-            /*
-             * We encode branches as either a number with an `o` (other) value,
-             * or as a map.
-             *
-             * We use a map if there are more than one character in the key.
-             */
-            if (value.next.size > 1) {
-                entries.push(`n:${serializeTrie(value.next)}`);
-            } else {
-                const [condition, other] = [...value.next][0];
-
-                entries.push(`n:${condition},o:${wrapValue(other.value)}`);
-            }
-
-            return `[${key},{${entries.join(",")}}]`;
-        })
-        .join(",")}]))`;
+            out += `{${serializeTrieToString(node.next)}}`;
+        } else if (!node.value) {
+            throw new Error("Invalid node: neither value nor next");
+        }
+        lastKey = key;
+    }
+    return out;
 }
