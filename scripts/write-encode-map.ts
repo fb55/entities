@@ -69,13 +69,6 @@ function serializeTrieToString(trie: Map<number, TrieNode>): string {
         }
         if (node.value) out += `&${node.value};`;
         if (node.next) {
-            if (node.next.size === 1) {
-                // Child optimization handled at parse time; no special serialization needed.
-                const [, childNode] = [...node.next.entries()][0];
-                if (!childNode.next && childNode.value) {
-                    // Leave as normal block.
-                }
-            }
             out += `{${serializeTrieToString(node.next)}}`;
         } else if (!node.value) {
             throw new Error("Invalid node: neither value nor next");
