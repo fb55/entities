@@ -39,7 +39,7 @@ export function parseEncodeTrie(
     let cursor = 0;
     let lastTopKey = -1;
 
-    const readDiff = (): number => {
+    function readDiff(): number {
         const start = cursor;
         while (cursor < totalLength) {
             const char = serialized.charAt(cursor);
@@ -51,9 +51,13 @@ export function parseEncodeTrie(
         }
         if (cursor === start) return 0;
         return Number.parseInt(serialized.slice(start, cursor), 36);
-    };
+    }
 
-    const readEntity = (): string => {
+    function readEntity(): string {
+        if (serialized[cursor] !== "&") {
+            throw new Error(`Child entry missing value near index ${cursor}`);
+        }
+
         // Cursor currently points at '&'
         const start = cursor;
         const end = serialized.indexOf(";", cursor + 1);
@@ -62,7 +66,7 @@ export function parseEncodeTrie(
         }
         cursor = end + 1; // Move past ';'
         return serialized.slice(start, cursor); // Includes & ... ;
-    };
+    }
 
     while (cursor < totalLength) {
         const keyDiff = readDiff();
@@ -76,11 +80,6 @@ export function parseEncodeTrie(
             // Parse first child
             let diff = readDiff();
             let childKey = diff; // First key (lastChildKey = -1)
-            if (serialized[cursor] !== "&") {
-                throw new Error(
-                    `Child entry missing value near index ${cursor}`,
-                );
-            }
             const firstValue = readEntity();
             if (serialized[cursor] === "{") {
                 throw new Error("Unexpected nested '{' beyond depth 2");
@@ -96,11 +95,6 @@ export function parseEncodeTrie(
                 while (cursor < totalLength && serialized[cursor] !== "}") {
                     diff = readDiff();
                     childKey = lastChildKey + diff + 1;
-                    if (serialized[cursor] !== "&") {
-                        throw new Error(
-                            `Child entry missing value near index ${cursor}`,
-                        );
-                    }
                     const childValue = readEntity();
                     if (serialized[cursor] === "{") {
                         throw new Error("Unexpected nested '{' beyond depth 2");
