@@ -45,11 +45,11 @@ function encodeHTMLTrieRe(regExp: RegExp, input: string): string {
             if (index + 1 < input.length) {
                 const nextChar = input.charCodeAt(index + 1);
                 const value =
-                    typeof next.n === "number"
-                        ? next.n === nextChar
-                            ? next.o
+                    typeof next.next === "number"
+                        ? next.next === nextChar
+                            ? next.nextValue
                             : undefined
-                        : next.n.get(nextChar);
+                        : next.next.get(nextChar);
 
                 if (value !== undefined) {
                     returnValue += value;
@@ -58,7 +58,7 @@ function encodeHTMLTrieRe(regExp: RegExp, input: string): string {
                 }
             }
 
-            next = next.v;
+            next = next.value;
         }
 
         // We might have a tree node without a value; skip and use a numeric entity.
