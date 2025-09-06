@@ -55,7 +55,6 @@
                     2,
                     "interface"
                 ],
-                "@typescript-eslint/prefer-function-type": 2,
                 "@typescript-eslint/no-unnecessary-type-arguments": 2,
                 "@typescript-eslint/prefer-string-starts-ends-with": 2,
                 "@typescript-eslint/prefer-readonly": 2,
@@ -63,11 +62,6 @@
                 "@typescript-eslint/no-unnecessary-condition": 2,
                 "@typescript-eslint/switch-exhaustiveness-check": 2,
                 "@typescript-eslint/prefer-nullish-coalescing": 2,
-                "@typescript-eslint/consistent-type-imports": [
-                    2,
-                    { "fixStyle": "inline-type-imports" }
-                ],
-                "@typescript-eslint/consistent-type-exports": 2,
 
                 "n/no-missing-import": 0,
                 "n/no-unsupported-features/es-syntax": 0
