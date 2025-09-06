@@ -1,5 +1,3 @@
-export const xmlReplacer: RegExp = /["$&'<>\u0080-\uFFFF]/g;
-
 const xmlCodeMap = new Map([
     [34, "&quot;"],
     [38, "&amp;"],
@@ -23,38 +21,53 @@ export const getCodePoint: (c: string, index: number) => number =
           (input: string, index: number): number => input.codePointAt(index)!;
 
 /**
+ * Bitset for ASCII characters that need to be escaped in XML.
+ */
+export const XML_BITSET_VALUE = 0x50_00_00_c4; // 32..63 -> 34 ("),38 (&),39 ('),60 (<),62 (>)
+
+/**
  * Encodes all non-ASCII characters, as well as characters not valid in XML
- * documents using XML entities.
+ * documents using XML entities. Uses a fast bitset scan instead of RegExp.
  *
- * If a character has no equivalent entity, a
- * numeric hexadecimal reference (eg. `&#xfc;`) will be used.
+ * If a character has no equivalent entity, a numeric hexadecimal reference
+ * (eg. `&#xfc;`) will be used.
  */
 export function encodeXML(input: string): string {
-    let returnValue = "";
-    let lastIndex = 0;
-    let match;
+    let out: string | undefined;
+    let last = 0;
+    const { length } = input;
 
-    while ((match = xmlReplacer.exec(input)) !== null) {
-        const { index } = match;
+    for (let index = 0; index < length; index++) {
         const char = input.charCodeAt(index);
-        const next = xmlCodeMap.get(char);
 
-        if (next === undefined) {
-            returnValue += `${input.substring(lastIndex, index)}&#x${getCodePoint(
-                input,
-                index,
-            ).toString(16)};`;
-            // Increase by 1 if we have a surrogate pair
-            lastIndex = xmlReplacer.lastIndex += Number(
-                (char & 0xfc_00) === 0xd8_00,
-            );
-        } else {
-            returnValue += input.substring(lastIndex, index) + next;
-            lastIndex = index + 1;
+        // Check for ASCII chars that don't need escaping
+        if (
+            char < 0x80 &&
+            (((XML_BITSET_VALUE >>> char) & 1) === 0 || char >= 64 || char < 32)
+        ) {
+            continue;
         }
+
+        if (out === undefined) out = input.substring(0, index);
+        else if (last !== index) out += input.substring(last, index);
+
+        if (char < 64) {
+            // Known replacement
+            out += xmlCodeMap.get(char)!;
+            last = index + 1;
+            continue;
+        }
+
+        // Non-ASCII: encode as numeric entity (handle surrogate pair)
+        const cp = getCodePoint(input, index);
+        out += `&#x${cp.toString(16)};`;
+        if (cp !== char) index++; // Skip trailing surrogate
+        last = index + 1;
     }
 
-    return returnValue + input.substr(lastIndex);
+    if (out === undefined) return input;
+    if (last < length) out += input.substr(last);
+    return out;
 }
 
 /**

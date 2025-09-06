@@ -1,7 +1,17 @@
 import { htmlTrie } from "./generated/encode-html.js";
-import { xmlReplacer, getCodePoint } from "./escape.js";
+import { getCodePoint, XML_BITSET_VALUE } from "./escape.js";
 
-const htmlReplacer = /[\t\n\f!-,./:-@[-`{-}\u0080-\uFFFF]/g;
+/**
+ * We store the characters to consider as a compact bitset for fast lookups.
+ */
+const HTML_BITSET = /* #__PURE__ */ new Uint32Array([
+    0x16_00, // Bits for 09,0A,0C
+    0xfc_00_ff_fe, // 32..63 -> 21-2D (minus space), 2E,2F,3A-3F
+    0xf8_00_00_01, // 64..95 -> 40, 5B-5F
+    0x38_00_00_01, // 96..127-> 60, 7B-7D
+]);
+
+const XML_BITSET = /* #__PURE__ */ new Uint32Array([0, XML_BITSET_VALUE, 0, 0]);
 
 /**
  * Encodes all characters in the input using HTML entities. This includes
@@ -15,7 +25,7 @@ const htmlReplacer = /[\t\n\f!-,./:-@[-`{-}\u0080-\uFFFF]/g;
  * (eg. `&#xfc;`) will be used.
  */
 export function encodeHTML(input: string): string {
-    return encodeHTMLTrieRe(htmlReplacer, input);
+    return encodeHTMLTrieRe(HTML_BITSET, input);
 }
 /**
  * Encodes all non-ASCII characters, as well as characters not valid in HTML
@@ -26,52 +36,58 @@ export function encodeHTML(input: string): string {
  * (eg. `&#xfc;`) will be used.
  */
 export function encodeNonAsciiHTML(input: string): string {
-    return encodeHTMLTrieRe(xmlReplacer, input);
+    return encodeHTMLTrieRe(XML_BITSET, input);
 }
 
-function encodeHTMLTrieRe(regExp: RegExp, input: string): string {
-    let returnValue = "";
-    let lastIndex = 0;
-    let match;
+function encodeHTMLTrieRe(bitset: Uint32Array, input: string): string {
+    let out: string | undefined;
+    let last = 0; // Start of the next untouched slice.
+    const { length } = input;
 
-    while ((match = regExp.exec(input)) !== null) {
-        const { index } = match;
-        returnValue += input.substring(lastIndex, index);
+    for (let index = 0; index < length; index++) {
         const char = input.charCodeAt(index);
-        let next = htmlTrie.get(char);
+        // Skip ASCII characters that don't need encoding
+        if (char < 0x80 && !((bitset[char >>> 5] >>> char) & 1)) {
+            continue;
+        }
 
-        if (typeof next === "object") {
-            // We are in a branch. Try to match the next char.
-            if (index + 1 < input.length) {
+        if (out === undefined) out = input.substring(0, index);
+        else if (last !== index) out += input.substring(last, index);
+
+        let node = htmlTrie.get(char);
+
+        if (typeof node === "object") {
+            if (index + 1 < length) {
                 const nextChar = input.charCodeAt(index + 1);
                 const value =
-                    typeof next.next === "number"
-                        ? next.next === nextChar
-                            ? next.nextValue
+                    typeof node.next === "number"
+                        ? node.next === nextChar
+                            ? node.nextValue
                             : undefined
-                        : next.next.get(nextChar);
+                        : node.next.get(nextChar);
 
                 if (value !== undefined) {
-                    returnValue += value;
-                    lastIndex = regExp.lastIndex += 1;
+                    out += value;
+                    index++;
+                    last = index + 1;
                     continue;
                 }
             }
-
-            next = next.value;
+            node = node.value;
         }
 
-        // We might have a tree node without a value; skip and use a numeric entity.
-        if (next === undefined) {
+        if (node === undefined) {
             const cp = getCodePoint(input, index);
-            returnValue += `&#x${cp.toString(16)};`;
-            // Increase by 1 if we have a surrogate pair
-            lastIndex = regExp.lastIndex += Number(cp !== char);
+            out += `&#x${cp.toString(16)};`;
+            if (cp !== char) index++;
+            last = index + 1;
         } else {
-            returnValue += next;
-            lastIndex = index + 1;
+            out += node;
+            last = index + 1;
         }
     }
 
-    return returnValue + input.substr(lastIndex);
+    if (out === undefined) return input;
+    if (last < length) out += input.substr(last);
+    return out;
 }
