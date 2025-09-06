@@ -21,12 +21,9 @@ export const getCodePoint: (c: string, index: number) => number =
           (input: string, index: number): number => input.codePointAt(index)!;
 
 /**
- * Bitset for ASCII characters that need to be escaped in XML, limited to the
- * first 64 code points (0..63). We only need to escape: '"' (34), '&' (38),
- * "'" (39), '<' (60), '>' (62) – all within 0..63. Using only two 32-bit
- * entries reduces bounds checks and memory.
+ * Bitset for ASCII characters that need to be escaped in XML.
  */
-const XML_BITSET_VALUE = 0x50_00_00_c4; // 32..63 -> 34,38,39,60,62
+export const XML_BITSET_VALUE = 0x50_00_00_c4; // 32..63 -> 34 ("),38 (&),39 ('),60 (<),62 (>)
 
 /**
  * Encodes all non-ASCII characters, as well as characters not valid in XML
@@ -46,9 +43,7 @@ export function encodeXML(input: string): string {
         // Check for ASCII chars that don't need escaping
         if (
             char < 0x80 &&
-            (char >= 64 ||
-                char < 32 ||
-                ((XML_BITSET_VALUE >>> (char & 31)) & 1) === 0)
+            (((XML_BITSET_VALUE >>> char) & 1) === 0 || char >= 64 || char < 32)
         ) {
             continue;
         }

@@ -1,5 +1,5 @@
 import { htmlTrie } from "./generated/encode-html.js";
-import { getCodePoint } from "./escape.js";
+import { getCodePoint, XML_BITSET_VALUE } from "./escape.js";
 
 /**
  * We store the characters to consider as a compact bitset for fast lookups.
@@ -11,13 +11,7 @@ const HTML_BITSET = /* #__PURE__ */ new Uint32Array([
     0x38_00_00_01, // 96..127-> 60, 7B-7D
 ]);
 
-const XML_BITSET = /* #__PURE__ */ new Uint32Array([
-    // Non-ASCII mode
-    0, // 0..31
-    0x50_00_00_d4, // 32..63 -> 34,36,38,39,60,62
-    0, // 64..95
-    0, // 96..127
-]);
+const XML_BITSET = /* #__PURE__ */ new Uint32Array([0, XML_BITSET_VALUE, 0, 0]);
 
 /**
  * Encodes all characters in the input using HTML entities. This includes
@@ -53,7 +47,7 @@ function encodeHTMLTrieRe(bitset: Uint32Array, input: string): string {
     for (let index = 0; index < length; index++) {
         const char = input.charCodeAt(index);
         // Skip ASCII characters that don't need encoding
-        if (char < 0x80 && ((bitset[char >>> 5] >>> (char & 31)) & 1) === 0) {
+        if (char < 0x80 && !((bitset[char >>> 5] >>> char) & 1)) {
             continue;
         }
 
