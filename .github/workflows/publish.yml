@@ -40,4 +40,4 @@ jobs:
               run: npx jsr publish
 
             - name: Publish package to NPM
-              run: npm publish
+              run: npm publish --provenance --access public
