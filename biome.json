@@ -12,7 +12,17 @@
         "lineWidth": 80
     },
     "linter": {
-        "enabled": true
+        "enabled": true,
+        "rules": {
+            "suspicious": {
+                "noShadowRestrictedNames": "off",
+                "noAssignInExpressions": "off",
+                "noConstEnum": "off"
+            },
+            "style": {
+                "noNonNullAssertion": "off"
+            }
+        }
     },
     "assist": { "actions": { "source": { "organizeImports": "off" } } },
     "files": {

@@ -146,8 +146,8 @@ export function encode(
                 ? encodeNonAsciiHTML(input)
                 : encodeXML(input);
         }
-        // eslint-disable-next-line unicorn/no-useless-switch-case
-        case EncodingMode.Extensive:
+        // biome-ignore lint/complexity/noUselessSwitchCase: we get an error for the switch not being exhaustive
+        case EncodingMode.Extensive: // eslint-disable-line unicorn/no-useless-switch-case
         default: {
             return level === EntityLevel.HTML
                 ? encodeHTML(input)

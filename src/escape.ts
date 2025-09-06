@@ -96,7 +96,7 @@ function getEscaper(
     map: Map<number, string>,
 ): (data: string) => string {
     return function escape(data: string): string {
-        let match;
+        let match: RegExpExecArray | null;
         let lastIndex = 0;
         let result = "";
 

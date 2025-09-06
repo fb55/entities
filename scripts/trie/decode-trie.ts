@@ -48,12 +48,13 @@ export function decodeNode(
             }
         }
         // Recurse to final node after packed words
-        return decodeNode(
+        decodeNode(
             decodeMap,
             resultMap,
             runPrefix,
             startIndex + 1 + packedWords,
         );
+        return;
     }
 
     const branchLength = (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
@@ -66,12 +67,13 @@ export function decodeNode(
     const branchIndex = startIndex + Math.max(valueLength, 1);
 
     if (branchLength === 0) {
-        return decodeNode(
+        decodeNode(
             decodeMap,
             resultMap,
             prefix + String.fromCharCode(jumpOffset),
             branchIndex,
         );
+        return;
     }
 
     if (jumpOffset === 0) {

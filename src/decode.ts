@@ -84,6 +84,7 @@ export interface EntityErrorProducer {
 export class EntityDecoder {
     constructor(
         /** The tree used to decode entities. */
+        // biome-ignore lint/correctness/noUnusedPrivateClassMembers: False positive
         private readonly decodeTree: Uint16Array,
         /**
          * The function that is called when a codepoint is decoded.
