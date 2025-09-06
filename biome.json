@@ -15,12 +15,20 @@
         "enabled": true,
         "rules": {
             "suspicious": {
+                "noVar": "error",
+                "noSkippedTests": "error",
                 "noShadowRestrictedNames": "off",
                 "noAssignInExpressions": "off",
                 "noConstEnum": "off"
             },
             "style": {
+                "noUselessElse": "error",
+                "useTemplate": "error",
+                "useConsistentObjectDefinitions": "error",
                 "noNonNullAssertion": "off"
+            },
+            "nursery": {
+                "useConsistentArrowReturn": "error"
             }
         }
     },

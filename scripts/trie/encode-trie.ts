@@ -128,7 +128,7 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
             return;
         }
         const jumpOffset = branches[0][0];
-        const jumpEndValue = branches[branches.length - 1][0];
+        const jumpEndValue = branches.at(-1)[0];
         const jumpTableLength = jumpEndValue - jumpOffset + 1;
         const jumpTableOverhead = jumpTableLength / branches.length;
         if (jumpTableOverhead <= maxJumpTableOverhead) {
