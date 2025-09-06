@@ -30,7 +30,8 @@
 
         "unicorn/no-null": 0,
         "unicorn/prefer-code-point": 0,
-        "unicorn/prefer-string-slice": 0
+        "unicorn/prefer-string-slice": 0,
+        "unicorn/prefer-at": 0
     },
     "overrides": [
         {
