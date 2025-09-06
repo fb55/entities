@@ -10,7 +10,7 @@ Encode & decode HTML & XML entities with ease & speed.
   [`commonmark`](https://github.com/commonmark/commonmark.js) use it to process
   HTML entities.
 - ⚡️ Fast: `entities` is the fastest library for decoding HTML entities (as of
-  April 2022); see [performance](#performance).
+  September 2025); see [performance](#performance).
 - 🎛 Configurable: Get an output tailored for your needs. You are fine with
   UTF8? That'll save you some bytes. Prefer to only have ASCII characters? We
   can do that as well!
