@@ -1,4 +1,4 @@
-import { describe, it, expect, vitest } from "vitest";
+import { describe, expect, it, vitest } from "vitest";
 import * as entities from "./decode.js";
 
 describe("Decode test", () => {

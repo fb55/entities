@@ -2,8 +2,8 @@ import * as fs from "node:fs";
 import entityMap from "../maps/entities.json" with { type: "json" };
 import legacyMap from "../maps/legacy.json" with { type: "json" };
 import xmlMap from "../maps/xml.json" with { type: "json" };
-import { getTrie } from "./trie/trie.js";
 import { encodeTrie } from "./trie/encode-trie.js";
+import { getTrie } from "./trie/trie.js";
 
 function encodeUint16ArrayToBase64LittleEndian(data: Uint16Array): string {
     const buffer = Buffer.from(data.buffer, data.byteOffset, data.byteLength);

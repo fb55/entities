@@ -1,5 +1,5 @@
-import htmlMap from "../maps/entities.json" with { type: "json" };
 import { writeFileSync } from "node:fs";
+import htmlMap from "../maps/entities.json" with { type: "json" };
 
 interface TrieNode {
     /** The value, if the node has a value. */

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
-import { describe, it, expect } from "vitest";
-import * as entities from "./index.js";
+import { describe, expect, it } from "vitest";
 import legacy from "../maps/legacy.json" with { type: "json" };
+import * as entities from "./index.js";
 
 const levels = ["xml", "entities"];
 

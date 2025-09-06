@@ -1,6 +1,6 @@
 import * as assert from "node:assert";
-import type { TrieNode } from "./trie.js";
 import { BinTrieFlags } from "../../src/internal/bin-trie-flags.js";
+import type { TrieNode } from "./trie.js";
 
 /**
  * Determines the binary length of an integer.

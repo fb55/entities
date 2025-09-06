@@ -1,7 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { encodeTrie } from "./encode-trie.js";
-import { decodeNode } from "./decode-trie.js";
+import { describe, expect, it } from "vitest";
 import { BinTrieFlags } from "../../src/internal/bin-trie-flags.js";
+import { decodeNode } from "./decode-trie.js";
+import { encodeTrie } from "./encode-trie.js";
 import type { TrieNode } from "./trie.js";
 
 function decode(map: number[]) {

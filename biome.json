@@ -24,7 +24,7 @@
             }
         }
     },
-    "assist": { "actions": { "source": { "organizeImports": "off" } } },
+    "assist": { "actions": { "source": { "organizeImports": "on" } } },
     "files": {
         "includes": ["**", "!maps/*.json"]
     }

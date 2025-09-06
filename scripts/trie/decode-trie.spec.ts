@@ -1,10 +1,10 @@
-import { describe, it, expect } from "vitest";
-import { encodeTrie } from "./encode-trie.js";
-import { decodeNode } from "./decode-trie.js";
-import { getTrie } from "./trie.js";
-import xmlMap from "../../maps/xml.json" with { type: "json" };
+import { describe, expect, it } from "vitest";
 import entityMap from "../../maps/entities.json" with { type: "json" };
 import legacyMap from "../../maps/legacy.json" with { type: "json" };
+import xmlMap from "../../maps/xml.json" with { type: "json" };
+import { decodeNode } from "./decode-trie.js";
+import { encodeTrie } from "./encode-trie.js";
+import { getTrie } from "./trie.js";
 
 function decode(decodeMap: number[]) {
     const map = {};

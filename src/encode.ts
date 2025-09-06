@@ -1,5 +1,5 @@
-import { htmlTrie } from "./generated/encode-html.js";
 import { getCodePoint, XML_BITSET_VALUE } from "./escape.js";
+import { htmlTrie } from "./generated/encode-html.js";
 
 /**
  * We store the characters to consider as a compact bitset for fast lookups.

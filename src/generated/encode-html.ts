@@ -6,8 +6,8 @@
 // Diffs use the same scheme as before: diff = currentKey - previousKey - 1, first entry stores key.
 
 import {
-    parseEncodeTrie,
     type EncodeTrieNode,
+    parseEncodeTrie,
 } from "../internal/encode-shared.js";
 
 // Compact serialized trie (intended to stay small & JS engine friendly)
