@@ -88,7 +88,11 @@ function printResults(title: string, bench: Bench) {
     console.table(rows);
 }
 
-async function runCategory(title: string, input: string, tasks: [string, (s: string) => string][]) {
+async function runCategory(
+    title: string,
+    input: string,
+    tasks: [string, (s: string) => string][],
+) {
     const bench = new Bench({ warmupTime: 1e3, time: 1e4 });
     for (const [name, run] of tasks) {
         bench.add(name, () => run(input));
