@@ -38,7 +38,7 @@ const decodeMap = new Map([
 export const fromCodePoint: (...codePoints: number[]) => string =
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, n/no-unsupported-features/es-builtins
     String.fromCodePoint ??
-    function (codePoint: number): string {
+    ((codePoint: number): string => {
         let output = "";
 
         if (codePoint > 0xff_ff) {
@@ -51,7 +51,7 @@ export const fromCodePoint: (...codePoints: number[]) => string =
 
         output += String.fromCharCode(codePoint);
         return output;
-    };
+    });
 
 /**
  * Replace the given code point with a replacement character if it is a

@@ -1,6 +1,6 @@
+import { fromCodePoint, replaceCodePoint } from "./decode-codepoint.js";
 import { htmlDecodeTree } from "./generated/decode-data-html.js";
 import { xmlDecodeTree } from "./generated/decode-data-xml.js";
-import { replaceCodePoint, fromCodePoint } from "./decode-codepoint.js";
 import { BinTrieFlags } from "./internal/bin-trie-flags.js";
 
 const enum CharCodes {
@@ -84,6 +84,7 @@ export interface EntityErrorProducer {
 export class EntityDecoder {
     constructor(
         /** The tree used to decode entities. */
+        // biome-ignore lint/correctness/noUnusedPrivateClassMembers: False positive
         private readonly decodeTree: Uint16Array,
         /**
          * The function that is called when a codepoint is decoded.
@@ -665,12 +666,11 @@ export function decodeXML(xmlString: string): string {
     return xmlDecoder(xmlString, DecodingMode.Strict);
 }
 
+export {
+    decodeCodePoint,
+    fromCodePoint,
+    replaceCodePoint,
+} from "./decode-codepoint.js";
 // Re-export for use by eg. htmlparser2
 export { htmlDecodeTree } from "./generated/decode-data-html.js";
 export { xmlDecodeTree } from "./generated/decode-data-xml.js";
-
-export {
-    decodeCodePoint,
-    replaceCodePoint,
-    fromCodePoint,
-} from "./decode-codepoint.js";

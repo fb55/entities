@@ -1,10 +1,10 @@
-import { decodeXML, decodeHTML, DecodingMode } from "./decode.js";
+import { DecodingMode, decodeHTML, decodeXML } from "./decode.js";
 import { encodeHTML, encodeNonAsciiHTML } from "./encode.js";
 import {
     encodeXML,
-    escapeUTF8,
     escapeAttribute,
     escapeText,
+    escapeUTF8,
 } from "./escape.js";
 
 /** The level of entities to support. */
@@ -146,8 +146,8 @@ export function encode(
                 ? encodeNonAsciiHTML(input)
                 : encodeXML(input);
         }
-        // eslint-disable-next-line unicorn/no-useless-switch-case
-        case EncodingMode.Extensive:
+        // biome-ignore lint/complexity/noUselessSwitchCase: we get an error for the switch not being exhaustive
+        case EncodingMode.Extensive: // eslint-disable-line unicorn/no-useless-switch-case
         default: {
             return level === EntityLevel.HTML
                 ? encodeHTML(input)
@@ -157,32 +157,31 @@ export function encode(
 }
 
 export {
-    encodeXML,
-    escape,
-    escapeUTF8,
-    escapeAttribute,
-    escapeText,
-} from "./escape.js";
-
-export {
-    encodeHTML,
-    encodeNonAsciiHTML,
-    // Legacy aliases (deprecated)
-    encodeHTML as encodeHTML4,
-    encodeHTML as encodeHTML5,
-} from "./encode.js";
-
-export {
-    EntityDecoder,
     DecodingMode,
-    decodeXML,
     decodeHTML,
-    decodeHTMLStrict,
-    decodeHTMLAttribute,
     // Legacy aliases (deprecated)
     decodeHTML as decodeHTML4,
     decodeHTML as decodeHTML5,
+    decodeHTMLAttribute,
+    decodeHTMLStrict,
     decodeHTMLStrict as decodeHTML4Strict,
     decodeHTMLStrict as decodeHTML5Strict,
+    decodeXML,
     decodeXML as decodeXMLStrict,
+    EntityDecoder,
 } from "./decode.js";
+
+export {
+    encodeHTML,
+    // Legacy aliases (deprecated)
+    encodeHTML as encodeHTML4,
+    encodeHTML as encodeHTML5,
+    encodeNonAsciiHTML,
+} from "./encode.js";
+export {
+    encodeXML,
+    escape,
+    escapeAttribute,
+    escapeText,
+    escapeUTF8,
+} from "./escape.js";
