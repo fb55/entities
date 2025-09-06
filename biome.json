@@ -1,0 +1,21 @@
+{
+    "$schema": "https://biomejs.dev/schemas/2.2.3/schema.json",
+    "vcs": {
+        "enabled": true,
+        "clientKind": "git",
+        "useIgnoreFile": true
+    },
+    "formatter": {
+        "enabled": true,
+        "indentStyle": "space",
+        "indentWidth": 4,
+        "lineWidth": 80
+    },
+    "linter": {
+        "enabled": true
+    },
+    "assist": { "actions": { "source": { "organizeImports": "off" } } },
+    "files": {
+        "includes": ["**", "!maps/*.json"]
+    }
+}

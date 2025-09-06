@@ -1,9 +1,9 @@
 {
     "extends": [
         "eslint:recommended",
-        "prettier",
         "plugin:n/recommended",
-        "plugin:unicorn/recommended"
+        "plugin:unicorn/recommended",
+        "biome"
     ],
     "env": {
         "node": true,
@@ -43,7 +43,7 @@
             "extends": [
                 "plugin:@typescript-eslint/eslint-recommended",
                 "plugin:@typescript-eslint/recommended",
-                "prettier"
+                "biome"
             ],
             "parserOptions": {
                 "sourceType": "module",
