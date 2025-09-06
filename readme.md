@@ -38,15 +38,36 @@ entities.decodeHTML("asdf &amp; &yuml; &uuml; &apos;"); // "asdf & ÿ ü '"
 
 ## Performance
 
-This is how `entities` compares to other libraries on a very basic benchmark
-(see `scripts/benchmark.ts`, for 10,000,000 iterations; **lower is better**):
+Benchmarked in September 2025 with Node v24.6.0 on Apple M2 using `tinybench`.
+Higher ops/s is better; `avg (μs)` is the mean time per operation.
+See `scripts/benchmark.ts` to reproduce.
 
-| Library        | Version | `decode` perf | `encode` perf | `escape` perf |
-| -------------- | ------- | ------------- | ------------- | ------------- |
-| entities       | `3.0.1` | 1.418s        | 6.786s        | 2.196s        |
-| html-entities  | `2.3.2` | 2.530s        | 6.829s        | 2.415s        |
-| he             | `1.2.0` | 5.800s        | 24.237s       | 3.624s        |
-| parse-entities | `3.0.0` | 9.660s        | N/A           | N/A           |
+### Decoding
+
+| Library        | Version | ops/s     | avg (μs) | ±%   | slower |
+| -------------- | ------- | --------- | -------- | ---- | ------ |
+| entities       | 7.0.0   | 5,838,416 | 175.57   | 0.06 | —      |
+| html-entities  | 2.6.0   | 2,919,637 | 347.77   | 0.33 | 50.0%  |
+| he             | 1.2.0   | 2,318,438 | 446.48   | 0.70 | 60.3%  |
+| parse-entities | 4.0.2   |   852,855 | 1,199.51 | 0.36 | 85.4%  |
+
+### Encoding
+
+| Library        | Version | ops/s     | avg (μs) | ±%   | slower |
+| -------------- | ------- | --------- | -------- | ---- | ------ |
+| entities       | 7.0.0   | 2,770,115 | 368.09   | 0.11 | —      |
+| html-entities  | 2.6.0   | 1,491,963 | 679.96   | 0.58 | 46.2%  |
+| he             | 1.2.0   |   481,278 | 2,118.25 | 0.61 | 82.6%  |
+
+### Escaping
+
+| Library        | Version | ops/s     | avg (μs) | ±%   | slower |
+| -------------- | ------- | --------- | -------- | ---- | ------ |
+| entities       | 7.0.0   | 4,616,468 | 223.84   | 0.17 | —      |
+| he             | 1.2.0   | 3,659,301 | 280.76   | 0.58 | 20.7%  |
+| html-entities  | 2.6.0   | 3,555,301 | 296.63   | 0.84 | 23.0%  |
+
+Note: Micro-benchmarks may vary across machines and Node versions.
 
 ---
 
@@ -68,8 +89,8 @@ This is helpful for decoding entities in legacy environments.
 
 > Why should I use `entities` instead of alternative modules?
 
-As of April 2022, `entities` is a bit faster than other modules. Still, this is
-not a very differentiated space and other modules can catch up.
+As of September 2025, `entities` is faster than other modules. Still, this is
+not a differentiated space and other modules can catch up.
 
 **More importantly**, you might already have `entities` in your dependency graph
 (as a dependency of eg. `cheerio`, or `htmlparser2`), and including it directly

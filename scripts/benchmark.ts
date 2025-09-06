@@ -1,14 +1,8 @@
-/* eslint-disable n/no-missing-import */
-
-// @ts-expect-error Not a dependency; only added for benchmarking.
-import * as he from "he";
-// @ts-expect-error Not a dependency; only added for benchmarking.
+import he from "he";
 import * as htmlEntities from "html-entities";
-// @ts-expect-error Not a dependency; only added for benchmarking.
 import { parseEntities } from "parse-entities";
+import { Bench } from "tinybench";
 import * as entities from "../src/index.js";
-
-const RUNS = 1e7;
 
 const htmlEntitiesHtml5EncodeOptions: htmlEntities.EncodeOptions = {
     level: "html5",
@@ -79,26 +73,34 @@ console.log(
     decoders.map(([name, decode]) => [name, decode(textToDecode)]),
 );
 
-for (const [name, escape] of escapers) {
-    console.time(`Escaping ${name}`);
-    for (let index = 0; index < RUNS; index++) {
-        escape(textToEncode);
-    }
-    console.timeEnd(`Escaping ${name}`);
+function printResults(title: string, bench: Bench) {
+    // Build a compact table with key stats
+    const rows = bench.tasks.map((t) => {
+        const { hz, mean, rme } = t.result!;
+        return {
+            task: t.name,
+            "ops/s": Number.isFinite(hz) ? hz.toFixed(0) : "-",
+            "avg (μs)": Number.isFinite(mean) ? (mean * 1e6).toFixed(2) : "-",
+            "±%": Number.isFinite(rme) ? rme.toFixed(2) : "-",
+        };
+    });
+    console.log(`\n=== ${title} ===`);
+    console.table(rows);
 }
 
-for (const [name, encode] of encoders) {
-    console.time(`Encoding ${name}`);
-    for (let index = 0; index < RUNS; index++) {
-        encode(textToEncode);
+async function runCategory(
+    title: string,
+    input: string,
+    tasks: [string, (s: string) => string][],
+) {
+    const bench = new Bench({ warmupTime: 1e3, time: 1e4 });
+    for (const [name, run] of tasks) {
+        bench.add(name, () => run(input));
     }
-    console.timeEnd(`Encoding ${name}`);
+    await bench.run();
+    printResults(title, bench);
 }
 
-for (const [name, decode] of decoders) {
-    console.time(`Decoding ${name}`);
-    for (let index = 0; index < RUNS; index++) {
-        decode(textToDecode);
-    }
-    console.timeEnd(`Decoding ${name}`);
-}
+await runCategory("Escaping", textToEncode, escapers);
+await runCategory("Encoding", textToEncode, encoders);
+await runCategory("Decoding", textToDecode, decoders);
