@@ -80,7 +80,7 @@
         "test:vi": "vitest run"
     },
     "devDependencies": {
-        "@biomejs/biome": "^2.2.5",
+        "@biomejs/biome": "^2.2.6",
         "@types/node": "^24.7.1",
         "@typescript-eslint/eslint-plugin": "^8.46.0",
         "@typescript-eslint/parser": "^8.46.0",
