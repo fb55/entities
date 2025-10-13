@@ -96,7 +96,7 @@
         "tinybench": "^5.0.1",
         "tshy": "^3.0.3",
         "tsx": "^4.20.6",
-        "typedoc": "^0.28.13",
+        "typedoc": "^0.28.14",
         "typescript": "^5.9.3",
         "vitest": "^3.2.4"
     },
