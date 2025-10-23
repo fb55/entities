@@ -84,7 +84,7 @@
         "@types/node": "^24.9.1",
         "@typescript-eslint/eslint-plugin": "^8.46.2",
         "@typescript-eslint/parser": "^8.46.0",
-        "@vitest/coverage-v8": "^3.2.4",
+        "@vitest/coverage-v8": "^4.0.2",
         "@types/he": "^1.2.3",
         "eslint": "^8.57.1",
         "eslint-config-biome": "^2.1.3",
