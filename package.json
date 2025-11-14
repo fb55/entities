@@ -94,7 +94,7 @@
         "html-entities": "^2.6.0",
         "parse-entities": "^4.0.2",
         "tinybench": "^5.1.0",
-        "tshy": "^3.0.3",
+        "tshy": "^3.1.0",
         "tsx": "^4.20.6",
         "typedoc": "^0.28.14",
         "typescript": "^5.9.3",
