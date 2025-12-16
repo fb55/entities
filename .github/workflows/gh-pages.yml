@@ -18,7 +18,7 @@ jobs:
         name: Deploy to GitHub Pages
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+            - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
             - uses: actions/setup-node@d86ebcd40b3cb50b156bfa44dd277faf38282d12
               with:
                   node-version: "${{ env.NODE }}"
