@@ -60,8 +60,7 @@
         "decode.d.ts",
         "escape.js",
         "escape.d.ts",
-        "dist",
-        "src"
+        "dist"
     ],
     "scripts": {
         "build:docs": "typedoc --hideGenerator src/index.ts",
