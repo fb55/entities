@@ -14,7 +14,7 @@ function generateFile(variableName: string, data: Uint16Array): string {
     const b64 = encodeUint16ArrayToBase64LittleEndian(data);
     return `// Generated using scripts/write-decode-map.ts
 
-import { decodeBase64 } from "./decode-shared.js";
+import { decodeBase64 } from "../internal/decode-shared.js";
 export const ${variableName}: Uint16Array = /* #__PURE__ */ decodeBase64(
     ${JSON.stringify(b64)},
 );`;
