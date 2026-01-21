@@ -74,18 +74,8 @@ console.log(
 );
 
 function printResults(title: string, bench: Bench) {
-    // Build a compact table with key stats
-    const rows = bench.tasks.map((t) => {
-        const { hz, mean, rme } = t.result!;
-        return {
-            task: t.name,
-            "ops/s": Number.isFinite(hz) ? hz.toFixed(0) : "-",
-            "avg (μs)": Number.isFinite(mean) ? (mean * 1e6).toFixed(2) : "-",
-            "±%": Number.isFinite(rme) ? rme.toFixed(2) : "-",
-        };
-    });
     console.log(`\n=== ${title} ===`);
-    console.table(rows);
+    console.table(bench.table());
 }
 
 async function runCategory(
