@@ -54,7 +54,7 @@
         "lint:es": "eslint . --ignore-path .gitignore",
         "lint:biome": "biome check .",
         "lint:ts": "tsc --noEmit",
-        "prepublishOnly": "tsc -p tsconfig.build.json",
+        "prepublishOnly": "premove dist && tsc -p tsconfig.build.json",
         "test": "npm run test:vi && npm run lint",
         "test:vi": "vitest run"
     },
@@ -72,6 +72,7 @@
         "he": "^1.2.0",
         "html-entities": "^2.6.0",
         "parse-entities": "^4.0.2",
+        "premove": "^4.0.0",
         "tinybench": "^5.1.0",
         "tsx": "^4.21.0",
         "typedoc": "^0.28.16",
