@@ -118,6 +118,8 @@ export class EntityDecoder {
     private excess = 1;
     /** The mode in which the decoder is operating. */
     private decodeMode = DecodingMode.Strict;
+    /** The number of characters that have been consumed in the current run. */
+    private runConsumed = 0;
 
     /** Resets the instance to make it reusable. */
     startEntity(decodeMode: DecodingMode): void {
@@ -127,6 +129,7 @@ export class EntityDecoder {
         this.treeIndex = 0;
         this.excess = 1;
         this.consumed = 1;
+        this.runConsumed = 0;
     }
 
     /**
@@ -307,43 +310,49 @@ export class EntityDecoder {
             if (valueLength === 0 && (current & BinTrieFlags.FLAG13) !== 0) {
                 const runLength =
                     (current & BinTrieFlags.BRANCH_LENGTH) >> 7; /* 2..63 */
-                const firstChar = current & BinTrieFlags.JUMP_TABLE;
-                // Fast-fail if we don't have enough remaining input for the full run (incomplete entity)
-                if (offset + runLength > input.length) return -1;
-                // Verify first char
-                if (input.charCodeAt(offset) !== firstChar) {
-                    return this.result === 0
-                        ? 0
-                        : this.emitNotTerminatedNamedEntity();
-                }
-                offset++;
-                this.excess++;
-                // Remaining characters after the first
-                const remaining = runLength - 1;
-                // Iterate over packed 2-char words
-                for (let runPos = 1; runPos < runLength; runPos += 2) {
-                    const packedWord =
-                        decodeTree[this.treeIndex + 1 + ((runPos - 1) >> 1)];
-                    const low = packedWord & 0xff;
-                    if (input.charCodeAt(offset) !== low) {
+
+                // If we are starting a run, check the first char.
+                if (this.runConsumed === 0) {
+                    const firstChar = current & BinTrieFlags.JUMP_TABLE;
+                    if (input.charCodeAt(offset) !== firstChar) {
                         return this.result === 0
                             ? 0
                             : this.emitNotTerminatedNamedEntity();
                     }
                     offset++;
                     this.excess++;
-                    const high = (packedWord >> 8) & 0xff;
-                    if (runPos + 1 < runLength) {
-                        if (input.charCodeAt(offset) !== high) {
-                            return this.result === 0
-                                ? 0
-                                : this.emitNotTerminatedNamedEntity();
-                        }
-                        offset++;
-                        this.excess++;
-                    }
+                    this.runConsumed++;
                 }
-                this.treeIndex += 1 + ((remaining + 1) >> 1);
+
+                // Check remaining characters in the run.
+                while (this.runConsumed < runLength) {
+                    if (offset >= input.length) {
+                        return -1;
+                    }
+
+                    const charIndexInPacked = this.runConsumed - 1;
+                    const packedWord =
+                        decodeTree[
+                            this.treeIndex + 1 + (charIndexInPacked >> 1)
+                        ];
+                    const expectedChar =
+                        charIndexInPacked % 2 === 0
+                            ? packedWord & 0xff
+                            : (packedWord >> 8) & 0xff;
+
+                    if (input.charCodeAt(offset) !== expectedChar) {
+                        this.runConsumed = 0;
+                        return this.result === 0
+                            ? 0
+                            : this.emitNotTerminatedNamedEntity();
+                    }
+                    offset++;
+                    this.excess++;
+                    this.runConsumed++;
+                }
+
+                this.runConsumed = 0;
+                this.treeIndex += 1 + (runLength >> 1);
                 current = decodeTree[this.treeIndex];
                 valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
             }

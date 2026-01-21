@@ -1,6 +1,6 @@
 {
     "name": "entities",
-    "version": "7.0.0",
+    "version": "7.0.1",
     "description": "Encode & decode XML and HTML entities with ease & speed",
     "keywords": [
         "html entities",
@@ -61,7 +61,8 @@
         "escape.js",
         "escape.d.ts",
         "dist",
-        "src"
+        "src",
+        "!**/*.spec.ts"
     ],
     "scripts": {
         "build:docs": "typedoc --hideGenerator src/index.ts",
