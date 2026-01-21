@@ -83,7 +83,7 @@
         "vitest": "^3.2.4"
     },
     "engines": {
-        "node": ">=0.12"
+        "node": ">=20"
     },
     "tshy": {
         "exclude": [
