@@ -61,7 +61,8 @@
         "escape.js",
         "escape.d.ts",
         "dist",
-        "src"
+        "src",
+        "!**/*.spec.ts"
     ],
     "scripts": {
         "build:docs": "typedoc --hideGenerator src/index.ts",
