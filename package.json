@@ -22,39 +22,21 @@
     "type": "module",
     "exports": {
         ".": {
-            "import": {
-                "types": "./dist/esm/index.d.ts",
-                "default": "./dist/esm/index.js"
-            },
-            "require": {
-                "types": "./dist/commonjs/index.d.ts",
-                "default": "./dist/commonjs/index.js"
-            }
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
         },
         "./decode": {
-            "import": {
-                "types": "./dist/esm/decode.d.ts",
-                "default": "./dist/esm/decode.js"
-            },
-            "require": {
-                "types": "./dist/commonjs/decode.d.ts",
-                "default": "./dist/commonjs/decode.js"
-            }
+            "types": "./dist/decode.d.ts",
+            "default": "./dist/decode.js"
         },
         "./escape": {
-            "import": {
-                "types": "./dist/esm/escape.d.ts",
-                "default": "./dist/esm/escape.js"
-            },
-            "require": {
-                "types": "./dist/commonjs/escape.d.ts",
-                "default": "./dist/commonjs/escape.js"
-            }
+            "types": "./dist/escape.d.ts",
+            "default": "./dist/escape.js"
         }
     },
-    "main": "./dist/commonjs/index.js",
-    "module": "./dist/esm/index.js",
-    "types": "./dist/commonjs/index.d.ts",
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
     "files": [
         "decode.js",
         "decode.d.ts",
