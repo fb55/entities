@@ -38,10 +38,6 @@
     "module": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "files": [
-        "decode.js",
-        "decode.d.ts",
-        "escape.js",
-        "escape.d.ts",
         "dist",
         "src",
         "!**/*.spec.ts"
