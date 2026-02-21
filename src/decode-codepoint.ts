@@ -35,23 +35,25 @@ const decodeMap = new Map([
 /**
  * Polyfill for `String.fromCodePoint`. It is used to create a string from a Unicode code point.
  */
+/* eslint-disable n/no-unsupported-features/es-builtins */
 export const fromCodePoint: (...codePoints: number[]) => string =
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, n/no-unsupported-features/es-builtins
-    String.fromCodePoint ??
-    ((codePoint: number): string => {
-        let output = "";
+    typeof String.fromCodePoint === "function"
+        ? String.fromCodePoint
+        : (codePoint: number): string => {
+              let output = "";
 
-        if (codePoint > 0xff_ff) {
-            codePoint -= 0x1_00_00;
-            output += String.fromCharCode(
-                ((codePoint >>> 10) & 0x3_ff) | 0xd8_00,
-            );
-            codePoint = 0xdc_00 | (codePoint & 0x3_ff);
-        }
+              if (codePoint > 0xff_ff) {
+                  codePoint -= 0x1_00_00;
+                  output += String.fromCharCode(
+                      ((codePoint >>> 10) & 0x3_ff) | 0xd8_00,
+                  );
+                  codePoint = 0xdc_00 | (codePoint & 0x3_ff);
+              }
 
-        output += String.fromCharCode(codePoint);
-        return output;
-    });
+              output += String.fromCharCode(codePoint);
+              return output;
+          };
+/* eslint-enable n/no-unsupported-features/es-builtins */
 
 /**
  * Replace the given code point with a replacement character if it is a

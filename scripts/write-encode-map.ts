@@ -57,6 +57,7 @@ function getTrie(map: Record<string, string>): Map<number, TrieNode> {
 }
 
 function serializeTrieToString(trie: Map<number, TrieNode>): string {
+    // eslint-disable-next-line unicorn/no-array-sort
     const entries = [...trie.entries()].sort((a, b) => a[0] - b[0]);
     let out = "";
     let lastKey = -1;

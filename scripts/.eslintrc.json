@@ -1,6 +1,0 @@
-{
-    "rules": {
-        "n/no-unsupported-features/es-builtins": 0,
-        "n/no-unsupported-features/node-builtins": 0
-    }
-}

@@ -89,8 +89,9 @@ export function parseEncodeTrie(
                 top.set(key, { value, next: childKey, nextValue: firstValue });
                 cursor++; // Skip '}'
             } else {
-                const childMap = new Map<number, EncodeTrieNode>();
-                childMap.set(childKey, firstValue);
+                const childMap = new Map<number, EncodeTrieNode>([
+                    [childKey, firstValue],
+                ]);
                 let lastChildKey = childKey;
                 while (cursor < totalLength && serialized[cursor] !== "}") {
                     diff = readDiff();

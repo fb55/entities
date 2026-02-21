@@ -107,7 +107,7 @@ describe("Astral entities", () => {
     }
 
     for (const [c, value] of astralSpecial) {
-        it(`should decode special \\u${c}`, () =>
+        it(String.raw`should decode special \u${c}`, () =>
             expect(entities.decode(`&#x${c};`)).toBe(value));
     }
 });
