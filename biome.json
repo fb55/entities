@@ -39,12 +39,7 @@
         "enabled": true
     },
     "files": {
-        "includes": [
-            "**",
-            "!maps/*.json",
-            "!maps",
-            "!**/.*"
-        ],
+        "includes": ["**", "!maps/*.json", "!maps", "!**/.*"],
         "ignoreUnknown": true
     },
     "javascript": {
@@ -52,10 +47,7 @@
     },
     "overrides": [
         {
-            "includes": [
-                "**/*.{test,spec}.ts",
-                "test/**/*.ts"
-            ],
+            "includes": ["**/*.{test,spec}.ts", "test/**/*.ts"],
             "javascript": {
                 "globals": [
                     "jest",
@@ -69,12 +61,7 @@
             }
         },
         {
-            "includes": [
-                "**/*.ts",
-                "**/*.cts",
-                "**/*.mts",
-                "**/*.tsx"
-            ],
+            "includes": ["**/*.ts", "**/*.cts", "**/*.mts", "**/*.tsx"],
             "linter": {
                 "rules": {
                     "complexity": {
