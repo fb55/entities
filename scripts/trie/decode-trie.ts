@@ -1,5 +1,8 @@
 import { BinTrieFlags } from "../../src/internal/bin-trie-flags.js";
 
+/**
+ * Decode a trie node and all descendants into a key/value map.
+ */
 export function decodeNode(
     decodeMap: number[],
     resultMap: Record<string, string>,

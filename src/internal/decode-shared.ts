@@ -1,4 +1,4 @@
-/*
+/**
  * Shared base64 decode helper for generated decode data.
  * Assumes global atob is available.
  */

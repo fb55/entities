@@ -7,6 +7,7 @@ const xmlCodeMap = new Map([
 ]);
 
 // For compatibility with node < 4, we wrap `codePointAt`
+/** Read a code point at a given index. */
 export const getCodePoint: (c: string, index: number) => number =
     typeof String.prototype.codePointAt === "function"
         ? (input: string, index: number): number => input.codePointAt(index)!

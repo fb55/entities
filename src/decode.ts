@@ -58,6 +58,9 @@ const enum EntityDecoderState {
     NamedEntity,
 }
 
+/**
+ * Decoding mode for named entities.
+ */
 export enum DecodingMode {
     /** Entities in text nodes that can end with any character. */
     Legacy = 0,

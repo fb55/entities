@@ -15,6 +15,9 @@ export enum EntityLevel {
     HTML = 1,
 }
 
+/**
+ * Encoding strategy used by `encode`.
+ */
 export enum EncodingMode {
     /**
      * The output is UTF-8 encoded. Only characters that need escaping within
@@ -44,6 +47,9 @@ export enum EncodingMode {
     Text,
 }
 
+/**
+ * Options for `decode`.
+ */
 export interface DecodingOptions {
     /**
      * The level of entities to support.

@@ -9,6 +9,9 @@ function binaryLength(integer: number): number {
     return Math.ceil(Math.log2(integer));
 }
 
+/**
+ * Encode a trie into compact binary representation.
+ */
 export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
     const encodeCache = new Map<TrieNode, number>();
     const enc: number[] = [];
