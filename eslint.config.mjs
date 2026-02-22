@@ -49,10 +49,13 @@ export default defineConfig([
         },
     },
     {
-        files: ["decode.js", "escape.js"],
+        files: ["{decode,escape}.js"],
         languageOptions: {
             globals: globals.commonjs,
             sourceType: "commonjs",
+        },
+        rules: {
+            "n/no-missing-require": 0,
         },
     },
     {
