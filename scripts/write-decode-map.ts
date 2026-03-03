@@ -10,12 +10,13 @@ function encodeUint16ArrayToBase64LittleEndian(data: Uint16Array): string {
     return buffer.toString("base64");
 }
 
-function generateFile(variableName: string, data: Uint16Array): string {
+function generateFile(name: string, data: Uint16Array): string {
     const b64 = encodeUint16ArrayToBase64LittleEndian(data);
     return `// Generated using scripts/write-decode-map.ts
 
 import { decodeBase64 } from "../internal/decode-shared.js";
-export const ${variableName}: Uint16Array = /* #__PURE__ */ decodeBase64(
+/** Packed ${name.toUpperCase()} decode trie data. */
+export const ${name}DecodeTree: Uint16Array = /* #__PURE__ */ decodeBase64(
     ${JSON.stringify(b64)},
 );`;
 }
@@ -26,7 +27,7 @@ function convertMapToBinaryTrie(
     legacy: Record<string, string>,
 ) {
     const encoded = new Uint16Array(encodeTrie(getTrie(map, legacy), 2));
-    const code = `${generateFile(`${name}DecodeTree`, encoded)}\n`;
+    const code = `${generateFile(name, encoded)}\n`;
     fs.writeFileSync(
         new URL(`../src/generated/decode-data-${name}.ts`, import.meta.url),
         code,

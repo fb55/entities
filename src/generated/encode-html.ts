@@ -10,7 +10,7 @@ import {
     parseEncodeTrie,
 } from "../internal/encode-shared.js";
 
-// Compact serialized trie (intended to stay small & JS engine friendly)
+/** Compact serialized HTML encode trie (intended to stay small & JS engine friendly) */
 /** HTML entity encode trie. */
 export const htmlTrie: Map<number, EncodeTrieNode> =
     /* #__PURE__ */ parseEncodeTrie(
