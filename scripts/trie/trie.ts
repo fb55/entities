@@ -1,3 +1,6 @@
+/**
+ * Trie node used for entity encoding and decoding.
+ */
 export interface TrieNode {
     value?: string;
     next?: Map<number, TrieNode> | undefined;
@@ -5,6 +8,11 @@ export interface TrieNode {
     semiRequired?: boolean;
 }
 
+/**
+ * Build a trie from canonical and legacy entity maps.
+ * @param map Map used to construct trie nodes.
+ * @param legacy Whether legacy HTML entities should be included.
+ */
 export function getTrie(
     map: Record<string, string>,
     legacy: Record<string, string>,

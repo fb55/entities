@@ -107,7 +107,7 @@ describe("Astral entities", () => {
     }
 
     for (const [c, value] of astralSpecial) {
-        it(`should decode special \\u${c}`, () =>
+        it(String.raw`should decode special \u${c}`, () =>
             expect(entities.decode(`&#x${c};`)).toBe(value));
     }
 });
@@ -121,5 +121,5 @@ describe("Escape", () => {
     });
 
     it("should keep UTF8 characters", () =>
-        expect(entities.escapeUTF8('ß < "ü"')).toBe(`ß &lt; &quot;ü&quot;`));
+        expect(entities.escapeUTF8('ß < "ü"')).toBe("ß &lt; &quot;ü&quot;"));
 });

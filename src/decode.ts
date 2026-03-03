@@ -45,6 +45,7 @@ function isAsciiAlphaNumeric(code: number): boolean {
  *
  * Attribute values that aren't terminated properly aren't parsed, and shouldn't lead to a parser error.
  * See the example in https://html.spec.whatwg.org/multipage/parsing.html#named-character-reference-state
+ * @param code Code point to decode.
  */
 function isEntityInAttributeInvalidEnd(code: number): boolean {
     return code === CharCodes.EQUALS || isAsciiAlphaNumeric(code);
@@ -58,6 +59,9 @@ const enum EntityDecoderState {
     NamedEntity,
 }
 
+/**
+ * Decoding mode for named entities.
+ */
 export enum DecodingMode {
     /** Entities in text nodes that can end with any character. */
     Legacy = 0,
@@ -91,7 +95,6 @@ export class EntityDecoder {
          *
          * For multi-byte named entities, this will be called multiple times,
          * with the second codepoint, and the same `consumed` value.
-         *
          * @param codepoint The decoded codepoint.
          * @param consumed The number of bytes consumed by the decoder.
          */
@@ -121,7 +124,10 @@ export class EntityDecoder {
     /** The number of characters that have been consumed in the current run. */
     private runConsumed = 0;
 
-    /** Resets the instance to make it reusable. */
+    /**
+     * Resets the instance to make it reusable.
+     * @param decodeMode Entity decoding mode to use.
+     */
     startEntity(decodeMode: DecodingMode): void {
         this.decodeMode = decodeMode;
         this.state = EntityDecoderState.EntityStart;
@@ -138,7 +144,6 @@ export class EntityDecoder {
      *
      * Mirrors the implementation of `getDecoder`, but with the ability to stop decoding if the
      * entity is incomplete, and resume when the next string is written.
-     *
      * @param input The string containing the entity (or a continuation of the entity).
      * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
@@ -177,7 +182,6 @@ export class EntityDecoder {
      * Switches between the numeric decimal and hexadecimal states.
      *
      * Equivalent to the `Numeric character reference state` in the HTML spec.
-     *
      * @param input The string containing the entity (or a continuation of the entity).
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
@@ -201,7 +205,6 @@ export class EntityDecoder {
      * Parses a hexadecimal numeric entity.
      *
      * Equivalent to the `Hexademical character reference state` in the HTML spec.
-     *
      * @param input The string containing the entity (or a continuation of the entity).
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
@@ -229,7 +232,6 @@ export class EntityDecoder {
      * Parses a decimal numeric entity.
      *
      * Equivalent to the `Decimal character reference state` in the HTML spec.
-     *
      * @param input The string containing the entity (or a continuation of the entity).
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
@@ -253,7 +255,6 @@ export class EntityDecoder {
      *
      * Implements the logic from the `Hexademical character reference start
      * state` and `Numeric character reference end state` in the HTML spec.
-     *
      * @param lastCp The last code point of the entity. Used to see if the
      *               entity was terminated with a semicolon.
      * @param expectedLength The minimum number of characters that should be
@@ -294,7 +295,6 @@ export class EntityDecoder {
      * Parses a named entity.
      *
      * Equivalent to the `Named character reference state` in the HTML spec.
-     *
      * @param input The string containing the entity (or a continuation of the entity).
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
@@ -433,7 +433,6 @@ export class EntityDecoder {
 
     /**
      * Emit a named entity that was not terminated with a semicolon.
-     *
      * @returns The number of characters consumed.
      */
     private emitNotTerminatedNamedEntity(): number {
@@ -450,11 +449,9 @@ export class EntityDecoder {
 
     /**
      * Emit a named entity.
-     *
      * @param result The index of the entity in the decode tree.
      * @param valueLength The number of bytes in the entity.
      * @param consumed The number of characters consumed.
-     *
      * @returns The number of characters consumed.
      */
     private emitNamedEntityData(
@@ -483,7 +480,6 @@ export class EntityDecoder {
      * Signal to the parser that the end of the input was reached.
      *
      * Remaining data will be emitted and relevant errors will be produced.
-     *
      * @returns The number of characters consumed.
      */
     end(): number {
@@ -519,7 +515,6 @@ export class EntityDecoder {
 
 /**
  * Creates a function that decodes entities in a string.
- *
  * @param decodeTree The decode tree.
  * @returns A function that decodes entities in a string.
  */
@@ -570,10 +565,9 @@ function getDecoder(decodeTree: Uint16Array) {
 /**
  * Determines the branch of the current node that is taken given the current
  * character. This function is used to traverse the trie.
- *
  * @param decodeTree The trie.
  * @param current The current node.
- * @param nodeIdx The index right after the current node and its value.
+ * @param nodeIndex Index immediately after the current node header.
  * @param char The current character.
  * @returns The index of the next node, or -1 if no branch is taken.
  */
@@ -633,7 +627,6 @@ const xmlDecoder = /* #__PURE__ */ getDecoder(xmlDecodeTree);
 
 /**
  * Decodes an HTML string.
- *
  * @param htmlString The string to decode.
  * @param mode The decoding mode.
  * @returns The decoded string.
@@ -647,7 +640,6 @@ export function decodeHTML(
 
 /**
  * Decodes an HTML string in an attribute.
- *
  * @param htmlAttribute The string to decode.
  * @returns The decoded string.
  */
@@ -657,7 +649,6 @@ export function decodeHTMLAttribute(htmlAttribute: string): string {
 
 /**
  * Decodes an HTML string, requiring all entities to be terminated by a semicolon.
- *
  * @param htmlString The string to decode.
  * @returns The decoded string.
  */
@@ -667,7 +658,6 @@ export function decodeHTMLStrict(htmlString: string): string {
 
 /**
  * Decodes an XML string, requiring all entities to be terminated by a semicolon.
- *
  * @param xmlString The string to decode.
  * @returns The decoded string.
  */

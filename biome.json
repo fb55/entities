@@ -1,5 +1,5 @@
 {
-    "$schema": "https://biomejs.dev/schemas/2.3.11/schema.json",
+    "$schema": "https://biomejs.dev/schemas/2.4.5/schema.json",
     "vcs": {
         "enabled": true,
         "clientKind": "git",
@@ -14,26 +14,85 @@
     "linter": {
         "enabled": true,
         "rules": {
+            "complexity": {
+                "noUselessStringConcat": "error",
+                "noUselessUndefined": "error",
+                "useSimplifiedLogicExpression": "error",
+                "useWhile": "error"
+            },
+            "performance": {
+                "useTopLevelRegex": "error"
+            },
             "suspicious": {
-                "noVar": "error",
-                "noSkippedTests": "error",
+                "noConstantBinaryExpressions": "error",
                 "noShadowRestrictedNames": "off",
                 "noAssignInExpressions": "off",
-                "noConstEnum": "off"
+                "noConstEnum": "off",
+                "useAwait": "error"
             },
             "style": {
+                "noNonNullAssertion": "off",
+                "noInferrableTypes": "error",
+                "noNegationElse": "error",
+                "noUnusedTemplateLiteral": "error",
                 "noUselessElse": "error",
-                "useTemplate": "error",
+                "noYodaExpression": "error",
+                "useAsConstAssertion": "error",
+                "useCollapsedElseIf": "error",
+                "useCollapsedIf": "error",
+                "useConsistentArrayType": "error",
+                "useConsistentArrowReturn": "error",
+                "useConsistentMemberAccessibility": "error",
                 "useConsistentObjectDefinitions": "error",
-                "noNonNullAssertion": "off"
+                "useConsistentTypeDefinitions": "error",
+                "useDefaultParameterLast": "error",
+                "useExplicitLengthCheck": "error",
+                "useFilenamingConvention": "error",
+                "useNumberNamespace": "error",
+                "useNumericSeparators": "error",
+                "useObjectSpread": "error",
+                "useShorthandAssign": "error",
+                "useUnifiedTypeSignatures": "error"
             },
-            "nursery": {
-                "useConsistentArrowReturn": "error"
-            }
+            "recommended": true
         }
     },
-    "assist": { "actions": { "source": { "organizeImports": "on" } } },
+    "assist": {
+        "actions": {
+            "source": {
+                "organizeImports": "on"
+            }
+        },
+        "enabled": true
+    },
     "files": {
-        "includes": ["**", "!maps/*.json"]
-    }
+        "includes": ["**", "!maps/*.json", "!maps", "!**/.*"],
+        "ignoreUnknown": true
+    },
+    "overrides": [
+        {
+            "includes": ["**/*.{test,spec}.ts", "test/**/*.ts"],
+            "javascript": {
+                "globals": [
+                    "jest",
+                    "describe",
+                    "it",
+                    "beforeEach",
+                    "afterEach",
+                    "expect",
+                    "vi"
+                ]
+            }
+        },
+        {
+            "includes": ["**/*.ts", "**/*.cts", "**/*.mts", "**/*.tsx"],
+            "linter": {
+                "rules": {
+                    "complexity": {
+                        "useLiteralKeys": "off"
+                    }
+                }
+            }
+        }
+    ]
 }

@@ -14,7 +14,7 @@ describe("EntityDecoder Streaming", () => {
         decoder.startEntity(DecodingMode.Strict);
 
         // Feed char by char starting after '&'
-        let result = -1;
+        let result: number;
         for (let index = 1; index < entity.length; index++) {
             const char = entity[index];
             result = decoder.write(char, 0);

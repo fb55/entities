@@ -25,7 +25,7 @@ import {
     parseEncodeTrie,
     } from "../internal/encode-shared.js";
 
-// Compact serialized trie (intended to stay small & JS engine friendly)
+/** Compact serialized HTML encode trie (intended to stay small & JS engine friendly) */
 export const htmlTrie: Map<number, EncodeTrieNode> =
     /* #__PURE__ */ parseEncodeTrie(
         ${JSON.stringify(serialized)},
@@ -57,7 +57,8 @@ function getTrie(map: Record<string, string>): Map<number, TrieNode> {
 }
 
 function serializeTrieToString(trie: Map<number, TrieNode>): string {
-    const entries = [...trie.entries()].sort((a, b) => a[0] - b[0]);
+    // @ts-expect-error `toSorted` requires a lib bump.
+    const entries = [...trie.entries()].toSorted((a, b) => a[0] - b[0]);
     let out = "";
     let lastKey = -1;
     for (const [key, node] of entries) {

@@ -7,18 +7,22 @@ const xmlCodeMap = new Map([
 ]);
 
 // For compatibility with node < 4, we wrap `codePointAt`
+/**
+ * Read a code point at a given index.
+ * @param input Input string to encode or decode.
+ * @param index Current read position in the input string.
+ */
 export const getCodePoint: (c: string, index: number) => number =
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    String.prototype.codePointAt == null
-        ? (c: string, index: number): number =>
+    typeof String.prototype.codePointAt === "function"
+        ? (input: string, index: number): number => input.codePointAt(index)!
+        : // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
+          (c: string, index: number): number =>
               (c.charCodeAt(index) & 0xfc_00) === 0xd8_00
                   ? (c.charCodeAt(index) - 0xd8_00) * 0x4_00 +
                     c.charCodeAt(index + 1) -
                     0xdc_00 +
                     0x1_00_00
-                  : c.charCodeAt(index)
-        : // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
-          (input: string, index: number): number => input.codePointAt(index)!;
+                  : c.charCodeAt(index);
 
 /**
  * Bitset for ASCII characters that need to be escaped in XML.
@@ -31,6 +35,7 @@ export const XML_BITSET_VALUE = 0x50_00_00_c4; // 32..63 -> 34 ("),38 (&),39 (')
  *
  * If a character has no equivalent entity, a numeric hexadecimal reference
  * (eg. `&#xfc;`) will be used.
+ * @param input Input string to encode or decode.
  */
 export function encodeXML(input: string): string {
     let out: string | undefined;
@@ -76,7 +81,6 @@ export function encodeXML(input: string): string {
  *
  * Have a look at `escapeUTF8` if you want a more concise output at the expense
  * of reduced transportability.
- *
  * @param data String to escape.
  */
 export const escape: typeof encodeXML = encodeXML;
@@ -84,10 +88,8 @@ export const escape: typeof encodeXML = encodeXML;
 /**
  * Creates a function that escapes all characters matched by the given regular
  * expression using the given map of characters to escape to their entities.
- *
  * @param regex Regular expression to match characters to escape.
  * @param map Map of characters to escape to their entities.
- *
  * @returns Function that escapes all characters matched by the given regular
  * expression using the given map of characters to escape to their entities.
  */
@@ -120,7 +122,6 @@ function getEscaper(
  * Encodes all characters not valid in XML documents using XML entities.
  *
  * Note that the output will be character-set dependent.
- *
  * @param data String to escape.
  */
 export const escapeUTF8: (data: string) => string = /* #__PURE__ */ getEscaper(
@@ -131,7 +132,6 @@ export const escapeUTF8: (data: string) => string = /* #__PURE__ */ getEscaper(
 /**
  * Encodes all characters that have to be escaped in HTML attributes,
  * following {@link https://html.spec.whatwg.org/multipage/parsing.html#escapingString}.
- *
  * @param data String to escape.
  */
 export const escapeAttribute: (data: string) => string =
@@ -147,7 +147,6 @@ export const escapeAttribute: (data: string) => string =
 /**
  * Encodes all characters that have to be escaped in HTML text,
  * following {@link https://html.spec.whatwg.org/multipage/parsing.html#escapingString}.
- *
  * @param data String to escape.
  */
 export const escapeText: (data: string) => string = /* #__PURE__ */ getEscaper(

@@ -30,6 +30,7 @@ export type EncodeTrieNode =
  *   <diffBase36>[&name;][{<children>}]  -- diff omitted when 0
  * Where diff = currentKey - previousKey - 1 (first entry stores absolute key).
  * `&name;` is the entity value (already wrapped); a following `{` denotes children.
+ * @param serialized Serialized text fragment to encode.
  */
 export function parseEncodeTrie(
     serialized: string,
@@ -89,8 +90,9 @@ export function parseEncodeTrie(
                 top.set(key, { value, next: childKey, nextValue: firstValue });
                 cursor++; // Skip '}'
             } else {
-                const childMap = new Map<number, EncodeTrieNode>();
-                childMap.set(childKey, firstValue);
+                const childMap = new Map<number, EncodeTrieNode>([
+                    [childKey, firstValue],
+                ]);
                 let lastChildKey = childKey;
                 while (cursor < totalLength && serialized[cursor] !== "}") {
                     diff = readDiff();

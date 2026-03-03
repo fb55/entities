@@ -15,6 +15,9 @@ export enum EntityLevel {
     HTML = 1,
 }
 
+/**
+ * Encoding strategy used by `encode`.
+ */
 export enum EncodingMode {
     /**
      * The output is UTF-8 encoded. Only characters that need escaping within
@@ -44,6 +47,9 @@ export enum EncodingMode {
     Text,
 }
 
+/**
+ * Options for `decode`.
+ */
 export interface DecodingOptions {
     /**
      * The level of entities to support.
@@ -58,7 +64,6 @@ export interface DecodingOptions {
      * an attribute value.
      *
      * The deprecated `decodeStrict` function defaults this to `Strict`.
-     *
      * @default {@link DecodingMode.Legacy}
      */
     mode?: DecodingMode | undefined;
@@ -66,7 +71,6 @@ export interface DecodingOptions {
 
 /**
  * Decodes a string with entities.
- *
  * @param input String to decode.
  * @param options Decoding options.
  */
@@ -86,7 +90,6 @@ export function decode(
 
 /**
  * Decodes a string with entities. Does not allow missing trailing semicolons for entities.
- *
  * @param input String to decode.
  * @param options Decoding options.
  * @deprecated Use `decode` with the `mode` set to `Strict`.
@@ -120,7 +123,6 @@ export interface EncodingOptions {
 
 /**
  * Encodes a string with entities.
- *
  * @param input String to encode.
  * @param options Encoding options.
  */
@@ -147,7 +149,7 @@ export function encode(
                 : encodeXML(input);
         }
         // biome-ignore lint/complexity/noUselessSwitchCase: we get an error for the switch not being exhaustive
-        case EncodingMode.Extensive: // eslint-disable-line unicorn/no-useless-switch-case
+        case EncodingMode.Extensive:
         default: {
             return level === EntityLevel.HTML
                 ? encodeHTML(input)
