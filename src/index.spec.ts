@@ -121,5 +121,5 @@ describe("Escape", () => {
     });
 
     it("should keep UTF8 characters", () =>
-        expect(entities.escapeUTF8('ß < "ü"')).toBe(`ß &lt; &quot;ü&quot;`));
+        expect(entities.escapeUTF8('ß < "ü"')).toBe("ß &lt; &quot;ü&quot;"));
 });

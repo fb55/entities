@@ -1,5 +1,5 @@
 {
-    "$schema": "https://biomejs.dev/schemas/2.4.4/schema.json",
+    "$schema": "https://biomejs.dev/schemas/2.4.5/schema.json",
     "vcs": {
         "enabled": true,
         "clientKind": "git",
@@ -14,13 +14,45 @@
     "linter": {
         "enabled": true,
         "rules": {
+            "complexity": {
+                "noUselessStringConcat": "error",
+                "noUselessUndefined": "error",
+                "useSimplifiedLogicExpression": "error",
+                "useWhile": "error"
+            },
+            "performance": {
+                "useTopLevelRegex": "error"
+            },
             "suspicious": {
+                "noConstantBinaryExpressions": "error",
                 "noShadowRestrictedNames": "off",
                 "noAssignInExpressions": "off",
-                "noConstEnum": "off"
+                "noConstEnum": "off",
+                "useAwait": "error"
             },
             "style": {
-                "noNonNullAssertion": "off"
+                "noNonNullAssertion": "off",
+                "noInferrableTypes": "error",
+                "noNegationElse": "error",
+                "noUnusedTemplateLiteral": "error",
+                "noUselessElse": "error",
+                "noYodaExpression": "error",
+                "useAsConstAssertion": "error",
+                "useCollapsedElseIf": "error",
+                "useCollapsedIf": "error",
+                "useConsistentArrayType": "error",
+                "useConsistentArrowReturn": "error",
+                "useConsistentMemberAccessibility": "error",
+                "useConsistentObjectDefinitions": "error",
+                "useConsistentTypeDefinitions": "error",
+                "useDefaultParameterLast": "error",
+                "useExplicitLengthCheck": "error",
+                "useFilenamingConvention": "error",
+                "useNumberNamespace": "error",
+                "useNumericSeparators": "error",
+                "useObjectSpread": "error",
+                "useShorthandAssign": "error",
+                "useUnifiedTypeSignatures": "error"
             },
             "recommended": true
         }
