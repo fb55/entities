@@ -64,7 +64,6 @@ export interface DecodingOptions {
      * an attribute value.
      *
      * The deprecated `decodeStrict` function defaults this to `Strict`.
-     *
      * @default {@link DecodingMode.Legacy}
      */
     mode?: DecodingMode | undefined;
@@ -72,7 +71,6 @@ export interface DecodingOptions {
 
 /**
  * Decodes a string with entities.
- *
  * @param input String to decode.
  * @param options Decoding options.
  */
@@ -92,7 +90,6 @@ export function decode(
 
 /**
  * Decodes a string with entities. Does not allow missing trailing semicolons for entities.
- *
  * @param input String to decode.
  * @param options Decoding options.
  * @deprecated Use `decode` with the `mode` set to `Strict`.
@@ -126,7 +123,6 @@ export interface EncodingOptions {
 
 /**
  * Encodes a string with entities.
- *
  * @param input String to encode.
  * @param options Encoding options.
  */

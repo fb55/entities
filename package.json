@@ -83,7 +83,7 @@
     "devDependencies": {
         "@biomejs/biome": "^2.4.4",
         "@eslint/compat": "^2.0.2",
-        "@feedic/eslint-config": "^0.2.2",
+        "@feedic/eslint-config": "^0.2.3",
         "@types/he": "^1.2.3",
         "@types/node": "^25.3.0",
         "@vitest/coverage-v8": "^4.0.18",

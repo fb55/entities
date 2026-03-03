@@ -30,6 +30,7 @@ export type EncodeTrieNode =
  *   <diffBase36>[&name;][{<children>}]  -- diff omitted when 0
  * Where diff = currentKey - previousKey - 1 (first entry stores absolute key).
  * `&name;` is the entity value (already wrapped); a following `{` denotes children.
+ * @param serialized Serialized text fragment to encode.
  */
 export function parseEncodeTrie(
     serialized: string,

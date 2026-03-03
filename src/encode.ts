@@ -23,6 +23,7 @@ const XML_BITSET = /* #__PURE__ */ new Uint32Array([0, XML_BITSET_VALUE, 0, 0]);
  *
  * If a character has no equivalent entity, a numeric hexadecimal reference
  * (eg. `&#xfc;`) will be used.
+ * @param input Input string to encode or decode.
  */
 export function encodeHTML(input: string): string {
     return encodeHTMLTrieRe(HTML_BITSET, input);
@@ -34,6 +35,7 @@ export function encodeHTML(input: string): string {
  *
  * If a character has no equivalent entity, a numeric hexadecimal reference
  * (eg. `&#xfc;`) will be used.
+ * @param input Input string to encode or decode.
  */
 export function encodeNonAsciiHTML(input: string): string {
     return encodeHTMLTrieRe(XML_BITSET, input);

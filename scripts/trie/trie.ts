@@ -10,6 +10,8 @@ export interface TrieNode {
 
 /**
  * Build a trie from canonical and legacy entity maps.
+ * @param map Map used to construct trie nodes.
+ * @param legacy Whether legacy HTML entities should be included.
  */
 export function getTrie(
     map: Record<string, string>,

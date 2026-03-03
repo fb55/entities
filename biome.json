@@ -15,16 +15,11 @@
         "enabled": true,
         "rules": {
             "suspicious": {
-                "noVar": "error",
-                "noSkippedTests": "error",
                 "noShadowRestrictedNames": "off",
                 "noAssignInExpressions": "off",
                 "noConstEnum": "off"
             },
             "style": {
-                "noUselessElse": "error",
-                "useTemplate": "error",
-                "useConsistentObjectDefinitions": "error",
                 "noNonNullAssertion": "off"
             },
             "recommended": true
@@ -41,9 +36,6 @@
     "files": {
         "includes": ["**", "!maps/*.json", "!maps", "!**/.*"],
         "ignoreUnknown": true
-    },
-    "javascript": {
-        "formatter": {}
     },
     "overrides": [
         {

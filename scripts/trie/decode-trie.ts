@@ -2,6 +2,10 @@ import { BinTrieFlags } from "../../src/internal/bin-trie-flags.js";
 
 /**
  * Decode a trie node and all descendants into a key/value map.
+ * @param decodeMap Map of entity names to code points.
+ * @param resultMap Output map populated while decoding the trie.
+ * @param prefix Current key prefix while traversing the trie.
+ * @param startIndex Index where traversal should begin.
  */
 export function decodeNode(
     decodeMap: number[],

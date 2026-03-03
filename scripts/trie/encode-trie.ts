@@ -4,6 +4,7 @@ import type { TrieNode } from "./trie.js";
 
 /**
  * Determines the binary length of an integer.
+ * @param integer Integer to encode using variable-length representation.
  */
 function binaryLength(integer: number): number {
     return Math.ceil(Math.log2(integer));
@@ -11,6 +12,8 @@ function binaryLength(integer: number): number {
 
 /**
  * Encode a trie into compact binary representation.
+ * @param trie Trie node map to encode.
+ * @param maxJumpTableOverhead Maximum allowed jump-table overhead before using linear encoding.
  */
 export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
     const encodeCache = new Map<TrieNode, number>();
