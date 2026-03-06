@@ -85,7 +85,7 @@
         "@eslint/compat": "^2.0.2",
         "@feedic/eslint-config": "^0.2.3",
         "@types/he": "^1.2.3",
-        "@types/node": "^25.3.3",
+        "@types/node": "^25.3.5",
         "@vitest/coverage-v8": "^4.0.18",
         "eslint": "^10.0.2",
         "eslint-config-biome": "^2.1.3",
