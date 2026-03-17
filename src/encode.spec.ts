@@ -25,15 +25,19 @@ describe("Encode->decode test", () => {
         it(`should default to XML encode ${encodedXML}`, () =>
             expect(entities.decode(encodedXML)).toBe(input));
         it(`should default strict to XML encode ${encodedXML}`, () =>
-            expect(entities.decodeStrict(encodedXML)).toBe(input));
+            expect(
+                entities.decode(encodedXML, {
+                    mode: entities.DecodingMode.Strict,
+                }),
+            ).toBe(input));
 
-        const encodedHTML5 = entities.encodeHTML5(input);
-        it(`should HTML5 encode ${input}`, () =>
-            expect(encodedHTML5).toBe(html));
-        it(`should HTML5 decode ${encodedHTML5}`, () =>
-            expect(entities.decodeHTML(encodedHTML5)).toBe(input));
+        const encodedHTML = entities.encodeHTML(input);
+        it(`should HTML encode ${input}`, () =>
+            expect(encodedHTML).toBe(html));
+        it(`should HTML decode ${encodedHTML}`, () =>
+            expect(entities.decodeHTML(encodedHTML)).toBe(input));
         it("should encode emojis", () =>
-            expect(entities.encodeHTML5("😄🍾🥳💥😇")).toBe(
+            expect(entities.encodeHTML("😄🍾🥳💥😇")).toBe(
                 "&#x1f604;&#x1f37e;&#x1f973;&#x1f4a5;&#x1f607;",
             ));
     }
