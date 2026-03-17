@@ -35,7 +35,7 @@ const decodeMap = new Map([
 /**
  * Polyfill for `String.fromCodePoint`. It is used to create a string from a Unicode code point.
  */
-/* eslint-disable n/no-unsupported-features/es-builtins */
+
 /**
  * Convert one or more code points into a string.
  * @param codePoint Unicode code point to convert.
@@ -57,7 +57,6 @@ export const fromCodePoint: (...codePoints: number[]) => string =
               output += String.fromCharCode(codePoint);
               return output;
           };
-/* eslint-enable n/no-unsupported-features/es-builtins */
 
 /**
  * Replace the given code point with a replacement character if it is a

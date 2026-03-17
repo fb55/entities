@@ -4,7 +4,6 @@ import feedicFlatConfig from "@feedic/eslint-config";
 import { commonTypeScriptRules } from "@feedic/eslint-config/typescript";
 import { defineConfig } from "eslint/config";
 import eslintConfigBiome from "eslint-config-biome";
-import globals from "globals";
 import tseslint from "typescript-eslint";
 
 const gitignorePath = fileURLToPath(new URL(".gitignore", import.meta.url));
@@ -39,7 +38,7 @@ export default defineConfig([
             parser: tseslint.parser,
             parserOptions: {
                 sourceType: "module",
-                project: "./tsconfig.json",
+                project: "./tsconfig.eslint.json",
             },
         },
         rules: {
@@ -51,16 +50,6 @@ export default defineConfig([
         rules: {
             "n/no-unsupported-features/es-builtins": 0,
             "n/no-unsupported-features/node-builtins": 0,
-        },
-    },
-    {
-        files: ["{decode,escape}.js"],
-        languageOptions: {
-            globals: globals.commonjs,
-            sourceType: "commonjs",
-        },
-        rules: {
-            "n/no-missing-require": 0,
         },
     },
     {

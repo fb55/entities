@@ -15,7 +15,7 @@ jobs:
         steps:
             - uses: actions/checkout@v6
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v6
               with:
                   node-version: lts/*
                   registry-url: https://registry.npmjs.org
@@ -27,13 +27,18 @@ jobs:
             - name: Create jsr.json based on package.json
               run: |
                   node -e '
-                    const p = require("./package.json");
+                    import { readFileSync, writeFileSync } from "fs";
+                    const p = JSON.parse(readFileSync("./package.json", "utf8"));
                     const jsrJson = {
                         name: `@cheerio/${p.name}`,
                         version: p.version,
-                        ...p.tshy,
+                        exports: {
+                            ".": "./src/index.ts",
+                            "./decode": "./src/decode.ts",
+                            "./escape": "./src/escape.ts"
+                        },
                     };
-                    require("fs").writeFileSync("./jsr.json", JSON.stringify(jsrJson, null, 2));
+                    writeFileSync("./jsr.json", JSON.stringify(jsrJson, null, 2));
                   '
 
             - name: Publish package to JSR
