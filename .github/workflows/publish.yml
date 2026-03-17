@@ -1,8 +1,8 @@
 name: Publish
 on:
     push:
-      tags:
-      - 'v*'
+        tags:
+            - "v*"
 
 jobs:
     publish:
@@ -13,31 +13,35 @@ jobs:
             id-token: write
 
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
               with:
                   node-version: lts/*
                   registry-url: https://registry.npmjs.org
-                  cache: npm
 
             - name: Install dependencies
               run: npm ci
 
             - name: Create jsr.json based on package.json
               run: |
-                  node -e '
-                    const p = require("./package.json");
+                  node --input-type=module -e '
+                    import { readFileSync, writeFileSync } from "fs";
+                    const p = JSON.parse(readFileSync("./package.json", "utf8"));
                     const jsrJson = {
                         name: `@cheerio/${p.name}`,
                         version: p.version,
-                        ...p.tshy,
+                        exports: {
+                            ".": "./src/index.ts",
+                            "./decode": "./src/decode.ts",
+                            "./escape": "./src/escape.ts"
+                        },
                     };
-                    require("fs").writeFileSync("./jsr.json", JSON.stringify(jsrJson, null, 2));
+                    writeFileSync("./jsr.json", JSON.stringify(jsrJson, null, 2));
                   '
 
             - name: Publish package to JSR
               run: npx jsr publish
 
-            - name: Publish package to NPM
+            - name: Publish package to npm
               run: npm publish --provenance --access public

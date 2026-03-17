@@ -24,7 +24,7 @@ Encode & decode HTML & XML entities with ease & speed.
 ### …use `entities`
 
 ```javascript
-const entities = require("entities");
+import * as entities from "entities";
 
 // Encoding
 entities.escapeUTF8("&#38; ü"); // "&amp;#38; ü"
@@ -99,10 +99,9 @@ libraries, so have a look through your `node_modules` directory!
 
 > Does `entities` support tree shaking?
 
-Yes! `entities` ships as both a CommonJS and a ES module. Note that for best
-results, you should not use the `encode` and `decode` functions, as they wrap
-around a number of other functions, all of which will remain in the bundle.
-Instead, use the functions that you need directly.
+Yes! Note that for best results, you should not use the `encode` and `decode`
+functions, as they wrap around a number of other functions, all of which will
+remain in the bundle. Instead, use the functions that you need directly.
 
 ---
 

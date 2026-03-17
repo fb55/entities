@@ -4,20 +4,7 @@
  * @param input Input string to encode or decode.
  */
 export function decodeBase64(input: string): Uint16Array {
-    const binary: string =
-        // eslint-disable-next-line n/no-unsupported-features/node-builtins
-        typeof atob === "function"
-            ? // Browser (and Node >=16)
-              // eslint-disable-next-line n/no-unsupported-features/node-builtins
-              atob(input)
-            : // Older Node versions (<16)
-              // eslint-disable-next-line n/no-unsupported-features/node-builtins
-              typeof Buffer.from === "function"
-              ? // eslint-disable-next-line n/no-unsupported-features/node-builtins
-                Buffer.from(input, "base64").toString("binary")
-              : // eslint-disable-next-line unicorn/no-new-buffer, n/no-deprecated-api
-                new Buffer(input, "base64").toString("binary");
-
+    const binary: string = atob(input);
     const evenLength = binary.length & ~1; // Round down to even length
     const out = new Uint16Array(evenLength / 2);
 

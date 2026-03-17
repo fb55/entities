@@ -31,9 +31,6 @@ describe("Documents", () => {
             it(levels[level], () => {
                 for (const entity of Object.keys(document)) {
                     for (let l = level; l < levels.length; l++) {
-                        expect(entities.decodeStrict(`&${entity};`, l)).toBe(
-                            document[entity],
-                        );
                         expect(
                             entities.decode(`&${entity};`, {
                                 level: l,
@@ -74,7 +71,7 @@ describe("Documents", () => {
                     legacyMap[entity],
                 );
                 expect(
-                    entities.decodeStrict(`&${entity}`, {
+                    entities.decode(`&${entity}`, {
                         level: entities.EntityLevel.HTML,
                         mode: entities.DecodingMode.Legacy,
                     }),
