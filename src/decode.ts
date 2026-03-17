@@ -665,9 +665,7 @@ export function decodeXML(xmlString: string): string {
     return xmlDecoder(xmlString, DecodingMode.Strict);
 }
 
-export {
-    replaceCodePoint,
-} from "./decode-codepoint.js";
+export { replaceCodePoint } from "./decode-codepoint.js";
 // Re-export for use by eg. htmlparser2
 export { htmlDecodeTree } from "./generated/decode-data-html.js";
 export { xmlDecodeTree } from "./generated/decode-data-xml.js";

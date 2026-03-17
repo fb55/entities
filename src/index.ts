@@ -1,4 +1,4 @@
-import { DecodingMode, decodeHTML, decodeXML } from "./decode.js";
+import { type DecodingMode, decodeHTML, decodeXML } from "./decode.js";
 import { encodeHTML, encodeNonAsciiHTML } from "./encode.js";
 import {
     encodeXML,
