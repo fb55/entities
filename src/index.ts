@@ -62,8 +62,6 @@ export interface DecodingOptions {
      *
      * Always `Strict` for XML. For HTML, set this to `true` if you are parsing
      * an attribute value.
-     *
-     * The deprecated `decodeStrict` function defaults this to `Strict`.
      * @default {@link DecodingMode.Legacy}
      */
     mode?: DecodingMode | undefined;
@@ -86,23 +84,6 @@ export function decode(
     }
 
     return decodeXML(input);
-}
-
-/**
- * Decodes a string with entities. Does not allow missing trailing semicolons for entities.
- * @param input String to decode.
- * @param options Decoding options.
- * @deprecated Use `decode` with the `mode` set to `Strict`.
- */
-export function decodeStrict(
-    input: string,
-    options: DecodingOptions | EntityLevel = EntityLevel.XML,
-): string {
-    const normalizedOptions =
-        typeof options === "number" ? { level: options } : options;
-    normalizedOptions.mode ??= DecodingMode.Strict;
-
-    return decode(input, normalizedOptions);
 }
 
 /**
@@ -161,13 +142,8 @@ export function encode(
 export {
     DecodingMode,
     decodeHTML,
-    // Legacy aliases (deprecated)
-    decodeHTML as decodeHTML4,
-    decodeHTML as decodeHTML5,
     decodeHTMLAttribute,
     decodeHTMLStrict,
-    decodeHTMLStrict as decodeHTML4Strict,
-    decodeHTMLStrict as decodeHTML5Strict,
     decodeXML,
     decodeXML as decodeXMLStrict,
     EntityDecoder,
@@ -175,9 +151,6 @@ export {
 
 export {
     encodeHTML,
-    // Legacy aliases (deprecated)
-    encodeHTML as encodeHTML4,
-    encodeHTML as encodeHTML5,
     encodeNonAsciiHTML,
 } from "./encode.js";
 export {

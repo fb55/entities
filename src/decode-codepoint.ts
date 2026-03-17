@@ -48,13 +48,3 @@ export function replaceCodePoint(codePoint: number): number {
 
     return decodeMap.get(codePoint) ?? codePoint;
 }
-
-/**
- * Replace the code point if relevant, then convert it to a string.
- * @deprecated Use `fromCodePoint(replaceCodePoint(codePoint))` instead.
- * @param codePoint The code point to decode.
- * @returns The decoded code point.
- */
-export function decodeCodePoint(codePoint: number): string {
-    return String.fromCodePoint(replaceCodePoint(codePoint));
-}

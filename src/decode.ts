@@ -666,7 +666,6 @@ export function decodeXML(xmlString: string): string {
 }
 
 export {
-    decodeCodePoint,
     replaceCodePoint,
 } from "./decode-codepoint.js";
 // Re-export for use by eg. htmlparser2
