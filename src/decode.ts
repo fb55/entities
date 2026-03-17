@@ -1,4 +1,4 @@
-import { fromCodePoint, replaceCodePoint } from "./decode-codepoint.js";
+import { replaceCodePoint } from "./decode-codepoint.js";
 import { htmlDecodeTree } from "./generated/decode-data-html.js";
 import { xmlDecodeTree } from "./generated/decode-data-xml.js";
 import { BinTrieFlags } from "./internal/bin-trie-flags.js";
@@ -522,7 +522,7 @@ function getDecoder(decodeTree: Uint16Array) {
     let returnValue = "";
     const decoder = new EntityDecoder(
         decodeTree,
-        (data) => (returnValue += fromCodePoint(data)),
+        (data) => (returnValue += String.fromCodePoint(data)),
     );
 
     return function decodeWithTrie(
@@ -667,7 +667,6 @@ export function decodeXML(xmlString: string): string {
 
 export {
     decodeCodePoint,
-    fromCodePoint,
     replaceCodePoint,
 } from "./decode-codepoint.js";
 // Re-export for use by eg. htmlparser2
