@@ -32,8 +32,7 @@ describe("Encode->decode test", () => {
             ).toBe(input));
 
         const encodedHTML = entities.encodeHTML(input);
-        it(`should HTML encode ${input}`, () =>
-            expect(encodedHTML).toBe(html));
+        it(`should HTML encode ${input}`, () => expect(encodedHTML).toBe(html));
         it(`should HTML decode ${encodedHTML}`, () =>
             expect(entities.decodeHTML(encodedHTML)).toBe(input));
         it("should encode emojis", () =>
