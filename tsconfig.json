@@ -25,7 +25,6 @@
         "noUnusedParameters": true,
 
         /* Module Resolution Options */
-        "esModuleInterop": true,
         "resolveJsonModule": true,
         "skipLibCheck": true
     },
