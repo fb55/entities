@@ -9,11 +9,15 @@ describe("Documents", () => {
     const levelDocuments = levels
         .map((name) => new URL(`../maps/${name}.json`, import.meta.url))
         .map((url) => JSON.parse(readFileSync(url, "utf8")))
-        .map((document, index) => [index, document]);
+        .map((document, index) => ({
+            name: levels[index],
+            level: index,
+            document,
+        }));
 
-    for (const [level, document] of levelDocuments) {
+    describe.each(levelDocuments)("$name", ({ level, document }) => {
         describe("Decode", () => {
-            it(levels[level], () => {
+            it("should decode all entities", () => {
                 for (const entity of Object.keys(document)) {
                     for (let l = level; l < levels.length; l++) {
                         expect(entities.decode(`&${entity};`, l)).toBe(
@@ -28,7 +32,7 @@ describe("Documents", () => {
         });
 
         describe("Decode strict", () => {
-            it(levels[level], () => {
+            it("should decode all entities", () => {
                 for (const entity of Object.keys(document)) {
                     for (let l = level; l < levels.length; l++) {
                         expect(
@@ -43,7 +47,7 @@ describe("Documents", () => {
         });
 
         describe("Encode", () => {
-            it(levels[level], () => {
+            it("should roundtrip all entities", () => {
                 for (const entity of Object.keys(document)) {
                     for (let l = level; l < levels.length; l++) {
                         const encoded = entities.encode(document[entity], l);
@@ -61,7 +65,7 @@ describe("Documents", () => {
                     }),
                 ).toBe("Great #&apos;s of &#x1f381;"));
         });
-    }
+    });
 
     describe("Legacy", () => {
         const legacyMap: Record<string, string> = legacy;
@@ -92,21 +96,17 @@ const astralSpecial = [
 ];
 
 describe("Astral entities", () => {
-    for (const [c, value] of astral) {
-        it(`should decode ${value}`, () =>
-            expect(entities.decode(`&#x${c};`)).toBe(value));
+    it.each(astral)("should decode &#x%s;", (c, value) =>
+        expect(entities.decode(`&#x${c};`)).toBe(value));
 
-        it(`should encode ${value}`, () =>
-            expect(entities.encode(value)).toBe(`&#x${c};`));
+    it.each(astral)("should encode &#x%s;", (c, value) =>
+        expect(entities.encode(value)).toBe(`&#x${c};`));
 
-        it(`should escape ${value}`, () =>
-            expect(entities.escape(value)).toBe(`&#x${c};`));
-    }
+    it.each(astral)("should escape &#x%s;", (c, value) =>
+        expect(entities.escape(value)).toBe(`&#x${c};`));
 
-    for (const [c, value] of astralSpecial) {
-        it(String.raw`should decode special \u${c}`, () =>
-            expect(entities.decode(`&#x${c};`)).toBe(value));
-    }
+    it.each(astralSpecial)(String.raw`should decode special \u%s`, (c, value) =>
+        expect(entities.decode(`&#x${c};`)).toBe(value));
 });
 
 describe("Escape", () => {

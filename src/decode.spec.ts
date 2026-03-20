@@ -1,4 +1,4 @@
-import { describe, expect, it, vitest } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as entities from "./decode.js";
 
 describe("Decode test", () => {
@@ -19,12 +19,10 @@ describe("Decode test", () => {
         { input: "id=770&#anchor", output: "id=770&#anchor" },
     ];
 
-    for (const { input, output } of testcases) {
-        it(`should XML decode ${input}`, () =>
-            expect(entities.decodeXML(input)).toBe(output));
-        it(`should HTML decode ${input}`, () =>
-            expect(entities.decodeHTML(input)).toBe(output));
-    }
+    it.each(testcases)("should XML decode $input", ({ input, output }) =>
+        expect(entities.decodeXML(input)).toBe(output));
+    it.each(testcases)("should HTML decode $input", ({ input, output }) =>
+        expect(entities.decodeHTML(input)).toBe(output));
 
     it("should HTML decode partial legacy entity", () => {
         expect(entities.decodeHTMLStrict("&timesbar")).toBe("&timesbar");
@@ -73,13 +71,15 @@ describe("Decode test", () => {
 });
 
 describe("EntityDecoder", () => {
-    it("should decode decimal entities", () => {
-        const callback = vitest.fn();
-        const decoder = new entities.EntityDecoder(
-            entities.htmlDecodeTree,
-            callback,
-        );
+    let callback: ReturnType<typeof vi.fn>;
+    let decoder: entities.EntityDecoder;
 
+    beforeEach(() => {
+        callback = vi.fn();
+        decoder = new entities.EntityDecoder(entities.htmlDecodeTree, callback);
+    });
+
+    it("should decode decimal entities", () => {
         expect(decoder.write("&#5", 1)).toBe(-1);
         expect(decoder.write("8;", 0)).toBe(5);
 
@@ -88,12 +88,6 @@ describe("EntityDecoder", () => {
     });
 
     it("should decode hex entities", () => {
-        const callback = vitest.fn();
-        const decoder = new entities.EntityDecoder(
-            entities.htmlDecodeTree,
-            callback,
-        );
-
         expect(decoder.write("&#x3a;", 1)).toBe(6);
 
         expect(callback).toHaveBeenCalledTimes(1);
@@ -101,12 +95,6 @@ describe("EntityDecoder", () => {
     });
 
     it("should decode named entities", () => {
-        const callback = vitest.fn();
-        const decoder = new entities.EntityDecoder(
-            entities.htmlDecodeTree,
-            callback,
-        );
-
         expect(decoder.write("&amp;", 1)).toBe(5);
 
         expect(callback).toHaveBeenCalledTimes(1);
@@ -114,11 +102,6 @@ describe("EntityDecoder", () => {
     });
 
     it("should decode legacy entities", () => {
-        const callback = vitest.fn();
-        const decoder = new entities.EntityDecoder(
-            entities.htmlDecodeTree,
-            callback,
-        );
         decoder.startEntity(entities.DecodingMode.Legacy);
 
         expect(decoder.write("&amp", 1)).toBe(-1);
@@ -132,12 +115,6 @@ describe("EntityDecoder", () => {
     });
 
     it("should decode named entity written character by character", () => {
-        const callback = vitest.fn();
-        const decoder = new entities.EntityDecoder(
-            entities.htmlDecodeTree,
-            callback,
-        );
-
         for (const c of "amp") {
             expect(decoder.write(c, 0)).toBe(-1);
         }
@@ -148,12 +125,6 @@ describe("EntityDecoder", () => {
     });
 
     it("should decode numeric entity written character by character", () => {
-        const callback = vitest.fn();
-        const decoder = new entities.EntityDecoder(
-            entities.htmlDecodeTree,
-            callback,
-        );
-
         for (const c of "#x3a") {
             expect(decoder.write(c, 0)).toBe(-1);
         }
@@ -164,12 +135,6 @@ describe("EntityDecoder", () => {
     });
 
     it("should decode hex entities across several chunks", () => {
-        const callback = vitest.fn();
-        const decoder = new entities.EntityDecoder(
-            entities.htmlDecodeTree,
-            callback,
-        );
-
         for (const chunk of ["#x", "cf", "ff", "d"]) {
             expect(decoder.write(chunk, 0)).toBe(-1);
         }
@@ -180,12 +145,6 @@ describe("EntityDecoder", () => {
     });
 
     it("should not fail if nothing is written", () => {
-        const callback = vitest.fn();
-        const decoder = new entities.EntityDecoder(
-            entities.htmlDecodeTree,
-            callback,
-        );
-
         expect(decoder.end()).toBe(0);
         expect(callback).toHaveBeenCalledTimes(0);
     });
@@ -196,58 +155,43 @@ describe("EntityDecoder", () => {
      * return 0 with no emission (result still 0).
      */
     describe("compact run mismatches", () => {
-        it("first run character mismatch returns 0", () => {
-            const callback = vitest.fn();
+        it.each([
+            ["first run character mismatch", "ziXgrar"],
+            ["mismatch after one correct run char", "zigXarr"],
+            ["mismatch after two correct run chars", "zigrXrr"],
+        ])("%s returns 0", (_name, input) => {
+            const callback = vi.fn();
             const d = new entities.EntityDecoder(
                 entities.htmlDecodeTree,
                 callback,
             );
             d.startEntity(entities.DecodingMode.Strict);
-            // After '&': correct prefix 'zi', wrong first run char 'X' (expected 'g').
-            expect(d.write("ziXgrar", 0)).toBe(0);
-            expect(callback).not.toHaveBeenCalled();
-        });
-
-        it("mismatch after one correct run char returns 0", () => {
-            const callback = vitest.fn();
-            const d = new entities.EntityDecoder(
-                entities.htmlDecodeTree,
-                callback,
-            );
-            d.startEntity(entities.DecodingMode.Strict);
-            // 'zig' matches prefix + first run char; next char 'X' mismatches expected 'r'.
-            expect(d.write("zigXarr", 0)).toBe(0);
-            expect(callback).not.toHaveBeenCalled();
-        });
-
-        it("mismatch after two correct run chars returns 0", () => {
-            const callback = vitest.fn();
-            const d = new entities.EntityDecoder(
-                entities.htmlDecodeTree,
-                callback,
-            );
-            d.startEntity(entities.DecodingMode.Strict);
-            // 'zigr' matches prefix + first two run chars; next char 'X' mismatches expected 'a'.
-            expect(d.write("zigrXrr", 0)).toBe(0);
+            expect(d.write(input, 0)).toBe(0);
             expect(callback).not.toHaveBeenCalled();
         });
     });
 
     describe("errors", () => {
-        it("should produce an error for a named entity without a semicolon", () => {
-            const errorHandlers = {
-                missingSemicolonAfterCharacterReference: vitest.fn(),
-                absenceOfDigitsInNumericCharacterReference: vitest.fn(),
-                validateNumericCharacterReference: vitest.fn(),
-            };
-            const callback = vitest.fn();
-            const decoder = new entities.EntityDecoder(
+        const errorHandlers = {
+            missingSemicolonAfterCharacterReference: vi.fn(),
+            absenceOfDigitsInNumericCharacterReference: vi.fn(),
+            validateNumericCharacterReference: vi.fn(),
+        };
+
+        beforeEach(() => {
+            errorHandlers.missingSemicolonAfterCharacterReference.mockClear();
+            errorHandlers.absenceOfDigitsInNumericCharacterReference.mockClear();
+            errorHandlers.validateNumericCharacterReference.mockClear();
+            callback = vi.fn();
+            decoder = new entities.EntityDecoder(
                 entities.htmlDecodeTree,
                 callback,
                 errorHandlers,
             );
-
             decoder.startEntity(entities.DecodingMode.Legacy);
+        });
+
+        it("should produce an error for a named entity without a semicolon", () => {
             expect(decoder.write("&amp;", 1)).toBe(5);
             expect(callback).toHaveBeenCalledTimes(1);
             expect(callback).toHaveBeenCalledWith("&".charCodeAt(0), 5);
@@ -267,19 +211,6 @@ describe("EntityDecoder", () => {
         });
 
         it("should produce an error for a numeric entity without a semicolon", () => {
-            const errorHandlers = {
-                missingSemicolonAfterCharacterReference: vitest.fn(),
-                absenceOfDigitsInNumericCharacterReference: vitest.fn(),
-                validateNumericCharacterReference: vitest.fn(),
-            };
-            const callback = vitest.fn();
-            const decoder = new entities.EntityDecoder(
-                entities.htmlDecodeTree,
-                callback,
-                errorHandlers,
-            );
-
-            decoder.startEntity(entities.DecodingMode.Legacy);
             expect(decoder.write("&#x3a", 1)).toBe(-1);
             expect(decoder.end()).toBe(5);
 
@@ -300,19 +231,6 @@ describe("EntityDecoder", () => {
         });
 
         it("should produce an error for numeric entities without digits", () => {
-            const errorHandlers = {
-                missingSemicolonAfterCharacterReference: vitest.fn(),
-                absenceOfDigitsInNumericCharacterReference: vitest.fn(),
-                validateNumericCharacterReference: vitest.fn(),
-            };
-            const callback = vitest.fn();
-            const decoder = new entities.EntityDecoder(
-                entities.htmlDecodeTree,
-                callback,
-                errorHandlers,
-            );
-
-            decoder.startEntity(entities.DecodingMode.Legacy);
             expect(decoder.write("&#", 1)).toBe(-1);
             expect(decoder.end()).toBe(0);
 
@@ -332,19 +250,6 @@ describe("EntityDecoder", () => {
         });
 
         it("should produce an error for hex entities without digits", () => {
-            const errorHandlers = {
-                missingSemicolonAfterCharacterReference: vitest.fn(),
-                absenceOfDigitsInNumericCharacterReference: vitest.fn(),
-                validateNumericCharacterReference: vitest.fn(),
-            };
-            const callback = vitest.fn();
-            const decoder = new entities.EntityDecoder(
-                entities.htmlDecodeTree,
-                callback,
-                errorHandlers,
-            );
-
-            decoder.startEntity(entities.DecodingMode.Legacy);
             expect(decoder.write("&#x", 1)).toBe(-1);
             expect(decoder.end()).toBe(0);
 

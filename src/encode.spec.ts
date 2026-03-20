@@ -15,31 +15,32 @@ describe("Encode->decode test", () => {
         },
     ];
 
-    for (const { input, xml, html } of testcases) {
-        const encodedXML = entities.encodeXML(input);
-        it(`should XML encode ${input}`, () => expect(encodedXML).toBe(xml));
-        it(`should default to XML encode ${input}`, () =>
-            expect(entities.encode(input)).toBe(xml));
-        it(`should XML decode ${encodedXML}`, () =>
-            expect(entities.decodeXML(encodedXML)).toBe(input));
-        it(`should default to XML encode ${encodedXML}`, () =>
-            expect(entities.decode(encodedXML)).toBe(input));
-        it(`should default strict to XML encode ${encodedXML}`, () =>
-            expect(
-                entities.decode(encodedXML, {
-                    mode: entities.DecodingMode.Strict,
-                }),
-            ).toBe(input));
+    it.each(testcases)("should XML encode $input", ({ input, xml }) =>
+        expect(entities.encodeXML(input)).toBe(xml));
+    it.each(testcases)("should default to XML encode $input", ({
+        input,
+        xml,
+    }) => expect(entities.encode(input)).toBe(xml));
+    it.each(testcases)("should XML decode $xml", ({ input, xml }) =>
+        expect(entities.decodeXML(xml)).toBe(input));
+    it.each(testcases)("should default to XML decode $xml", ({ input, xml }) =>
+        expect(entities.decode(xml)).toBe(input));
+    it.each(testcases)("should default strict to XML decode $xml", ({
+        input,
+        xml,
+    }) =>
+        expect(
+            entities.decode(xml, { mode: entities.DecodingMode.Strict }),
+        ).toBe(input));
+    it.each(testcases)("should HTML encode $input", ({ input, html }) =>
+        expect(entities.encodeHTML(input)).toBe(html));
+    it.each(testcases)("should HTML decode $html", ({ input, html }) =>
+        expect(entities.decodeHTML(html)).toBe(input));
 
-        const encodedHTML = entities.encodeHTML(input);
-        it(`should HTML encode ${input}`, () => expect(encodedHTML).toBe(html));
-        it(`should HTML decode ${encodedHTML}`, () =>
-            expect(entities.decodeHTML(encodedHTML)).toBe(input));
-        it("should encode emojis", () =>
-            expect(entities.encodeHTML("😄🍾🥳💥😇")).toBe(
-                "&#x1f604;&#x1f37e;&#x1f973;&#x1f4a5;&#x1f607;",
-            ));
-    }
+    it("should encode emojis", () =>
+        expect(entities.encodeHTML("😄🍾🥳💥😇")).toBe(
+            "&#x1f604;&#x1f37e;&#x1f973;&#x1f4a5;&#x1f607;",
+        ));
 
     it("should encode data URIs (issue #16)", () => {
         const data =
