@@ -71,11 +71,11 @@ describe("Decode test", () => {
 });
 
 describe("EntityDecoder", () => {
-    let callback: ReturnType<typeof vi.fn>;
+    let callback: ReturnType<typeof vi.fn<(cp: number, consumed: number) => void>>;
     let decoder: entities.EntityDecoder;
 
     beforeEach(() => {
-        callback = vi.fn();
+        callback = vi.fn<(cp: number, consumed: number) => void>();
         decoder = new entities.EntityDecoder(entities.htmlDecodeTree, callback);
     });
 
@@ -160,7 +160,7 @@ describe("EntityDecoder", () => {
             ["mismatch after one correct run char", "zigXarr"],
             ["mismatch after two correct run chars", "zigrXrr"],
         ])("%s returns 0", (_name, input) => {
-            const callback = vi.fn();
+            const callback = vi.fn<(cp: number, consumed: number) => void>();
             const d = new entities.EntityDecoder(
                 entities.htmlDecodeTree,
                 callback,
@@ -182,7 +182,7 @@ describe("EntityDecoder", () => {
             errorHandlers.missingSemicolonAfterCharacterReference.mockClear();
             errorHandlers.absenceOfDigitsInNumericCharacterReference.mockClear();
             errorHandlers.validateNumericCharacterReference.mockClear();
-            callback = vi.fn();
+            callback = vi.fn<(cp: number, consumed: number) => void>();
             decoder = new entities.EntityDecoder(
                 entities.htmlDecodeTree,
                 callback,
