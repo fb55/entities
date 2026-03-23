@@ -72,7 +72,7 @@
         "parse-entities": "^4.0.2",
         "tinybench": "^6.0.0",
         "tsx": "^4.21.0",
-        "typedoc": "^0.28.17",
+        "typedoc": "^0.28.18",
         "typescript": "^5.9.3",
         "typescript-eslint": "^8.57.1",
         "vitest": "^4.0.17"
