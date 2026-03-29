@@ -40,6 +40,23 @@ describe("Decode test", () => {
     it("should not parse numeric entities in strict mode", () =>
         expect(entities.decodeHTMLStrict("&#55")).toBe("&#55"));
 
+    describe("numeric entities without semicolons (legacy mode)", () => {
+        it("should decode decimal entity followed by non-digit", () =>
+            expect(entities.decodeHTML("&#65x")).toBe("Ax"));
+
+        it("should decode hex entity followed by non-hex", () =>
+            expect(entities.decodeHTML("&#x41x")).toBe("Ax"));
+
+        it("should decode decimal entity at end of input", () =>
+            expect(entities.decodeHTML("&#65")).toBe("A"));
+
+        it("should reject decimal entity without semicolon in strict mode", () =>
+            expect(entities.decodeHTMLStrict("&#65x")).toBe("&#65x"));
+
+        it("should reject decimal entity at end of input in strict mode", () =>
+            expect(entities.decodeHTMLStrict("&#65")).toBe("&#65"));
+    });
+
     it("should parse &nbsp followed by < (#852)", () =>
         expect(entities.decodeHTML("&nbsp<")).toBe("\u00A0<"));
 
