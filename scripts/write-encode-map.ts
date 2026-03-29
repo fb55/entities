@@ -8,24 +8,6 @@ interface TrieNode {
 
 const htmlTrie = getTrie(htmlMap);
 
-/*
- * Strip children from ASCII entries (0–127).  The encoder's ASCII fast path
- * uses a flat array lookup and never checks children, so multi-char entities
- * starting with ASCII chars (like < + U+20D2 → &nvlt;) are unreachable.
- * Removing them shrinks the serialized data without affecting behavior.
- * The parser routes ASCII leaf entries to a separate array via `asciiOut`.
- */
-for (let index = 0; index < 128; index++) {
-    const node = htmlTrie.get(index);
-    if (node?.next) {
-        if (node.value) {
-            htmlTrie.set(index, { value: node.value });
-        } else {
-            htmlTrie.delete(index);
-        }
-    }
-}
-
 const serialized = serializeTrie(htmlTrie);
 
 writeFileSync(

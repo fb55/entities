@@ -23,12 +23,10 @@ type EncodeTrieNode =
  * encoding, a direct `asciiEntities[charCode]` array index is much faster
  * than `Map.get(charCode)` because it avoids hashing and bucket lookup.
  *
- * For the few ASCII characters that also have multi-character children in the
- * trie (currently `<`, `=`, `>` with combining-mark children at U+20D2 etc.),
- * we store only their single-character entity value here and intentionally
- * drop any children.  The corresponding multi-code-point entities (for
- * example, `&nvlt;` for `<` + U+20D2) are extremely rare in practice and
- * are not emitted by this encoder at all.
+ * ASCII characters that also have multi-character children in the trie
+ * (e.g. `<` + U+20D2 → `&nvlt;`) are stored both here (single-char value)
+ * and in the trie (with children).  The encoder checks the trie first for
+ * multi-char matches, falling back to this table for the single-char entity.
  */
 const asciiEntities: (string | null)[] = [];
 
@@ -93,6 +91,10 @@ const htmlTrie: Map<number, EncodeTrieNode> = (() => {
             }
             trie.set(lastKey, { value: entityValue, next });
             cursor++; // Skip '}'
+            // Also populate the ASCII fast-path table for the single-char value.
+            if (lastKey < 0x80 && entityValue != null) {
+                asciiEntities[lastKey] = entityValue;
+            }
         } else if (lastKey < 0x80) {
             asciiEntities[lastKey] = entityValue;
         } else if (lastKey > 0xff_ff) {
@@ -189,19 +191,14 @@ function encodeHTMLTrieRe(bitset: Uint32Array, input: string): string {
         if (out == null) out = input.substring(0, index);
         else if (last !== index) out += input.substring(last, index);
 
-        if (char < 0x80) {
-            // ASCII fast path: direct array lookup instead of Map.get().
-            const entity = asciiEntities[char];
-            out += entity ?? numericReference(char);
-        } else {
-            // Non-ASCII: full trie lookup with multi-char entity support.
+        {
+            /*
+             * Try the full trie first — it handles both ASCII and non-ASCII
+             * entries that have multi-code-point children (e.g. < + U+20D2 → &nvlt;).
+             */
             let node: EncodeTrieNode | undefined | null = htmlTrie.get(char);
 
             if (typeof node === "object") {
-                /*
-                 * This node has children — check whether the next input character
-                 * matches a two-character entity (e.g. multi-code-point sequences).
-                 */
                 if (index + 1 < length) {
                     const value = node.next.get(input.charCodeAt(index + 1));
 
@@ -216,14 +213,18 @@ function encodeHTMLTrieRe(bitset: Uint32Array, input: string): string {
                 node = node.value;
             }
 
-            if (node == null) {
+            if (node != null) {
+                out += node;
+            } else if (char < 0x80) {
+                // ASCII fast path: direct array lookup.
+                const entity = asciiEntities[char];
+                out += entity ?? numericReference(char);
+            } else {
                 // No named entity exists; emit a decimal numeric reference.
                 const cp = input.codePointAt(index)!;
                 out += numericReference(cp);
                 // Astral code points consume two UTF-16 code units.
                 if (cp !== char) index++;
-            } else {
-                out += node;
             }
         }
         last = index + 1;
