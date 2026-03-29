@@ -8,7 +8,7 @@
  * 12..7  BRANCH_LENGTH  Branch length (0 => single branch in 6..0 if jumpOffset==char) OR run length (when compact run)
  * 6..0   JUMP_TABLE     Jump offset (jump table) OR single-branch char code OR first run char
  */
-export enum BinTrieFlags {
+export const enum BinTrieFlags {
     VALUE_LENGTH = 0b1100_0000_0000_0000,
     FLAG13 = 0b0010_0000_0000_0000,
     BRANCH_LENGTH = 0b0001_1111_1000_0000,

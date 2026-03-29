@@ -41,17 +41,15 @@ export function getTrie(
 
         const value = map[key];
         const isLegacy = key in legacy;
-        const semi = ";".charCodeAt(0);
 
-        if (isLegacy) {
-            // Legacy entity: semicolon optional. Keep explicit semicolon node + unsuffixed value.
-            next.value = value;
-            const semiNode = next.next?.get(semi) ?? {};
-            semiNode.value = value;
-            (next.next ??= new Map()).set(semi, semiNode);
-        } else {
-            // Strict entity: semicolon required. Store value on node, mark as requiring semicolon (no explicit ';' child).
-            next.value = value;
+        /*
+         * All entities store the value on the terminal node.
+         * Strict entities require a semicolon (FLAG13 set); legacy entities
+         * accept an optional semicolon (FLAG13 clear), handled implicitly by
+         * the decoder — no explicit ';' child needed.
+         */
+        next.value = value;
+        if (!isLegacy) {
             next.semiRequired = true;
         }
     }
