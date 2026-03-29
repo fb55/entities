@@ -6,24 +6,6 @@ const xmlCodeMap = new Map([
     [62, "&gt;"],
 ]);
 
-// For compatibility with node < 4, we wrap `codePointAt`
-/**
- * Read a code point at a given index.
- * @param input Input string to encode or decode.
- * @param index Current read position in the input string.
- */
-export const getCodePoint: (c: string, index: number) => number =
-    typeof String.prototype.codePointAt === "function"
-        ? (input: string, index: number): number => input.codePointAt(index)!
-        : // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
-          (c: string, index: number): number =>
-              (c.charCodeAt(index) & 0xfc_00) === 0xd8_00
-                  ? (c.charCodeAt(index) - 0xd8_00) * 0x4_00 +
-                    c.charCodeAt(index + 1) -
-                    0xdc_00 +
-                    0x1_00_00
-                  : c.charCodeAt(index);
-
 /**
  * Bitset for ASCII characters that need to be escaped in XML.
  */
@@ -64,7 +46,7 @@ export function encodeXML(input: string): string {
         }
 
         // Non-ASCII: encode as numeric entity (handle surrogate pair)
-        const cp = getCodePoint(input, index);
+        const cp = input.codePointAt(index)!;
         out += `&#x${cp.toString(16)};`;
         if (cp !== char) index++; // Skip trailing surrogate
         last = index + 1;
@@ -86,75 +68,67 @@ export function encodeXML(input: string): string {
 export const escape: typeof encodeXML = encodeXML;
 
 /**
- * Creates a function that escapes all characters matched by the given regular
- * expression using the given map of characters to escape to their entities.
- * @param regex Regular expression to match characters to escape.
- * @param map Map of characters to escape to their entities.
- * @returns Function that escapes all characters matched by the given regular
- * expression using the given map of characters to escape to their entities.
+ * Replacement callback used by {@link escapeUTF8}, {@link escapeAttribute},
+ * and {@link escapeText} to map specific characters to their XML/HTML
+ * entity representations.
+ *
+ * Converts `"`, `&`, `'`, `<`, `>`, and non-breaking space (`\u00A0`)
+ * to their corresponding entities; returns all other characters unchanged.
+ * @param c Single character match from the respective escape RegExp.
  */
-function getEscaper(
-    regex: RegExp,
-    map: Map<number, string>,
-): (data: string) => string {
-    return function escape(data: string): string {
-        let match: RegExpExecArray | null;
-        let lastIndex = 0;
-        let result = "";
-
-        while ((match = regex.exec(data))) {
-            if (lastIndex !== match.index) {
-                result += data.substring(lastIndex, match.index);
-            }
-
-            // We know that this character will be in the map.
-            result += map.get(match[0].charCodeAt(0))!;
-
-            // Every match will be of length 1
-            lastIndex = match.index + 1;
+function escapeReplacer(c: string): string {
+    switch (c) {
+        case '"': {
+            return "&quot;";
         }
-
-        return result + data.substring(lastIndex);
-    };
+        case "&": {
+            return "&amp;";
+        }
+        case "'": {
+            return "&apos;";
+        }
+        case "<": {
+            return "&lt;";
+        }
+        case ">": {
+            return "&gt;";
+        }
+        case "\u00A0": {
+            return "&nbsp;";
+        }
+    }
+    return c;
 }
 
+const xmlEscapeRegex = /["&'<>]/g;
 /**
  * Encodes all characters not valid in XML documents using XML entities.
  *
  * Note that the output will be character-set dependent.
  * @param data String to escape.
  */
-export const escapeUTF8: (data: string) => string = /* #__PURE__ */ getEscaper(
-    /["&'<>]/g,
-    xmlCodeMap,
-);
+export function escapeUTF8(data: string): string {
+    return data.replace(xmlEscapeRegex, escapeReplacer);
+}
+
+const attributeEscapeRegex = /["&\u00A0]/g;
 
 /**
  * Encodes all characters that have to be escaped in HTML attributes,
  * following {@link https://html.spec.whatwg.org/multipage/parsing.html#escapingString}.
  * @param data String to escape.
  */
-export const escapeAttribute: (data: string) => string =
-    /* #__PURE__ */ getEscaper(
-        /["&\u00A0]/g,
-        new Map([
-            [34, "&quot;"],
-            [38, "&amp;"],
-            [160, "&nbsp;"],
-        ]),
-    );
+export function escapeAttribute(data: string): string {
+    return data.replace(attributeEscapeRegex, escapeReplacer);
+}
+
+const textEscapeRegex = /[&<>\u00A0]/g;
 
 /**
  * Encodes all characters that have to be escaped in HTML text,
  * following {@link https://html.spec.whatwg.org/multipage/parsing.html#escapingString}.
  * @param data String to escape.
  */
-export const escapeText: (data: string) => string = /* #__PURE__ */ getEscaper(
-    /[&<>\u00A0]/g,
-    new Map([
-        [38, "&amp;"],
-        [60, "&lt;"],
-        [62, "&gt;"],
-        [160, "&nbsp;"],
-    ]),
-);
+export function escapeText(data: string): string {
+    return data.replace(textEscapeRegex, escapeReplacer);
+}

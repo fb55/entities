@@ -1,4 +1,4 @@
-import { getCodePoint, XML_BITSET_VALUE } from "./escape.js";
+import { XML_BITSET_VALUE } from "./escape.js";
 import { htmlTrie } from "./generated/encode-html.js";
 
 /**
@@ -79,7 +79,7 @@ function encodeHTMLTrieRe(bitset: Uint32Array, input: string): string {
         }
 
         if (node === undefined) {
-            const cp = getCodePoint(input, index);
+            const cp = input.codePointAt(index)!;
             out += `&#x${cp.toString(16)};`;
             if (cp !== char) index++;
             last = index + 1;
