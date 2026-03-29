@@ -1,17 +1,144 @@
-import { getCodePoint, XML_BITSET_VALUE } from "./escape.js";
-import { htmlTrie } from "./generated/encode-html.js";
+import { XML_BITSET_VALUE } from "./escape.js";
+import htmlTrieData from "./generated/encode-html.js";
 
 /**
- * We store the characters to consider as a compact bitset for fast lookups.
+ * A node inside the encoding trie used by `encode.ts`.
+ *
+ * There are two physical shapes to minimize allocations and lookup cost:
+ *
+ * 1. Leaf node (string)
+ *    - A plain string (already in the form `"&name;"`).
+ *    - Represents a terminal match with no children.
+ *
+ * 2. Branch / value node (object)
+ */
+type EncodeTrieNode =
+    | string
+    | { value: string | null; next: Map<number, EncodeTrieNode> };
+
+/**
+ * Flat lookup table for ASCII entity values (code points 0–127).
+ *
+ * Built once at startup from the full trie.  For ASCII characters that need
+ * encoding, a direct `asciiEntities[charCode]` array index is much faster
+ * than `Map.get(charCode)` because it avoids hashing and bucket lookup.
+ *
+ * For the few ASCII characters that also have multi-character children in the
+ * trie (currently `<`, `=`, `>` with combining-mark children at U+20D2 etc.),
+ * we store only their single-character entity value here.  The two-character
+ * combined forms (e.g. `&nvlt;` for `<` + U+20D2) are extremely rare in
+ * practice and are not covered by this fast path.
+ */
+const asciiEntities: (string | null)[] = [];
+
+const htmlTrie: Map<number, EncodeTrieNode> = (() => {
+    /**
+     * Parse a compact encode trie string into a Map keyed by code point.
+     *
+     * The serialized format (produced by `scripts/write-encode-map.ts`) stores
+     * entries in ascending code-point order with delta encoding:
+     *
+     *   [gap]name;[{children}]
+     *
+     * - `gap` is a base-10 integer giving `currentKey - previousKey - 1`.
+     *   The very first entry stores the absolute key.  A gap of 0 is omitted.
+     * - `name;` is the entity name (without `&` prefix) terminated by `;`.
+     *   Because gaps use only digits `[0-9]` and entity names always start with
+     *   a letter `[A-Za-z]`, no additional delimiter is needed.
+     * - `{…}` is an optional children block using the same scheme recursively.
+     *   Children represent the second code unit of multi-character entities
+     *   (e.g. `<` + U+20D2 → `&nvlt;`).
+     */
+    const trie = new Map<number, EncodeTrieNode>();
+    const data = htmlTrieData;
+    let cursor = 0;
+    let lastKey = -1;
+
+    function readGap(): number {
+        let value = 0;
+        let ch: number;
+        while (
+            (ch = data.charCodeAt(cursor)) >= 48 /* '0' */ &&
+            ch <= 57 /* '9' */
+        ) {
+            value = value * 10 + ch - 48;
+            cursor++;
+        }
+        return value;
+    }
+
+    function readEntity(): string {
+        const semi = data.indexOf(";", cursor);
+        const entity = `&${data.substring(cursor, semi)};`;
+        cursor = semi + 1;
+        return entity;
+    }
+
+    const astralEntries: [number, string][] = [];
+
+    while (cursor < data.length) {
+        lastKey += readGap() + 1;
+
+        const entityValue =
+            data.charCodeAt(cursor) === 123 /* '{' */ ? null : readEntity();
+
+        if (data.charCodeAt(cursor) === 123 /* '{' */) {
+            cursor++; // Skip '{'
+            const next = new Map<number, EncodeTrieNode>();
+            let childKey = -1;
+            while (data.charCodeAt(cursor) !== 125 /* '}' */) {
+                childKey += readGap() + 1;
+                next.set(childKey, readEntity());
+            }
+            trie.set(lastKey, { value: entityValue, next });
+            cursor++; // Skip '}'
+        } else if (lastKey < 0x80) {
+            asciiEntities[lastKey] = entityValue;
+        } else if (lastKey > 0xff_ff) {
+            astralEntries.push([lastKey, entityValue!]);
+        } else {
+            trie.set(lastKey, entityValue!);
+        }
+    }
+
+    /*
+     * Batch-insert astral entries as surrogate-pair trie nodes.
+     * Entries are sorted by code point, so same-high-surrogate groups
+     * are contiguous — no intermediate grouping Map needed.
+     */
+    let ai = 0;
+    while (ai < astralEntries.length) {
+        const hi = 0xd8_00 | ((astralEntries[ai][0] - 0x1_00_00) >> 10);
+        const children: [number, string][] = [];
+        while (
+            ai < astralEntries.length &&
+            (0xd8_00 | ((astralEntries[ai][0] - 0x1_00_00) >> 10)) === hi
+        ) {
+            const lo = 0xdc_00 | ((astralEntries[ai][0] - 0x1_00_00) & 0x3_ff);
+            children.push([lo, astralEntries[ai][1]]);
+            ai++;
+        }
+        trie.set(hi, { value: null, next: new Map(children) });
+    }
+
+    return trie;
+})();
+
+/**
+ * Bitset covering ASCII code points 0–127.  Each of the four 32-bit words
+ * covers a 32-code-point range.  A set bit means "this character needs
+ * encoding" when used with `encodeHTML`.
  */
 const HTML_BITSET = /* #__PURE__ */ new Uint32Array([
-    0x16_00, // Bits for 09,0A,0C
-    0xfc_00_ff_fe, // 32..63 -> 21-2D (minus space), 2E,2F,3A-3F
-    0xf8_00_00_01, // 64..95 -> 40, 5B-5F
-    0x38_00_00_01, // 96..127-> 60, 7B-7D
+    0x16_00, // 09 (\t), 0A (\n), 0C (\f)
+    0xfc_00_ff_fe, // 21-2D (!-.), 2E (.), 2F (/), 3A-3F (:;<=>?)
+    0xf8_00_00_01, // 40 (@), 5B-5F ([\]^_)
+    0x38_00_00_01, // 60 (`), 7B-7D ({|})
 ]);
 
 const XML_BITSET = /* #__PURE__ */ new Uint32Array([0, XML_BITSET_VALUE, 0, 0]);
+
+const numericReference = (cp: number) => `&#${cp};`;
 
 /**
  * Encodes all characters in the input using HTML entities. This includes
@@ -48,48 +175,61 @@ function encodeHTMLTrieRe(bitset: Uint32Array, input: string): string {
 
     for (let index = 0; index < length; index++) {
         const char = input.charCodeAt(index);
-        // Skip ASCII characters that don't need encoding
+
+        /*
+         * Fast-skip ASCII characters that don't need encoding.
+         * The bitset has one bit per ASCII code point; a set bit means "encode".
+         */
         if (char < 0x80 && !((bitset[char >>> 5] >>> char) & 1)) {
             continue;
         }
 
-        if (out === undefined) out = input.substring(0, index);
+        // Lazy-init: copy the prefix before the first character that needs encoding.
+        if (out == null) out = input.substring(0, index);
         else if (last !== index) out += input.substring(last, index);
 
-        let node = htmlTrie.get(char);
-
-        if (typeof node === "object") {
-            if (index + 1 < length) {
-                const nextChar = input.charCodeAt(index + 1);
-                const value =
-                    typeof node.next === "number"
-                        ? node.next === nextChar
-                            ? node.nextValue
-                            : undefined
-                        : node.next.get(nextChar);
-
-                if (value !== undefined) {
-                    out += value;
-                    index++;
-                    last = index + 1;
-                    continue;
-                }
-            }
-            node = node.value;
-        }
-
-        if (node === undefined) {
-            const cp = getCodePoint(input, index);
-            out += `&#x${cp.toString(16)};`;
-            if (cp !== char) index++;
-            last = index + 1;
+        if (char < 0x80) {
+            // ASCII fast path: direct array lookup instead of Map.get().
+            const entity = asciiEntities[char];
+            out += entity ?? numericReference(char);
         } else {
-            out += node;
-            last = index + 1;
+            // Non-ASCII: full trie lookup with multi-char entity support.
+            let node: EncodeTrieNode | undefined | null = htmlTrie.get(char);
+
+            if (typeof node === "object") {
+                /*
+                 * This node has children — check whether the next input character
+                 * matches a two-character entity (e.g. multi-code-point sequences).
+                 */
+                if (index + 1 < length) {
+                    const value = node.next.get(input.charCodeAt(index + 1));
+
+                    if (value != null) {
+                        out += value;
+                        index++;
+                        last = index + 1;
+                        continue;
+                    }
+                }
+                // No matching child — fall back to this node's own value.
+                node = node.value;
+            }
+
+            if (node == null) {
+                // No named entity exists; emit a numeric hex reference.
+                const cp = input.codePointAt(index)!;
+                out += numericReference(cp);
+                // Astral code points consume two UTF-16 code units.
+                if (cp !== char) index++;
+            } else {
+                out += node;
+            }
         }
+        last = index + 1;
     }
 
-    if (out === undefined) return input;
+    // If nothing needed encoding, return the original string (avoids allocation).
+    if (out == null) return input;
     if (last < length) out += input.substr(last);
     return out;
 }

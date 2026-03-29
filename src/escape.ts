@@ -64,8 +64,8 @@ export function encodeXML(input: string): string {
         }
 
         // Non-ASCII: encode as numeric entity (handle surrogate pair)
-        const cp = getCodePoint(input, index);
-        out += `&#x${cp.toString(16)};`;
+        const cp = input.codePointAt(index)!;
+        out += `&#${cp};`;
         if (cp !== char) index++; // Skip trailing surrogate
         last = index + 1;
     }
