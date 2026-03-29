@@ -610,11 +610,13 @@ const NO_MATCH: [consumed: number, value: string] = [0, ""];
  * Decode a numeric entity (&#DDD; or &#xHHH;).
  * @param input The input string containing the entity, starting with the "#" character.
  * @param numberStart The index of the "#" character in the input string.
+ * @param strict
  * @returns [consumed, value] tuple, or NO_MATCH for no match.
  */
 function decodeTrieNumeric(
     input: string,
     numberStart: number,
+    strict: boolean,
 ): [number, string] {
     let offset = numberStart + 1; // Skip "#"
     let base = 10;
@@ -646,6 +648,16 @@ function decodeTrieNumeric(
         } else if (base === 16 && isHexadecimalCharacter(char)) {
             cp = cp * 16 + ((char | TO_LOWER_BIT) - CharCodes.LOWER_A + 10);
         } else {
+            /*
+             * Non-digit, non-semicolon: in legacy/attribute mode accept
+             * the digits consumed so far (matching EntityDecoder behavior).
+             */
+            if (!strict && digits > 0) {
+                return [
+                    offset - numberStart,
+                    String.fromCodePoint(replaceCodePoint(cp)),
+                ];
+            }
             return NO_MATCH;
         }
 
@@ -653,6 +665,13 @@ function decodeTrieNumeric(
         offset += 1;
     }
 
+    // End of input: in legacy/attribute mode accept if we have digits.
+    if (!strict && digits > 0) {
+        return [
+            offset - numberStart,
+            String.fromCodePoint(replaceCodePoint(cp)),
+        ];
+    }
     return NO_MATCH;
 }
 
@@ -688,7 +707,7 @@ function decodeWithTrie(
         let consumed: number;
         let value: string;
         if (firstChar === CharCodes.NUM) {
-            [consumed, value] = decodeTrieNumeric(input, entityStart);
+            [consumed, value] = decodeTrieNumeric(input, entityStart, strict);
         } else if (isAlpha(firstChar)) {
             consumed = 0;
             value = "";
@@ -926,7 +945,7 @@ export function decodeXML(xmlString: string): string {
         const c1 = xmlString.charCodeAt(start);
 
         if (c1 === CharCodes.NUM) {
-            [consumed, value] = decodeTrieNumeric(xmlString, start);
+            [consumed, value] = decodeTrieNumeric(xmlString, start, true);
         } else {
             const c2 = xmlString.charCodeAt(start + 1);
             const c3 = xmlString.charCodeAt(start + 2);

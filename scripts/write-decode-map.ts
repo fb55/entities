@@ -23,11 +23,11 @@ const DICT_SIZE = 61;
 /**
  * Encode trie data using dictionary + delta-encoded value table.
  *
- * Format: [dict1: D×3 chars][dict2: delta var-len][data]
+ * Format: [dict1: delta/RLE var-len][dict2: delta/RLE var-len][data]
  *
- * - dict1: the D most-frequent values, each as 3 base-91 chars.
- * - dict2: all remaining unique values, delta-encoded with variable-length base-91.
- *   Deltas < 90 → 1 char; 90–8370 → escape + 2 chars; larger → double-escape + 3 chars.
+ * - dict1: base values for the D most-frequent entries, delta+RLE variable-length base-91.
+ * - dict2: all remaining unique values, delta+RLE variable-length base-91.
+ *   Deltas < 90 → 1 char; 90–8279 → escape + 2 chars; larger → double-escape + 3 chars.
  * - data: each trie value encoded as 1 char (dict1 lookup) or 2 chars (dict2 lookup).
  *
  * This gives ~24% smaller raw and ~16% better gzip than base64.
@@ -138,7 +138,7 @@ function encodeTrieData(data: Uint16Array): {
             } else {
                 const adjusted = delta - 89;
                 header +=
-                    adjusted < BASE * BASE
+                    adjusted < 90 * BASE
                         ? String.fromCharCode(
                               ESCAPE,
                               SAFE[Math.floor(adjusted / BASE)],
