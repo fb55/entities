@@ -25,9 +25,10 @@ type EncodeTrieNode =
  *
  * For the few ASCII characters that also have multi-character children in the
  * trie (currently `<`, `=`, `>` with combining-mark children at U+20D2 etc.),
- * we store only their single-character entity value here.  The two-character
- * combined forms (e.g. `&nvlt;` for `<` + U+20D2) are extremely rare in
- * practice and are not covered by this fast path.
+ * we store only their single-character entity value here and intentionally
+ * drop any children.  The corresponding multi-code-point entities (for
+ * example, `&nvlt;` for `<` + U+20D2) are extremely rare in practice and
+ * are not emitted by this encoder at all.
  */
 const asciiEntities: (string | null)[] = [];
 
@@ -216,7 +217,7 @@ function encodeHTMLTrieRe(bitset: Uint32Array, input: string): string {
             }
 
             if (node == null) {
-                // No named entity exists; emit a numeric hex reference.
+                // No named entity exists; emit a decimal numeric reference.
                 const cp = input.codePointAt(index)!;
                 out += numericReference(cp);
                 // Astral code points consume two UTF-16 code units.
