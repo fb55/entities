@@ -68,10 +68,13 @@ export function encodeXML(input: string): string {
 export const escape: typeof encodeXML = encodeXML;
 
 /**
- * Encodes all characters not valid in XML documents using XML entities.
+ * Replacement callback used by {@link escapeUTF8}, {@link escapeAttribute},
+ * and {@link escapeText} to map specific characters to their XML/HTML
+ * entity representations.
  *
- * Note that the output will be character-set dependent.
- * @param c String to escape.
+ * Converts `"`, `&`, `'`, `<`, `>`, and non-breaking space (`\u00A0`)
+ * to their corresponding entities; returns all other characters unchanged.
+ * @param c Single character match from the respective escape RegExp.
  */
 function escapeReplacer(c: string): string {
     switch (c) {
