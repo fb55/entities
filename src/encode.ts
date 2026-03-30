@@ -23,10 +23,10 @@ type EncodeTrieNode =
  * encoding, a direct `asciiEntities[charCode]` array index is much faster
  * than `Map.get(charCode)` because it avoids hashing and bucket lookup.
  *
- * ASCII characters that also have multi-character children in the trie
- * (e.g. `<` + U+20D2 → `&nvlt;`) are stored both here (single-char value)
- * and in the trie (with children).  The encoder checks the trie first for
- * multi-char matches, falling back to this table for the single-char entity.
+ * A few ASCII characters also have multi-code-point children in the trie
+ * (e.g. `<` + U+20D2 → `&nvlt;`).  The encoder checks the trie for those
+ * multi-char matches first, then falls back to this table for the
+ * single-char entity.
  */
 const asciiEntities: (string | null)[] = [];
 
@@ -109,17 +109,21 @@ const htmlTrie: Map<number, EncodeTrieNode> = (() => {
      * Entries are sorted by code point, so same-high-surrogate groups
      * are contiguous — no intermediate grouping Map needed.
      */
-    let ai = 0;
-    while (ai < astralEntries.length) {
-        const hi = 0xd8_00 | ((astralEntries[ai][0] - 0x1_00_00) >> 10);
+    let astralIndex = 0;
+    while (astralIndex < astralEntries.length) {
+        const hi =
+            0xd8_00 | ((astralEntries[astralIndex][0] - 0x1_00_00) >> 10);
         const children: [number, string][] = [];
         while (
-            ai < astralEntries.length &&
-            (0xd8_00 | ((astralEntries[ai][0] - 0x1_00_00) >> 10)) === hi
+            astralIndex < astralEntries.length &&
+            (0xd8_00 | ((astralEntries[astralIndex][0] - 0x1_00_00) >> 10)) ===
+                hi
         ) {
-            const lo = 0xdc_00 | ((astralEntries[ai][0] - 0x1_00_00) & 0x3_ff);
-            children.push([lo, astralEntries[ai][1]]);
-            ai++;
+            const lo =
+                0xdc_00 |
+                ((astralEntries[astralIndex][0] - 0x1_00_00) & 0x3_ff);
+            children.push([lo, astralEntries[astralIndex][1]]);
+            astralIndex++;
         }
         trie.set(hi, { value: null, next: new Map(children) });
     }
@@ -191,17 +195,28 @@ function encodeHTMLTrieRe(bitset: Uint32Array, input: string): string {
         if (out == null) out = input.substring(0, index);
         else if (last !== index) out += input.substring(last, index);
 
-        {
-            /*
-             * Try the full trie first — it handles both ASCII and non-ASCII
-             * entries that have multi-code-point children (e.g. < + U+20D2 → &nvlt;).
-             */
+        if (char < 0x80) {
+            // ASCII: check for multi-code-point entity first (e.g. < + U+20D2 → &nvlt;).
+            const trieNode = htmlTrie.get(char);
+            if (typeof trieNode === "object" && index + 1 < length) {
+                const value = trieNode.next.get(input.charCodeAt(index + 1));
+                if (value != null) {
+                    out += value;
+                    index++;
+                    last = index + 1;
+                    continue;
+                }
+            }
+            // Fast path: direct array lookup for single-char entity.
+            const entity = asciiEntities[char];
+            out += entity ?? numericReference(char);
+        } else {
+            // Non-ASCII: full trie lookup with multi-char entity support.
             let node: EncodeTrieNode | undefined | null = htmlTrie.get(char);
 
             if (typeof node === "object") {
                 if (index + 1 < length) {
                     const value = node.next.get(input.charCodeAt(index + 1));
-
                     if (value != null) {
                         out += value;
                         index++;
@@ -209,22 +224,17 @@ function encodeHTMLTrieRe(bitset: Uint32Array, input: string): string {
                         continue;
                     }
                 }
-                // No matching child — fall back to this node's own value.
                 node = node.value;
             }
 
-            if (node != null) {
-                out += node;
-            } else if (char < 0x80) {
-                // ASCII fast path: direct array lookup.
-                const entity = asciiEntities[char];
-                out += entity ?? numericReference(char);
-            } else {
+            if (node == null) {
                 // No named entity exists; emit a decimal numeric reference.
                 const cp = input.codePointAt(index)!;
                 out += numericReference(cp);
                 // Astral code points consume two UTF-16 code units.
                 if (cp !== char) index++;
+            } else {
+                out += node;
             }
         }
         last = index + 1;

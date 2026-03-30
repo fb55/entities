@@ -2,7 +2,9 @@ import { writeFileSync } from "node:fs";
 import htmlMap from "../maps/entities.json" with { type: "json" };
 
 interface TrieNode {
+    /** The value, if the node has a value. */
     value?: string | undefined;
+    /** A map with the next nodes, if there are any. */
     next?: Map<number, TrieNode> | undefined;
 }
 
