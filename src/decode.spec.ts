@@ -85,6 +85,19 @@ describe("Decode test", () => {
         expect(entities.decodeHTMLAttribute("&notP")).toBe("&notP");
         expect(entities.decodeHTMLAttribute("&not3")).toBe("&not3");
     });
+
+    it("should decode semicolon-terminated entities in attribute mode", () => {
+        expect(entities.decodeHTMLAttribute("&amp;x")).toBe("&x");
+        expect(entities.decodeHTMLAttribute("&lt;x")).toBe("<x");
+        expect(entities.decodeHTMLAttribute("&amp;=")).toBe("&=");
+    });
+
+    it("should decode numeric entities in attribute mode", () => {
+        expect(entities.decodeHTMLAttribute("&#65;x")).toBe("Ax");
+        expect(entities.decodeHTMLAttribute("&#x41;x")).toBe("Ax");
+        expect(entities.decodeHTMLAttribute("&#65x")).toBe("Ax");
+        expect(entities.decodeHTMLAttribute("&#x41x")).toBe("Ax");
+    });
 });
 
 describe("EntityDecoder", () => {

@@ -865,9 +865,20 @@ function decodeWithTrie(
             value = "";
         }
 
+        /*
+         * The attribute end-char rule (HTML spec §13.2.5.73) only applies to
+         * unterminated *named* references.  Semicolon-terminated entities and
+         * numeric entities are always accepted, matching EntityDecoder behavior.
+         */
+        const isUnterminatedNamed =
+            consumed > 0 &&
+            firstChar !== CharCodes.NUM &&
+            input.charCodeAt(entityStart + consumed - 1) !== CharCodes.SEMI;
+
         if (
             consumed === 0 ||
             (attribute &&
+                isUnterminatedNamed &&
                 entityStart + consumed < inputLength &&
                 isEntityInAttributeInvalidEnd(
                     input.charCodeAt(entityStart + consumed),
