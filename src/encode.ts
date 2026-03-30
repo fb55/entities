@@ -155,8 +155,8 @@ const numericReference = (cp: number) => `&#${cp};`;
  * function, which will only encode characters that are not valid in HTML
  * documents, as well as non-ASCII characters.
  *
- * If a character has no equivalent entity, a numeric hexadecimal reference
- * (eg. `&#xfc;`) will be used.
+ * If a character has no equivalent entity, a numeric decimal reference
+ * (eg. `&#252;`) will be used.
  * @param input Input string to encode or decode.
  */
 export function encodeHTML(input: string): string {
@@ -167,8 +167,8 @@ export function encodeHTML(input: string): string {
  * documents using HTML entities. This function will not encode characters that
  * are valid in HTML documents, such as `#`.
  *
- * If a character has no equivalent entity, a numeric hexadecimal reference
- * (eg. `&#xfc;`) will be used.
+ * If a character has no equivalent entity, a numeric decimal reference
+ * (eg. `&#252;`) will be used.
  * @param input Input string to encode or decode.
  */
 export function encodeNonAsciiHTML(input: string): string {
