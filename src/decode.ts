@@ -608,19 +608,21 @@ const NO_MATCH: [consumed: number, value: string] = [0, ""];
 
 /**
  * Decode a numeric entity (&#DDD; or &#xHHH;).
- * @param input The input string containing the entity, starting with the "#" character.
- * @param numberStart The index of the "#" character in the input string.
- * @param strict
- * @returns [consumed, value] tuple, or NO_MATCH for no match.
+ *
+ * Parses the digits and includes the trailing `;` in `consumed` when present.
+ * In strict mode, the caller rejects results not terminated by `;`.
+ * @param input       The input string.
+ * @param numberStart Index of the `#` character.
+ * @param inputLength Cached `input.length`.
+ * @returns `[consumed, value]` tuple, or `NO_MATCH` if no digits were found.
  */
 function decodeTrieNumeric(
     input: string,
     numberStart: number,
-    strict: boolean,
-): [number, string] {
+    inputLength: number,
+): [consumed: number, value: string] {
     let offset = numberStart + 1; // Skip "#"
     let base = 10;
-    const inputLength = input.length;
 
     if (offset < inputLength) {
         const first = input.charCodeAt(offset);
@@ -635,44 +637,26 @@ function decodeTrieNumeric(
     while (offset < inputLength) {
         const char = input.charCodeAt(offset);
 
-        if (char === CharCodes.SEMI) {
-            if (digits === 0) return NO_MATCH;
-            return [
-                offset - numberStart + 1,
-                String.fromCodePoint(replaceCodePoint(cp)),
-            ];
-        }
-
         if (isNumber(char)) {
             cp = cp * base + (char - CharCodes.ZERO);
         } else if (base === 16 && isHexadecimalCharacter(char)) {
             cp = cp * 16 + ((char | TO_LOWER_BIT) - CharCodes.LOWER_A + 10);
         } else {
-            /*
-             * Non-digit, non-semicolon: in legacy/attribute mode accept
-             * the digits consumed so far (matching EntityDecoder behavior).
-             */
-            if (!strict && digits > 0) {
-                return [
-                    offset - numberStart,
-                    String.fromCodePoint(replaceCodePoint(cp)),
-                ];
-            }
-            return NO_MATCH;
+            break;
         }
 
         digits += 1;
         offset += 1;
     }
 
-    // End of input: in legacy/attribute mode accept if we have digits.
-    if (!strict && digits > 0) {
-        return [
-            offset - numberStart,
-            String.fromCodePoint(replaceCodePoint(cp)),
-        ];
+    if (digits === 0) return NO_MATCH;
+
+    // Include the semicolon in consumed when present.
+    if (offset < inputLength && input.charCodeAt(offset) === CharCodes.SEMI) {
+        offset += 1;
     }
-    return NO_MATCH;
+
+    return [offset - numberStart, String.fromCodePoint(replaceCodePoint(cp))];
 }
 
 /**
@@ -707,7 +691,19 @@ function decodeWithTrie(
         let consumed: number;
         let value: string;
         if (firstChar === CharCodes.NUM) {
-            [consumed, value] = decodeTrieNumeric(input, entityStart, strict);
+            [consumed, value] = decodeTrieNumeric(
+                input,
+                entityStart,
+                inputLength,
+            );
+            // In strict mode, require semicolon termination.
+            if (
+                strict &&
+                consumed > 0 &&
+                input.charCodeAt(entityStart + consumed - 1) !== CharCodes.SEMI
+            ) {
+                consumed = 0;
+            }
         } else if (isAlpha(firstChar)) {
             consumed = 0;
             value = "";
@@ -869,16 +865,16 @@ function decodeWithTrie(
          * The attribute end-char rule (HTML spec §13.2.5.73) only applies to
          * unterminated *named* references.  Semicolon-terminated entities and
          * numeric entities are always accepted, matching EntityDecoder behavior.
+         *
+         * When `attribute` is false (the common case), short-circuit skips all
+         * the unterminated-named checks entirely.
          */
-        const isUnterminatedNamed =
-            consumed > 0 &&
-            firstChar !== CharCodes.NUM &&
-            input.charCodeAt(entityStart + consumed - 1) !== CharCodes.SEMI;
-
         if (
             consumed === 0 ||
             (attribute &&
-                isUnterminatedNamed &&
+                firstChar !== CharCodes.NUM &&
+                input.charCodeAt(entityStart + consumed - 1) !==
+                    CharCodes.SEMI &&
                 entityStart + consumed < inputLength &&
                 isEntityInAttributeInvalidEnd(
                     input.charCodeAt(entityStart + consumed),
@@ -956,7 +952,18 @@ export function decodeXML(xmlString: string): string {
         const c1 = xmlString.charCodeAt(start);
 
         if (c1 === CharCodes.NUM) {
-            [consumed, value] = decodeTrieNumeric(xmlString, start, true);
+            [consumed, value] = decodeTrieNumeric(
+                xmlString,
+                start,
+                xmlString.length,
+            );
+            // XML is always strict — require semicolon.
+            if (
+                consumed > 0 &&
+                xmlString.charCodeAt(start + consumed - 1) !== CharCodes.SEMI
+            ) {
+                consumed = 0;
+            }
         } else {
             const c2 = xmlString.charCodeAt(start + 1);
             const c3 = xmlString.charCodeAt(start + 2);
