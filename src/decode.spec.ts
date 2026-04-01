@@ -1,7 +1,104 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as entities from "./decode.js";
 
-describe("Decode test", () => {
+/**
+ * Build a decode implementation backed by EntityDecoder, feeding entity
+ * bodies in chunks of the given size (Infinity = all at once, 1 = char-by-char).
+ * @param chunkSize Number of characters per write call.
+ */
+function makeStreamingImpl(chunkSize: number) {
+    function decode(
+        input: string,
+        decodeTree: Uint16Array,
+        decodeMode: entities.DecodingMode,
+    ): string {
+        let result = "";
+        const decoder = new entities.EntityDecoder(
+            decodeTree,
+            (cp) => (result += String.fromCodePoint(cp)),
+        );
+
+        let lastIndex = 0;
+        let offset = 0;
+
+        while ((offset = input.indexOf("&", offset)) >= 0) {
+            result += input.slice(lastIndex, offset);
+            decoder.startEntity(decodeMode);
+
+            const entityStart = offset + 1;
+            let length: number;
+
+            if (chunkSize === Number.POSITIVE_INFINITY) {
+                length = decoder.write(input, entityStart);
+            } else {
+                length = -1;
+                for (
+                    let pos = entityStart;
+                    pos < input.length && length < 0;
+                    pos += chunkSize
+                ) {
+                    length = decoder.write(
+                        input.slice(pos, pos + chunkSize),
+                        0,
+                    );
+                }
+            }
+
+            if (length < 0) {
+                lastIndex = offset + decoder.end();
+                break;
+            }
+
+            lastIndex = offset + length;
+            offset = length === 0 ? lastIndex + 1 : lastIndex;
+        }
+
+        const out = result + input.slice(lastIndex);
+        result = "";
+        return out;
+    }
+
+    return {
+        decodeHTML: (input: string, mode = entities.DecodingMode.Legacy) =>
+            decode(input, entities.htmlDecodeTree, mode),
+        decodeHTMLStrict: (input: string) =>
+            decode(
+                input,
+                entities.htmlDecodeTree,
+                entities.DecodingMode.Strict,
+            ),
+        decodeHTMLAttribute: (input: string) =>
+            decode(
+                input,
+                entities.htmlDecodeTree,
+                entities.DecodingMode.Attribute,
+            ),
+        decodeXML: (input: string) =>
+            decode(input, entities.xmlDecodeTree, entities.DecodingMode.Strict),
+    };
+}
+
+type DecoderImpl = ReturnType<typeof makeStreamingImpl>;
+
+const syncImpl: DecoderImpl = {
+    decodeHTML: entities.decodeHTML,
+    decodeHTMLStrict: entities.decodeHTMLStrict,
+    decodeHTMLAttribute: entities.decodeHTMLAttribute,
+    decodeXML: entities.decodeXML,
+};
+
+const implementations: [string, DecoderImpl][] = [
+    ["sync", syncImpl],
+    ["streaming (all at once)", makeStreamingImpl(Number.POSITIVE_INFINITY)],
+    ["streaming (char-by-char)", makeStreamingImpl(1)],
+];
+
+describe.each(implementations)("Decode test: %s", (_name, {
+    decodeHTML,
+    decodeHTMLStrict,
+    decodeHTMLAttribute,
+    decodeXML,
+}) => {
     const testcases = [
         { input: "&amp;amp;", output: "&amp;" },
         { input: "&amp;#38;", output: "&#38;" },
@@ -20,58 +117,88 @@ describe("Decode test", () => {
     ];
 
     it.each(testcases)("should XML decode $input", ({ input, output }) =>
-        expect(entities.decodeXML(input)).toBe(output));
+        expect(decodeXML(input)).toBe(output));
     it.each(testcases)("should HTML decode $input", ({ input, output }) =>
-        expect(entities.decodeHTML(input)).toBe(output));
+        expect(decodeHTML(input)).toBe(output));
 
     it("should HTML decode partial legacy entity", () => {
-        expect(entities.decodeHTMLStrict("&timesbar")).toBe("&timesbar");
-        expect(entities.decodeHTML("&timesbar")).toBe("×bar");
+        expect(decodeHTMLStrict("&timesbar")).toBe("&timesbar");
+        expect(decodeHTML("&timesbar")).toBe("×bar");
     });
 
     it("should HTML decode legacy entities according to spec", () =>
-        expect(entities.decodeHTML("?&image_uri=1&ℑ=2&image=3")).toBe(
+        expect(decodeHTML("?&image_uri=1&ℑ=2&image=3")).toBe(
             "?&image_uri=1&ℑ=2&image=3",
         ));
 
     it("should back out of legacy entities", () =>
-        expect(entities.decodeHTML("&ampa")).toBe("&a"));
+        expect(decodeHTML("&ampa")).toBe("&a"));
 
     it("should not parse numeric entities in strict mode", () =>
-        expect(entities.decodeHTMLStrict("&#55")).toBe("&#55"));
+        expect(decodeHTMLStrict("&#55")).toBe("&#55"));
+
+    describe("numeric entities without semicolons (legacy mode)", () => {
+        it("should decode decimal entity followed by non-digit", () =>
+            expect(decodeHTML("&#65x")).toBe("Ax"));
+
+        it("should decode hex entity followed by non-hex", () =>
+            expect(decodeHTML("&#x41x")).toBe("Ax"));
+
+        it("should decode decimal entity at end of input", () =>
+            expect(decodeHTML("&#65")).toBe("A"));
+
+        it("should reject decimal entity without semicolon in strict mode", () =>
+            expect(decodeHTMLStrict("&#65x")).toBe("&#65x"));
+
+        it("should reject decimal entity at end of input in strict mode", () =>
+            expect(decodeHTMLStrict("&#65")).toBe("&#65"));
+    });
 
     it("should parse &nbsp followed by < (#852)", () =>
-        expect(entities.decodeHTML("&nbsp<")).toBe("\u00A0<"));
+        expect(decodeHTML("&nbsp<")).toBe("\u00A0<"));
 
     it("should decode trailing legacy entities", () => {
-        expect(entities.decodeHTML("&timesbar;&timesbar")).toBe("⨱×bar");
+        expect(decodeHTML("&timesbar;&timesbar")).toBe("⨱×bar");
     });
 
     it("should decode multi-byte entities", () => {
-        expect(entities.decodeHTML("&NotGreaterFullEqual;")).toBe("≧̸");
+        expect(decodeHTML("&NotGreaterFullEqual;")).toBe("≧̸");
     });
 
     it("should not decode legacy entities followed by text in attribute mode", () => {
-        expect(
-            entities.decodeHTML("&not", entities.DecodingMode.Attribute),
-        ).toBe("¬");
+        expect(decodeHTML("&not", entities.DecodingMode.Attribute)).toBe("¬");
 
-        expect(
-            entities.decodeHTML("&noti", entities.DecodingMode.Attribute),
-        ).toBe("&noti");
+        expect(decodeHTML("&noti", entities.DecodingMode.Attribute)).toBe(
+            "&noti",
+        );
 
-        expect(
-            entities.decodeHTML("&not=", entities.DecodingMode.Attribute),
-        ).toBe("&not=");
+        expect(decodeHTML("&not=", entities.DecodingMode.Attribute)).toBe(
+            "&not=",
+        );
 
-        expect(entities.decodeHTMLAttribute("&notp")).toBe("&notp");
-        expect(entities.decodeHTMLAttribute("&notP")).toBe("&notP");
-        expect(entities.decodeHTMLAttribute("&not3")).toBe("&not3");
+        expect(decodeHTMLAttribute("&notp")).toBe("&notp");
+        expect(decodeHTMLAttribute("&notP")).toBe("&notP");
+        expect(decodeHTMLAttribute("&not3")).toBe("&not3");
+    });
+
+    it("should decode semicolon-terminated entities in attribute mode", () => {
+        expect(decodeHTMLAttribute("&amp;x")).toBe("&x");
+        expect(decodeHTMLAttribute("&lt;x")).toBe("<x");
+        expect(decodeHTMLAttribute("&amp;=")).toBe("&=");
+    });
+
+    it("should decode numeric entities in attribute mode", () => {
+        expect(decodeHTMLAttribute("&#65;x")).toBe("Ax");
+        expect(decodeHTMLAttribute("&#x41;x")).toBe("Ax");
+        expect(decodeHTMLAttribute("&#65x")).toBe("Ax");
+        expect(decodeHTMLAttribute("&#x41x")).toBe("Ax");
     });
 });
 
 describe("EntityDecoder", () => {
-    let callback: ReturnType<typeof vi.fn<(cp: number, consumed: number) => void>>;
+    let callback: ReturnType<
+        typeof vi.fn<(cp: number, consumed: number) => void>
+    >;
     let decoder: entities.EntityDecoder;
 
     beforeEach(() => {

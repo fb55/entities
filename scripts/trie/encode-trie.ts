@@ -7,7 +7,7 @@ import type { TrieNode } from "./trie.js";
  * @param integer Integer to encode using variable-length representation.
  */
 function binaryLength(integer: number): number {
-    return Math.ceil(Math.log2(integer));
+    return Math.floor(Math.log2(integer)) + 1;
 }
 
 /**
@@ -78,15 +78,6 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
                         (current.next && current.next.size !== 1)) &&
                     !encodeCache.has(current)
                 ) {
-                    const semicolonCode = ";".charCodeAt(0);
-                    if (
-                        current.next?.has(semicolonCode) &&
-                        current.value === current.next.get(semicolonCode)?.value
-                    ) {
-                        addBranches(node.next, nodeIndex);
-                        assert.strictEqual(nodeIndex, startIndex);
-                        return startIndex;
-                    }
                     const runLength = runChars.length;
                     if (runLength > 63) {
                         addBranches(node.next, nodeIndex);
@@ -151,7 +142,11 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
             const branchIndex = enc.length - jumpTableLength;
             for (const [char, child] of branches) {
                 const relativeIndex = char - jumpOffset;
-                enc[branchIndex + relativeIndex] = encodeNode(child) + 1;
+                const pointerPos = branchIndex + relativeIndex;
+                const childOffset = encodeNode(child);
+                // Store relative offset + 1 (0 = no branch sentinel).
+                enc[pointerPos] =
+                    (childOffset - pointerPos + 1 + 0x1_00_00) % 0x1_00_00;
             }
             return;
         }
@@ -178,8 +173,9 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
                 "Should have the placeholder as the destination element",
             );
             const offset = encodeNode(child);
-            assert.ok(binaryLength(offset) <= 16, "Too many bits for offset");
-            enc[destinationIndex] = offset;
+            // Store relative offset (pointer-position-relative).
+            enc[destinationIndex] =
+                (offset - destinationIndex + 0x1_00_00) % 0x1_00_00;
         }
     }
 

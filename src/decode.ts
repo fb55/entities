@@ -1,6 +1,5 @@
 import { replaceCodePoint } from "./decode-codepoint.js";
 import { htmlDecodeTree } from "./generated/decode-data-html.js";
-import { xmlDecodeTree } from "./generated/decode-data-xml.js";
 import { BinTrieFlags } from "./internal/bin-trie-flags.js";
 
 const enum CharCodes {
@@ -15,29 +14,28 @@ const enum CharCodes {
     LOWER_Z = 122, // "z"
     UPPER_A = 65, // "A"
     UPPER_F = 70, // "F"
+    UPPER_X = 88, // "X"
     UPPER_Z = 90, // "Z"
 }
 
 /** Bit that needs to be set to convert an upper case ASCII character to lower case */
 const TO_LOWER_BIT = 0b10_0000;
 
+/**
+ * Unsigned subtraction trick: (code - lo) >>> 0 wraps negatives to large
+ * values, so a single `<=` covers the entire [lo..hi] range check.
+ * @param code Code point to check.
+ */
 function isNumber(code: number): boolean {
-    return code >= CharCodes.ZERO && code <= CharCodes.NINE;
+    return (code - CharCodes.ZERO) >>> 0 <= 9;
 }
 
 function isHexadecimalCharacter(code: number): boolean {
-    return (
-        (code >= CharCodes.UPPER_A && code <= CharCodes.UPPER_F) ||
-        (code >= CharCodes.LOWER_A && code <= CharCodes.LOWER_F)
-    );
+    return ((code | TO_LOWER_BIT) - CharCodes.LOWER_A) >>> 0 <= 5; // F - a
 }
 
-function isAsciiAlphaNumeric(code: number): boolean {
-    return (
-        (code >= CharCodes.UPPER_A && code <= CharCodes.UPPER_Z) ||
-        (code >= CharCodes.LOWER_A && code <= CharCodes.LOWER_Z) ||
-        isNumber(code)
-    );
+function isAlpha(code: number): boolean {
+    return ((code | TO_LOWER_BIT) - CharCodes.LOWER_A) >>> 0 <= 25; // Z - a
 }
 
 /**
@@ -48,7 +46,7 @@ function isAsciiAlphaNumeric(code: number): boolean {
  * @param code Code point to decode.
  */
 function isEntityInAttributeInvalidEnd(code: number): boolean {
-    return code === CharCodes.EQUALS || isAsciiAlphaNumeric(code);
+    return code === CharCodes.EQUALS || isAlpha(code) || isNumber(code);
 }
 
 const enum EntityDecoderState {
@@ -104,7 +102,7 @@ export class EntityDecoder {
     ) {}
 
     /** The current state of the decoder. */
-    private state = EntityDecoderState.EntityStart;
+    private state: number = EntityDecoderState.EntityStart;
     /** Characters that were consumed while parsing an entity. */
     private consumed = 1;
     /**
@@ -172,7 +170,8 @@ export class EntityDecoder {
                 return this.stateNumericHex(input, offset);
             }
 
-            case EntityDecoderState.NamedEntity: {
+            default: {
+                // NamedEntity — the only remaining state.
                 return this.stateNamedEntity(input, offset);
             }
         }
@@ -219,8 +218,8 @@ export class EntityDecoder {
                         ? char - CharCodes.ZERO
                         : (char | TO_LOWER_BIT) - CharCodes.LOWER_A + 10;
                 this.result = this.result * 16 + digit;
-                this.consumed++;
-                offset++;
+                this.consumed += 1;
+                offset += 1;
             } else {
                 return this.emitNumericEntity(char, 3);
             }
@@ -241,8 +240,8 @@ export class EntityDecoder {
             const char = input.charCodeAt(offset);
             if (isNumber(char)) {
                 this.result = this.result * 10 + (char - CharCodes.ZERO);
-                this.consumed++;
-                offset++;
+                this.consumed += 1;
+                offset += 1;
             } else {
                 return this.emitNumericEntity(char, 2);
             }
@@ -301,12 +300,13 @@ export class EntityDecoder {
      */
     private stateNamedEntity(input: string, offset: number): number {
         const { decodeTree } = this;
+        const inputLength = input.length;
         let current = decodeTree[this.treeIndex];
-        // The length is the number of bytes of the value, including the current byte.
+        // The number of bytes of the value, including the current byte.
         let valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
 
-        while (offset < input.length) {
-            // Handle compact runs (possibly inline): valueLength == 0 and SEMI_REQUIRED bit set.
+        while (offset < inputLength) {
+            // Handle compact runs (possibly resumable): valueLength == 0 and FLAG13 set.
             if (valueLength === 0 && (current & BinTrieFlags.FLAG13) !== 0) {
                 const runLength =
                     (current & BinTrieFlags.BRANCH_LENGTH) >> 7; /* 2..63 */
@@ -319,16 +319,14 @@ export class EntityDecoder {
                             ? 0
                             : this.emitNotTerminatedNamedEntity();
                     }
-                    offset++;
-                    this.excess++;
-                    this.runConsumed++;
+                    offset += 1;
+                    this.excess += 1;
+                    this.runConsumed += 1;
                 }
 
-                // Check remaining characters in the run.
+                // Check remaining characters in the run (packed two per uint16 word).
                 while (this.runConsumed < runLength) {
-                    if (offset >= input.length) {
-                        return -1;
-                    }
+                    if (offset >= inputLength) return -1;
 
                     const charIndexInPacked = this.runConsumed - 1;
                     const packedWord =
@@ -336,7 +334,7 @@ export class EntityDecoder {
                             this.treeIndex + 1 + (charIndexInPacked >> 1)
                         ];
                     const expectedChar =
-                        charIndexInPacked % 2 === 0
+                        (charIndexInPacked & 1) === 0
                             ? packedWord & 0xff
                             : (packedWord >> 8) & 0xff;
 
@@ -346,33 +344,39 @@ export class EntityDecoder {
                             ? 0
                             : this.emitNotTerminatedNamedEntity();
                     }
-                    offset++;
-                    this.excess++;
-                    this.runConsumed++;
+                    offset += 1;
+                    this.excess += 1;
+                    this.runConsumed += 1;
                 }
 
                 this.runConsumed = 0;
                 this.treeIndex += 1 + (runLength >> 1);
                 current = decodeTree[this.treeIndex];
                 valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
+
+                // Record legacy match at end of compact run (FLAG13 clear = semicolon optional).
+                if (
+                    valueLength !== 0 &&
+                    this.decodeMode !== DecodingMode.Strict &&
+                    (current & BinTrieFlags.FLAG13) === 0
+                ) {
+                    this.result = this.treeIndex;
+                    this.consumed += this.excess;
+                    this.excess = 0;
+                }
             }
 
-            if (offset >= input.length) break;
+            if (offset >= inputLength) break;
 
             const char = input.charCodeAt(offset);
 
             /*
-             * Implicit semicolon handling for nodes that require a semicolon but
-             * don't have an explicit ';' branch stored in the trie. If we have
-             * a value on the current node, it requires a semicolon, and the
-             * current input character is a semicolon, emit the entity using the
-             * current node (without descending further).
+             * Implicit semicolon handling: if the current node has a value and the
+             * input character is `;`, emit immediately. This covers both strict
+             * entities (FLAG13 set) and legacy entities (FLAG13 clear) — neither
+             * stores an explicit `;` branch in the trie.
              */
-            if (
-                char === CharCodes.SEMI &&
-                valueLength !== 0 &&
-                (current & BinTrieFlags.FLAG13) !== 0
-            ) {
+            if (char === CharCodes.SEMI && valueLength !== 0) {
                 return this.emitNamedEntityData(
                     this.treeIndex,
                     valueLength,
@@ -380,10 +384,11 @@ export class EntityDecoder {
                 );
             }
 
+            // Navigate to the next node (valueLength || 1: skip past value words, minimum 1 for header).
             this.treeIndex = determineBranch(
                 decodeTree,
                 current,
-                this.treeIndex + Math.max(1, valueLength),
+                this.treeIndex + (valueLength || 1),
                 char,
             );
 
@@ -402,30 +407,22 @@ export class EntityDecoder {
             current = decodeTree[this.treeIndex];
             valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
 
-            // If the branch is a value, store it and continue
-            if (valueLength !== 0) {
-                // If the entity is terminated by a semicolon, we are done.
-                if (char === CharCodes.SEMI) {
-                    return this.emitNamedEntityData(
-                        this.treeIndex,
-                        valueLength,
-                        this.consumed + this.excess,
-                    );
-                }
-
-                // If we encounter a non-terminated (legacy) entity while parsing strictly, then ignore it.
-                if (
-                    this.decodeMode !== DecodingMode.Strict &&
-                    (current & BinTrieFlags.FLAG13) === 0
-                ) {
-                    this.result = this.treeIndex;
-                    this.consumed += this.excess;
-                    this.excess = 0;
-                }
+            /*
+             * Record non-terminated (legacy) match for later emission.
+             * (`;` is always caught by the pre-navigation check above.)
+             */
+            if (
+                valueLength !== 0 &&
+                this.decodeMode !== DecodingMode.Strict &&
+                (current & BinTrieFlags.FLAG13) === 0
+            ) {
+                this.result = this.treeIndex;
+                this.consumed += this.excess;
+                this.excess = 0;
             }
-            // Increment offset & excess for next iteration
-            offset++;
-            this.excess++;
+            // Increment offset & excess for next iteration.
+            offset += 1;
+            this.excess += 1;
         }
 
         return -1;
@@ -505,61 +502,12 @@ export class EntityDecoder {
                 );
                 return 0;
             }
-            case EntityDecoderState.EntityStart: {
-                // Return 0 if we have no entity.
+            default: {
+                // EntityStart or unknown — return 0.
                 return 0;
             }
         }
     }
-}
-
-/**
- * Creates a function that decodes entities in a string.
- * @param decodeTree The decode tree.
- * @returns A function that decodes entities in a string.
- */
-function getDecoder(decodeTree: Uint16Array) {
-    let returnValue = "";
-    const decoder = new EntityDecoder(
-        decodeTree,
-        (data) => (returnValue += String.fromCodePoint(data)),
-    );
-
-    return function decodeWithTrie(
-        input: string,
-        decodeMode: DecodingMode,
-    ): string {
-        let lastIndex = 0;
-        let offset = 0;
-
-        while ((offset = input.indexOf("&", offset)) >= 0) {
-            returnValue += input.slice(lastIndex, offset);
-
-            decoder.startEntity(decodeMode);
-
-            const length = decoder.write(
-                input,
-                // Skip the "&"
-                offset + 1,
-            );
-
-            if (length < 0) {
-                lastIndex = offset + decoder.end();
-                break;
-            }
-
-            lastIndex = offset + length;
-            // If `length` is 0, skip the current `&` and continue.
-            offset = length === 0 ? lastIndex + 1 : lastIndex;
-        }
-
-        const result = returnValue + input.slice(lastIndex);
-
-        // Make sure we don't keep a reference to the final string.
-        returnValue = "";
-
-        return result;
-    };
 }
 
 /**
@@ -580,21 +528,26 @@ export function determineBranch(
     const branchCount = (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
     const jumpOffset = current & BinTrieFlags.JUMP_TABLE;
 
-    // Case 1: Single branch encoded in jump offset
-    if (branchCount === 0) {
-        return jumpOffset !== 0 && char === jumpOffset ? nodeIndex : -1;
-    }
-
-    // Case 2: Multiple branches encoded in jump table
+    // Case 1: Single branch or jump table (jumpOffset encodes the first/only char code).
     if (jumpOffset) {
-        const value = char - jumpOffset;
+        if (branchCount === 0) {
+            // Single branch encoded inline in the jump offset bits.
+            return char === jumpOffset ? nodeIndex : -1;
+        }
 
-        return value < 0 || value >= branchCount
-            ? -1
-            : decodeTree[nodeIndex + value] - 1;
+        /*
+         * Jump table: branchCount consecutive slots starting at jumpOffset.
+         * Unsigned comparison handles both < 0 and >= branchCount in one check.
+         */
+        const value = char - jumpOffset;
+        if (value >>> 0 >= branchCount) return -1;
+        const stored = decodeTree[nodeIndex + value];
+        // 0 = empty slot (no branch); otherwise relative offset + 1.
+        return stored === 0 ? -1 : (nodeIndex + value + stored - 1) & 0xff_ff;
     }
 
-    // Case 3: Multiple branches encoded in packed dictionary (two keys per uint16)
+    // Case 2: Packed dictionary (binary search on sorted keys).
+    if (branchCount === 0) return -1;
     const packedKeySlots = (branchCount + 1) >> 1;
 
     /*
@@ -608,22 +561,336 @@ export function determineBranch(
         const mid = (lo + hi) >>> 1;
         const slot = mid >> 1;
         const packed = decodeTree[nodeIndex + slot];
-        const midKey = (packed >> ((mid & 1) * 8)) & 0xff;
+        const midKey = (packed >> ((mid & 1) << 3)) & 0xff;
 
         if (midKey < char) {
             lo = mid + 1;
         } else if (midKey > char) {
             hi = mid - 1;
         } else {
-            return decodeTree[nodeIndex + packedKeySlots + mid];
+            const pointerIndex = nodeIndex + packedKeySlots + mid;
+            return (pointerIndex + decodeTree[pointerIndex]) & 0xff_ff;
         }
     }
 
     return -1;
 }
 
-const htmlDecoder = /* #__PURE__ */ getDecoder(htmlDecodeTree);
-const xmlDecoder = /* #__PURE__ */ getDecoder(xmlDecodeTree);
+/**
+ * Read the decoded value from a trie node.
+ * @param decodeTree The trie.
+ * @param nodeIndex The index of the node.
+ * @param valueLength The length of the value (1, 2, or 3).
+ * @returns The decoded string.
+ */
+function readTrieValue(
+    decodeTree: Uint16Array,
+    nodeIndex: number,
+    valueLength: number,
+): string {
+    if (valueLength === 1) {
+        return String.fromCharCode(
+            decodeTree[nodeIndex] &
+                ~(BinTrieFlags.VALUE_LENGTH | BinTrieFlags.FLAG13),
+        );
+    }
+    if (valueLength === 2) {
+        return String.fromCharCode(decodeTree[nodeIndex + 1]);
+    }
+    return String.fromCharCode(
+        decodeTree[nodeIndex + 1],
+        decodeTree[nodeIndex + 2],
+    );
+}
+
+/** Shared constant for the no-match return from decodeTrieNumeric. */
+const NO_MATCH: [consumed: number, value: string] = [0, ""];
+
+/**
+ * Decode a numeric entity (&#DDD; or &#xHHH;).
+ *
+ * Parses the digits and includes the trailing `;` in `consumed` when present.
+ * In strict mode, the caller rejects results not terminated by `;`.
+ * @param input       The input string.
+ * @param numberStart Index of the `#` character.
+ * @param inputLength Cached `input.length`.
+ * @returns `[consumed, value]` tuple, or `NO_MATCH` if no digits were found.
+ */
+function decodeTrieNumeric(
+    input: string,
+    numberStart: number,
+    inputLength: number,
+): [consumed: number, value: string] {
+    let offset = numberStart + 1; // Skip "#"
+    let base = 10;
+
+    if (offset < inputLength) {
+        const first = input.charCodeAt(offset);
+        if (first === CharCodes.LOWER_X || first === CharCodes.UPPER_X) {
+            base = 16;
+            offset += 1;
+        }
+    }
+
+    let cp = 0;
+    let digits = 0;
+    while (offset < inputLength) {
+        const char = input.charCodeAt(offset);
+
+        if (isNumber(char)) {
+            cp = cp * base + (char - CharCodes.ZERO);
+        } else if (base === 16 && isHexadecimalCharacter(char)) {
+            cp = cp * 16 + ((char | TO_LOWER_BIT) - CharCodes.LOWER_A + 10);
+        } else {
+            break;
+        }
+
+        digits += 1;
+        offset += 1;
+    }
+
+    if (digits === 0) return NO_MATCH;
+
+    // Include the semicolon in consumed when present.
+    if (offset < inputLength && input.charCodeAt(offset) === CharCodes.SEMI) {
+        offset += 1;
+    }
+
+    return [offset - numberStart, String.fromCodePoint(replaceCodePoint(cp))];
+}
+
+/**
+ * Decode all entities in `input` using the given trie.
+ * @param input      The string to decode.
+ * @param decodeTree The binary trie (XML or HTML).
+ * @param strict Only match semicolon-terminated entities.
+ * @param attribute Whether to apply attribute-specific parsing rules (disallowing certain non-semicolon terminators).
+ * @returns The decoded string.
+ */
+function decodeWithTrie(
+    input: string,
+    decodeTree: Uint16Array,
+    strict: boolean,
+    attribute: boolean,
+): string {
+    // Fast path: no entities at all — return input without any allocation.
+    let offset = input.indexOf("&");
+    if (offset < 0) return input;
+
+    const inputLength = input.length;
+    let lastIndex = 0;
+    let result = "";
+
+    do {
+        if (lastIndex < offset) result += input.slice(lastIndex, offset);
+
+        const entityStart = offset + 1;
+
+        // Quick check: entity names must start with [A-Za-z], numeric with #.
+        const firstChar = input.charCodeAt(entityStart);
+        let consumed: number;
+        let value: string;
+        if (firstChar === CharCodes.NUM) {
+            [consumed, value] = decodeTrieNumeric(
+                input,
+                entityStart,
+                inputLength,
+            );
+            // In strict mode, require semicolon termination.
+            if (
+                strict &&
+                consumed > 0 &&
+                input.charCodeAt(entityStart + consumed - 1) !== CharCodes.SEMI
+            ) {
+                consumed = 0;
+            }
+        } else if (isAlpha(firstChar)) {
+            consumed = 0;
+            value = "";
+
+            let nodeIndex = 0;
+            let current = decodeTree[nodeIndex];
+
+            /*
+             * Best legacy match found so far. We store the node
+             * coordinates and defer readTrieValue() to the end,
+             * avoiding repeated String.fromCharCode allocations.
+             */
+            let bestNodeIndex = 0;
+            let bestValueLength = 0;
+
+            let index = entityStart;
+
+            // Label for breaking out of the main loop from inside the compact run inner loop.
+            trie: while (index < inputLength) {
+                // The number of bytes of the value, including the current byte.
+                const valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
+
+                // Handle compact runs — inline to avoid 5-argument function call overhead.
+                if (
+                    valueLength === 0 &&
+                    (current & BinTrieFlags.FLAG13) !== 0
+                ) {
+                    const runLength =
+                        (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
+
+                    // Check first char (stored in JUMP_TABLE bits).
+                    if (
+                        input.charCodeAt(index) !==
+                        (current & BinTrieFlags.JUMP_TABLE)
+                    ) {
+                        break;
+                    }
+                    index += 1;
+
+                    // Check remaining characters (packed two per uint16 word).
+                    const remaining = runLength - 1;
+                    let wordIndex = nodeIndex + 1;
+                    let charIndexInPacked = 0;
+
+                    /*
+                     * Process pairs: read one packed word, compare low byte then high byte.
+                     * No explicit bounds check needed — charCodeAt returns NaN for OOB,
+                     * which never equals an integer, so the mismatch break fires naturally.
+                     */
+                    for (
+                        ;
+                        charIndexInPacked + 1 < remaining;
+                        charIndexInPacked += 2
+                    ) {
+                        const packed = decodeTree[wordIndex];
+                        if (input.charCodeAt(index) !== (packed & 0xff))
+                            break trie;
+                        index += 1;
+                        if (input.charCodeAt(index) !== ((packed >> 8) & 0xff))
+                            break trie;
+                        index += 1;
+                        wordIndex += 1;
+                    }
+                    // Handle odd trailing char.
+                    if (charIndexInPacked < remaining) {
+                        if (
+                            input.charCodeAt(index) !==
+                            (decodeTree[wordIndex] & 0xff)
+                        )
+                            break;
+                        index += 1;
+                    }
+
+                    nodeIndex += 1 + (runLength >> 1);
+                    current = decodeTree[nodeIndex];
+                    continue;
+                }
+
+                const char = input.charCodeAt(index);
+
+                /*
+                 * Check current node for a value before navigating.
+                 * This handles both: (a) values reached via compact runs on the
+                 * previous iteration, and (b) values at regular branch targets.
+                 */
+                if (valueLength !== 0) {
+                    // If char is `;`, emit immediately.
+                    if (char === CharCodes.SEMI) {
+                        consumed = index - entityStart + 1;
+                        value = readTrieValue(
+                            decodeTree,
+                            nodeIndex,
+                            valueLength,
+                        );
+                        break;
+                    }
+
+                    // Record non-terminated (legacy) match (FLAG13 clear = semicolon optional).
+                    if (!strict && (current & BinTrieFlags.FLAG13) === 0) {
+                        consumed = index - entityStart;
+                        bestNodeIndex = nodeIndex;
+                        bestValueLength = valueLength;
+                    }
+
+                    /*
+                     * A valueLength of 1 means the value is packed inline in the header
+                     * word — these are always leaf nodes with no branches, so we can
+                     * stop walking the trie.
+                     */
+                    if (valueLength === 1) break;
+                }
+
+                // Navigate to the next node (valueLength || 1: skip past value words, minimum 1 for header).
+                const next = determineBranch(
+                    decodeTree,
+                    current,
+                    nodeIndex + (valueLength || 1),
+                    char,
+                );
+                if (next < 0) break;
+
+                nodeIndex = next;
+                current = decodeTree[nodeIndex];
+                index += 1;
+            }
+
+            /*
+             * Post-loop: if the semicolon path didn't set value,
+             * check for a final legacy match. The last navigation may
+             * have landed on a legacy node whose value hasn't been
+             * recorded yet (loop exited before the top-of-loop check
+             * could run).
+             */
+            if (value === "") {
+                const finalVL = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
+                if (
+                    finalVL !== 0 &&
+                    !strict &&
+                    (current & BinTrieFlags.FLAG13) === 0
+                ) {
+                    consumed = index - entityStart;
+                    bestNodeIndex = nodeIndex;
+                    bestValueLength = finalVL;
+                }
+                if (consumed > 0) {
+                    value = readTrieValue(
+                        decodeTree,
+                        bestNodeIndex,
+                        bestValueLength,
+                    );
+                }
+            }
+        } else {
+            consumed = 0;
+            value = "";
+        }
+
+        /*
+         * The attribute end-char rule (HTML spec §13.2.5.73) only applies to
+         * unterminated *named* references.  Semicolon-terminated entities and
+         * numeric entities are always accepted, matching EntityDecoder behavior.
+         *
+         * When `attribute` is false (the common case), short-circuit skips all
+         * the unterminated-named checks entirely.
+         */
+        if (
+            consumed === 0 ||
+            (attribute &&
+                firstChar !== CharCodes.NUM &&
+                input.charCodeAt(entityStart + consumed - 1) !==
+                    CharCodes.SEMI &&
+                entityStart + consumed < inputLength &&
+                isEntityInAttributeInvalidEnd(
+                    input.charCodeAt(entityStart + consumed),
+                ))
+        ) {
+            result += "&";
+            lastIndex = entityStart;
+        } else {
+            result += value;
+            lastIndex = entityStart + consumed;
+        }
+        offset = lastIndex;
+    } while ((offset = input.indexOf("&", offset)) >= 0);
+
+    return result + input.slice(lastIndex);
+}
 
 /**
  * Decodes an HTML string.
@@ -635,7 +902,12 @@ export function decodeHTML(
     htmlString: string,
     mode: DecodingMode = DecodingMode.Legacy,
 ): string {
-    return htmlDecoder(htmlString, mode);
+    return decodeWithTrie(
+        htmlString,
+        htmlDecodeTree,
+        mode === DecodingMode.Strict,
+        mode === DecodingMode.Attribute,
+    );
 }
 
 /**
@@ -644,7 +916,7 @@ export function decodeHTML(
  * @returns The decoded string.
  */
 export function decodeHTMLAttribute(htmlAttribute: string): string {
-    return htmlDecoder(htmlAttribute, DecodingMode.Attribute);
+    return decodeWithTrie(htmlAttribute, htmlDecodeTree, false, true);
 }
 
 /**
@@ -653,16 +925,101 @@ export function decodeHTMLAttribute(htmlAttribute: string): string {
  * @returns The decoded string.
  */
 export function decodeHTMLStrict(htmlString: string): string {
-    return htmlDecoder(htmlString, DecodingMode.Strict);
+    return decodeWithTrie(htmlString, htmlDecodeTree, true, false);
 }
 
 /**
  * Decodes an XML string, requiring all entities to be terminated by a semicolon.
+ *
+ * Uses a hand-coded fast path for the 5 XML named entities (amp, lt, gt,
+ * quot, apos) plus numeric entities, bypassing the trie entirely.
  * @param xmlString The string to decode.
  * @returns The decoded string.
  */
 export function decodeXML(xmlString: string): string {
-    return xmlDecoder(xmlString, DecodingMode.Strict);
+    let offset = xmlString.indexOf("&");
+    if (offset < 0) return xmlString;
+
+    let lastIndex = 0;
+    let result = "";
+
+    do {
+        if (lastIndex < offset) result += xmlString.slice(lastIndex, offset);
+        const start = offset + 1;
+        let consumed = 0;
+        let value = "";
+
+        const c1 = xmlString.charCodeAt(start);
+
+        if (c1 === CharCodes.NUM) {
+            [consumed, value] = decodeTrieNumeric(
+                xmlString,
+                start,
+                xmlString.length,
+            );
+            // XML is always strict — require semicolon.
+            if (
+                consumed > 0 &&
+                xmlString.charCodeAt(start + consumed - 1) !== CharCodes.SEMI
+            ) {
+                consumed = 0;
+            }
+        } else {
+            const c2 = xmlString.charCodeAt(start + 1);
+            const c3 = xmlString.charCodeAt(start + 2);
+
+            // &lt;
+            if (c1 === 0x6c && c2 === 0x74 && c3 === CharCodes.SEMI) {
+                consumed = 3;
+                value = "<";
+                // &gt;
+            } else if (c1 === 0x67 && c2 === 0x74 && c3 === CharCodes.SEMI) {
+                consumed = 3;
+                value = ">";
+                // &amp;
+            } else if (
+                c1 === 0x61 &&
+                c2 === 0x6d &&
+                c3 === 0x70 &&
+                xmlString.charCodeAt(start + 3) === CharCodes.SEMI
+            ) {
+                consumed = 4;
+                value = "&";
+                // &quot; / &apos; — both have 'o' at position 3
+            } else if (c3 === 0x6f) {
+                // &quot;
+                if (
+                    c1 === 0x71 &&
+                    c2 === 0x75 &&
+                    xmlString.charCodeAt(start + 3) === 0x74 &&
+                    xmlString.charCodeAt(start + 4) === CharCodes.SEMI
+                ) {
+                    consumed = 5;
+                    value = '"';
+                    // &apos;
+                } else if (
+                    c1 === 0x61 &&
+                    c2 === 0x70 &&
+                    xmlString.charCodeAt(start + 3) === 0x73 &&
+                    xmlString.charCodeAt(start + 4) === CharCodes.SEMI
+                ) {
+                    consumed = 5;
+                    value = "'";
+                }
+            }
+        }
+
+        if (consumed > 0) {
+            result += value;
+            lastIndex = start + consumed;
+        } else {
+            result += "&";
+            lastIndex = start;
+        }
+        offset = lastIndex;
+    } while ((offset = xmlString.indexOf("&", offset)) >= 0);
+
+    return result + xmlString.slice(lastIndex);
 }
 
 export { replaceCodePoint } from "./decode-codepoint.js";
