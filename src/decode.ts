@@ -603,24 +603,21 @@ function readTrieValue(
     );
 }
 
-/** Shared constant for the no-match return from decodeTrieNumeric. */
-const NO_MATCH: [consumed: number, value: string] = [0, ""];
-
 /**
- * Decode a numeric entity (&#DDD; or &#xHHH;).
+ * Parse a numeric entity (`&#DDD;` or `&#xHHH;`), returning the number of
+ * characters consumed (including a trailing `;` when present).  The decoded
+ * code point is written to {@link _numericCp} to avoid tuple allocation.
  *
- * Parses the digits and includes the trailing `;` in `consumed` when present.
- * In strict mode, the caller rejects results not terminated by `;`.
  * @param input       The input string.
  * @param numberStart Index of the `#` character.
  * @param inputLength Cached `input.length`.
- * @returns `[consumed, value]` tuple, or `NO_MATCH` if no digits were found.
+ * @returns Characters consumed (0 when no digits were found).
  */
-function decodeTrieNumeric(
+function parseNumericEntity(
     input: string,
     numberStart: number,
     inputLength: number,
-): [consumed: number, value: string] {
+): number {
     let offset = numberStart + 1; // Skip "#"
     let base = 10;
 
@@ -649,15 +646,19 @@ function decodeTrieNumeric(
         offset += 1;
     }
 
-    if (digits === 0) return NO_MATCH;
+    if (digits === 0) return 0;
 
     // Include the semicolon in consumed when present.
     if (offset < inputLength && input.charCodeAt(offset) === CharCodes.SEMI) {
         offset += 1;
     }
 
-    return [offset - numberStart, String.fromCodePoint(replaceCodePoint(cp))];
+    _numericCp = cp;
+    return offset - numberStart;
 }
+
+/** Code point parsed by the last successful {@link parseNumericEntity} call. */
+let _numericCp = 0;
 
 /**
  * Decode all entities in `input` using the given trie.
@@ -691,19 +692,12 @@ function decodeWithTrie(
         let consumed: number;
         let value: string;
         if (firstChar === CharCodes.NUM) {
-            [consumed, value] = decodeTrieNumeric(
-                input,
-                entityStart,
-                inputLength,
-            );
+            consumed = parseNumericEntity(input, entityStart, inputLength);
             // In strict mode, require semicolon termination.
-            if (
-                strict &&
-                consumed > 0 &&
-                input.charCodeAt(entityStart + consumed - 1) !== CharCodes.SEMI
-            ) {
+            if (strict && consumed > 0 && input.charCodeAt(entityStart + consumed - 1) !== CharCodes.SEMI) {
                 consumed = 0;
             }
+            value = consumed > 0 ? String.fromCodePoint(replaceCodePoint(_numericCp)) : "";
         } else if (isAlpha(firstChar)) {
             consumed = 0;
             value = "";
@@ -952,17 +946,12 @@ export function decodeXML(xmlString: string): string {
         const c1 = xmlString.charCodeAt(start);
 
         if (c1 === CharCodes.NUM) {
-            [consumed, value] = decodeTrieNumeric(
-                xmlString,
-                start,
-                xmlString.length,
-            );
+            consumed = parseNumericEntity(xmlString, start, xmlString.length);
             // XML is always strict — require semicolon.
-            if (
-                consumed > 0 &&
-                xmlString.charCodeAt(start + consumed - 1) !== CharCodes.SEMI
-            ) {
+            if (consumed === 0 || xmlString.charCodeAt(start + consumed - 1) !== CharCodes.SEMI) {
                 consumed = 0;
+            } else {
+                value = String.fromCodePoint(replaceCodePoint(_numericCp));
             }
         } else {
             const c2 = xmlString.charCodeAt(start + 1);
