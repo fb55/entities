@@ -71,7 +71,9 @@ describe("Decode test", () => {
 });
 
 describe("EntityDecoder", () => {
-    let callback: ReturnType<typeof vi.fn<(cp: number, consumed: number) => void>>;
+    let callback: ReturnType<
+        typeof vi.fn<(cp: number, consumed: number) => void>
+    >;
     let decoder: entities.EntityDecoder;
 
     beforeEach(() => {

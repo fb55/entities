@@ -33,8 +33,8 @@ export const XML_BITSET_VALUE = 0x50_00_00_c4; // 32..63 -> 34 ("),38 (&),39 (')
  * Encodes all non-ASCII characters, as well as characters not valid in XML
  * documents using XML entities. Uses a fast bitset scan instead of RegExp.
  *
- * If a character has no equivalent entity, a numeric hexadecimal reference
- * (eg. `&#xfc;`) will be used.
+ * If a character has no equivalent entity, a numeric decimal reference
+ * (eg. `&#252;`) will be used.
  * @param input Input string to encode or decode.
  */
 export function encodeXML(input: string): string {
@@ -64,8 +64,8 @@ export function encodeXML(input: string): string {
         }
 
         // Non-ASCII: encode as numeric entity (handle surrogate pair)
-        const cp = getCodePoint(input, index);
-        out += `&#x${cp.toString(16)};`;
+        const cp = input.codePointAt(index)!;
+        out += `&#${cp};`;
         if (cp !== char) index++; // Skip trailing surrogate
         last = index + 1;
     }
@@ -77,7 +77,7 @@ export function encodeXML(input: string): string {
 
 /**
  * Encodes all non-ASCII characters, as well as characters not valid in XML
- * documents using numeric hexadecimal reference (eg. `&#xfc;`).
+ * documents using numeric decimal reference (eg. `&#252;`).
  *
  * Have a look at `escapeUTF8` if you want a more concise output at the expense
  * of reduced transportability.
