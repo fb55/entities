@@ -398,6 +398,12 @@ export class EntityDecoder {
                     (this.decodeMode === DecodingMode.Attribute &&
                         // We shouldn't have consumed any characters after the entity,
                         (valueLength === 0 ||
+                            /*
+                             * We shouldn't have descended past the legacy match
+                             * (any character descended past is alphanumeric and
+                             * would invalidate the legacy match per the spec).
+                             */
+                            this.excess > 1 ||
                             // And there should be no invalid characters.
                             isEntityInAttributeInvalidEnd(char)))
                     ? 0

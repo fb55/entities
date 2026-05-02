@@ -193,6 +193,25 @@ describe.each(implementations)("Decode test: %s", (_name, {
         expect(decodeHTMLAttribute("&#65x")).toBe("Ax");
         expect(decodeHTMLAttribute("&#x41x")).toBe("Ax");
     });
+
+    it("should not decode legacy entity in attribute mode when descended-into entity is interrupted (#2208)", () => {
+        /*
+         * After &not is matched as a legacy entity, descending into &notin
+         * means the next char (`i`) is alphanumeric, which per the HTML spec
+         * invalidates the legacy match in attribute mode.
+         */
+        expect(
+            entities.decodeHTML("&notin\0;", entities.DecodingMode.Attribute),
+        ).toBe("&notin\0;");
+
+        expect(entities.decodeHTMLAttribute("&notin\0;")).toBe("&notin\0;");
+
+        /*
+         * Same condition with a non-alphanumeric interrupter that would
+         * otherwise pass `isEntityInAttributeInvalidEnd`.
+         */
+        expect(entities.decodeHTMLAttribute("&notin<")).toBe("&notin<");
+    });
 });
 
 describe("EntityDecoder", () => {
@@ -274,6 +293,23 @@ describe("EntityDecoder", () => {
     it("should not fail if nothing is written", () => {
         expect(decoder.end()).toBe(0);
         expect(callback).toHaveBeenCalledTimes(0);
+    });
+
+    it("should not commit a legacy match in attribute mode after descending past it (#2208)", () => {
+        decoder.startEntity(entities.DecodingMode.Attribute);
+        expect(decoder.write("notin\0;", 0)).toBe(0);
+        expect(decoder.end()).toBe(0);
+        expect(callback).not.toHaveBeenCalled();
+    });
+
+    it("should not commit a legacy match in attribute mode after descending past it across chunks (#2208)", () => {
+        decoder.startEntity(entities.DecodingMode.Attribute);
+        for (const chunk of ["no", "ti", "n\0", ";"]) {
+            const written = decoder.write(chunk, 0);
+            expect(written).toBeLessThanOrEqual(0);
+        }
+        expect(decoder.end()).toBe(0);
+        expect(callback).not.toHaveBeenCalled();
     });
 
     /*
