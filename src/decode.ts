@@ -322,13 +322,13 @@ export class EntityDecoder {
         const inputLength = input.length;
         let current = decodeTree[this.treeIndex];
         // The number of bytes of the value, including the current byte.
-        let valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
+        let valueLength = current >>> 14;
 
         while (offset < inputLength) {
             // Handle compact runs (possibly resumable): valueLength == 0 and FLAG13 set.
             if (valueLength === 0 && (current & BinTrieFlags.FLAG13) !== 0) {
                 const runLength =
-                    (current & BinTrieFlags.BRANCH_LENGTH) >> 7; /* 2..63 */
+                    (current >> 7) & 63; /* 2..63 */
 
                 // If we are starting a run, check the first char.
                 if (this.runConsumed === 0) {
@@ -373,7 +373,7 @@ export class EntityDecoder {
                 this.runConsumed = 0;
                 this.treeIndex += 1 + (runLength >> 1);
                 current = decodeTree[this.treeIndex];
-                valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
+                valueLength = current >>> 14;
 
                 // Record legacy match at end of compact run (FLAG13 clear = semicolon optional).
                 if (
@@ -427,7 +427,7 @@ export class EntityDecoder {
             }
 
             current = decodeTree[this.treeIndex];
-            valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
+            valueLength = current >>> 14;
 
             /*
              * Record non-terminated (legacy) match for later emission.
@@ -458,7 +458,7 @@ export class EntityDecoder {
         const { result, decodeTree } = this;
 
         const valueLength =
-            (decodeTree[result] & BinTrieFlags.VALUE_LENGTH) >> 14;
+            decodeTree[result] >>> 14;
 
         this.emitNamedEntityData(result, valueLength, this.consumed);
         this.errors?.missingSemicolonAfterCharacterReference();
@@ -482,8 +482,7 @@ export class EntityDecoder {
 
         this.emitCodePoint(
             valueLength === 1
-                ? decodeTree[result] &
-                      ~(BinTrieFlags.VALUE_LENGTH | BinTrieFlags.FLAG13)
+                ? decodeTree[result] & 0x1f_ff
                 : decodeTree[result + 1],
             consumed,
         );
@@ -547,7 +546,7 @@ export function determineBranch(
     nodeIndex: number,
     char: number,
 ): number {
-    const branchCount = (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
+    const branchCount = (current >> 7) & 63;
     const jumpOffset = current & BinTrieFlags.JUMP_TABLE;
 
     // Case 1: Single branch or jump table (jumpOffset encodes the first/only char code).
@@ -612,8 +611,7 @@ function readTrieValue(
 ): string {
     if (valueLength === 1) {
         return String.fromCharCode(
-            decodeTree[nodeIndex] &
-                ~(BinTrieFlags.VALUE_LENGTH | BinTrieFlags.FLAG13),
+            decodeTree[nodeIndex] & 0x1f_ff,
         );
     }
     if (valueLength === 2) {
@@ -700,12 +698,15 @@ function decodeWithTrie(
     if (offset < 0) return input;
 
     const inputLength = input.length;
-    let lastIndex = 0;
+    /*
+     * `chunkStart` marks the start of the next pending slice. Rejected
+     * entities don't advance it, so consecutive rejections are stitched
+     * into a single `slice` once a real match (or end of input) is hit.
+     */
+    let chunkStart = 0;
     let result = "";
 
     do {
-        if (lastIndex < offset) result += input.slice(lastIndex, offset);
-
         const entityStart = offset + 1;
 
         // Quick check: entity names must start with [A-Za-z], numeric with #.
@@ -746,7 +747,7 @@ function decodeWithTrie(
             // Label for breaking out of the main loop from inside the compact run inner loop.
             trie: while (index < inputLength) {
                 // The number of bytes of the value, including the current byte.
-                const valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
+                const valueLength = current >>> 14;
 
                 // Handle compact runs — inline to avoid 5-argument function call overhead.
                 if (
@@ -754,7 +755,7 @@ function decodeWithTrie(
                     (current & BinTrieFlags.FLAG13) !== 0
                 ) {
                     const runLength =
-                        (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
+                        (current >> 7) & 63;
 
                     // Check first char (stored in JUMP_TABLE bits).
                     if (
@@ -860,7 +861,7 @@ function decodeWithTrie(
              * could run).
              */
             if (value === "") {
-                const finalVL = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
+                const finalVL = current >>> 14;
                 if (
                     finalVL !== 0 &&
                     !strict &&
@@ -902,16 +903,18 @@ function decodeWithTrie(
                     input.charCodeAt(entityStart + consumed),
                 ))
         ) {
-            result += "&";
-            lastIndex = entityStart;
+            // Rejected: leave `&` in the pending chunk, scan past it.
+            offset = entityStart;
         } else {
+            if (chunkStart < offset) {
+                result += input.slice(chunkStart, offset);
+            }
             result += value;
-            lastIndex = entityStart + consumed;
+            offset = chunkStart = entityStart + consumed;
         }
-        offset = lastIndex;
     } while ((offset = input.indexOf("&", offset)) >= 0);
 
-    return result + input.slice(lastIndex);
+    return result + input.slice(chunkStart);
 }
 
 /**
