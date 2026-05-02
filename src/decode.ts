@@ -328,7 +328,7 @@ export class EntityDecoder {
             // Handle compact runs (possibly resumable): valueLength == 0 and FLAG13 set.
             if (valueLength === 0 && (current & BinTrieFlags.FLAG13) !== 0) {
                 const runLength =
-                    (current >> 7) & 63; /* 2..63 */
+                    (current & BinTrieFlags.BRANCH_LENGTH) >> 7; /* 2..63 */
 
                 // If we are starting a run, check the first char.
                 if (this.runConsumed === 0) {
@@ -457,8 +457,7 @@ export class EntityDecoder {
     private emitNotTerminatedNamedEntity(): number {
         const { result, decodeTree } = this;
 
-        const valueLength =
-            decodeTree[result] >>> 14;
+        const valueLength = decodeTree[result] >>> 14;
 
         this.emitNamedEntityData(result, valueLength, this.consumed);
         this.errors?.missingSemicolonAfterCharacterReference();
@@ -482,7 +481,8 @@ export class EntityDecoder {
 
         this.emitCodePoint(
             valueLength === 1
-                ? decodeTree[result] & 0x1f_ff
+                ? decodeTree[result] &
+                      ~(BinTrieFlags.VALUE_LENGTH | BinTrieFlags.FLAG13)
                 : decodeTree[result + 1],
             consumed,
         );
@@ -546,7 +546,7 @@ export function determineBranch(
     nodeIndex: number,
     char: number,
 ): number {
-    const branchCount = (current >> 7) & 63;
+    const branchCount = (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
     const jumpOffset = current & BinTrieFlags.JUMP_TABLE;
 
     // Case 1: Single branch or jump table (jumpOffset encodes the first/only char code).
@@ -611,7 +611,8 @@ function readTrieValue(
 ): string {
     if (valueLength === 1) {
         return String.fromCharCode(
-            decodeTree[nodeIndex] & 0x1f_ff,
+            decodeTree[nodeIndex] &
+                ~(BinTrieFlags.VALUE_LENGTH | BinTrieFlags.FLAG13),
         );
     }
     if (valueLength === 2) {
@@ -624,13 +625,15 @@ function readTrieValue(
 }
 
 /**
- * Parse a numeric entity (`&#DDD;` or `&#xHHH;`), returning the number of
- * characters consumed (including a trailing `;` when present).  The decoded
- * code point is written to {@link _numericCp} to avoid tuple allocation.
+ * Parse a numeric entity (`&#DDD;` or `&#xHHH;`).
+ *
+ * Encodes the result as `(consumed << 21) | codepoint`. The 21-bit codepoint
+ * field fits any valid Unicode value (max 0x10FFFF), and packing both into
+ * one integer avoids the file-scope `_numericCp` tuple-by-globals pattern.
+ * Returns 0 when no digits were found.
  * @param input       The input string.
  * @param numberStart Index of the `#` character.
  * @param inputLength Cached `input.length`.
- * @returns Characters consumed (0 when no digits were found).
  */
 function parseNumericEntity(
     input: string,
@@ -672,12 +675,14 @@ function parseNumericEntity(
         offset += 1;
     }
 
-    _numericCp = cp;
-    return offset - numberStart;
+    /*
+     * Pack `consumed` (length, fits a few bits) and `cp` (Unicode max
+     * 0x10FFFF, fits 21 bits) into a single non-negative number to avoid a
+     * tuple allocation or a module-scope global. Callers extract via
+     * `packed >>> 21` and `packed & 0x1f_ff_ff`.
+     */
+    return ((offset - numberStart) << 21) | cp;
 }
-
-/** Code point parsed by the last successful {@link parseNumericEntity} call. */
-let _numericCp = 0;
 
 /**
  * Decode all entities in `input` using the given trie.
@@ -714,7 +719,8 @@ function decodeWithTrie(
         let consumed: number;
         let value: string;
         if (firstChar === CharCodes.NUM) {
-            consumed = parseNumericEntity(input, entityStart, inputLength);
+            const packed = parseNumericEntity(input, entityStart, inputLength);
+            consumed = packed >>> 21;
             // In strict mode, require semicolon termination.
             if (
                 strict &&
@@ -725,7 +731,9 @@ function decodeWithTrie(
             }
             value =
                 consumed > 0
-                    ? String.fromCodePoint(replaceCodePoint(_numericCp))
+                    ? String.fromCodePoint(
+                          replaceCodePoint(packed & 0x1f_ff_ff),
+                      )
                     : "";
         } else if (isAlpha(firstChar)) {
             consumed = 0;
@@ -755,7 +763,7 @@ function decodeWithTrie(
                     (current & BinTrieFlags.FLAG13) !== 0
                 ) {
                     const runLength =
-                        (current >> 7) & 63;
+                        (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
 
                     // Check first char (stored in JUMP_TABLE bits).
                     if (
@@ -977,7 +985,12 @@ export function decodeXML(xmlString: string): string {
         const c1 = xmlString.charCodeAt(start);
 
         if (c1 === CharCodes.NUM) {
-            consumed = parseNumericEntity(xmlString, start, xmlString.length);
+            const packed = parseNumericEntity(
+                xmlString,
+                start,
+                xmlString.length,
+            );
+            consumed = packed >>> 21;
             // XML is always strict — require semicolon.
             if (
                 consumed === 0 ||
@@ -985,7 +998,9 @@ export function decodeXML(xmlString: string): string {
             ) {
                 consumed = 0;
             } else {
-                value = String.fromCodePoint(replaceCodePoint(_numericCp));
+                value = String.fromCodePoint(
+                    replaceCodePoint(packed & 0x1f_ff_ff),
+                );
             }
         } else {
             const c2 = xmlString.charCodeAt(start + 1);
