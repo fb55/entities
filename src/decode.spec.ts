@@ -1,8 +1,111 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as entities from "./decode.js";
 
-describe("Decode test", () => {
-    const testcases = [
+/**
+ * Build a decode implementation backed by EntityDecoder, feeding entity
+ * bodies in chunks of the given size (Infinity = all at once, 1 = char-by-char).
+ * @param chunkSize Number of characters per write call.
+ */
+function makeStreamingImpl(chunkSize: number) {
+    function decode(
+        input: string,
+        decodeTree: Uint16Array,
+        decodeMode: entities.DecodingMode,
+    ): string {
+        let result = "";
+        const decoder = new entities.EntityDecoder(
+            decodeTree,
+            (cp) => (result += String.fromCodePoint(cp)),
+        );
+
+        let lastIndex = 0;
+        let offset = 0;
+
+        while ((offset = input.indexOf("&", offset)) >= 0) {
+            result += input.slice(lastIndex, offset);
+            decoder.startEntity(decodeMode);
+
+            const entityStart = offset + 1;
+            let length: number;
+
+            if (chunkSize === Number.POSITIVE_INFINITY) {
+                length = decoder.write(input, entityStart);
+            } else {
+                length = -1;
+                for (
+                    let pos = entityStart;
+                    pos < input.length && length < 0;
+                    pos += chunkSize
+                ) {
+                    length = decoder.write(
+                        input.slice(pos, pos + chunkSize),
+                        0,
+                    );
+                }
+            }
+
+            if (length < 0) {
+                lastIndex = offset + decoder.end();
+                break;
+            }
+
+            lastIndex = offset + length;
+            offset = length === 0 ? lastIndex + 1 : lastIndex;
+        }
+
+        const out = result + input.slice(lastIndex);
+        result = "";
+        return out;
+    }
+
+    return {
+        decodeHTML: (input: string, mode = entities.DecodingMode.Legacy) =>
+            decode(input, entities.htmlDecodeTree, mode),
+        decodeHTMLStrict: (input: string) =>
+            decode(
+                input,
+                entities.htmlDecodeTree,
+                entities.DecodingMode.Strict,
+            ),
+        decodeHTMLAttribute: (input: string) =>
+            decode(
+                input,
+                entities.htmlDecodeTree,
+                entities.DecodingMode.Attribute,
+            ),
+        decodeXML: (input: string) =>
+            decode(input, entities.xmlDecodeTree, entities.DecodingMode.Strict),
+    };
+}
+
+type DecoderImpl = ReturnType<typeof makeStreamingImpl>;
+
+const syncImpl: DecoderImpl = {
+    decodeHTML: entities.decodeHTML,
+    decodeHTMLStrict: entities.decodeHTMLStrict,
+    decodeHTMLAttribute: entities.decodeHTMLAttribute,
+    decodeXML: entities.decodeXML,
+};
+
+const implementations: [string, DecoderImpl][] = [
+    ["sync", syncImpl],
+    ["streaming (all at once)", makeStreamingImpl(Number.POSITIVE_INFINITY)],
+    ["streaming (char-by-char)", makeStreamingImpl(1)],
+];
+
+describe.each(implementations)("Decode test: %s", (_name, {
+    decodeHTML,
+    decodeHTMLStrict,
+    decodeHTMLAttribute,
+    decodeXML,
+}) => {
+    /*
+     * Cases where XML and HTML decoders agree. Run through both
+     * `decodeXML` (fast path) and `decodeHTML` (trie). Adding `&lt;`,
+     * `&gt;`, `&quot;`, `&apos;` here gives direct coverage of the
+     * decodeXML switch arms — a typo there would otherwise slip through.
+     */
+    const sharedTestcases = [
         { input: "&amp;amp;", output: "&amp;" },
         { input: "&amp;#38;", output: "&#38;" },
         { input: "&amp;#x26;", output: "&#x26;" },
@@ -17,75 +120,129 @@ describe("Decode test", () => {
         { input: "&#", output: "&#" },
         { input: "&>", output: "&>" },
         { input: "id=770&#anchor", output: "id=770&#anchor" },
+        { input: "&lt;", output: "<" },
+        { input: "&gt;", output: ">" },
+        { input: "&quot;", output: '"' },
+        { input: "&apos;", output: "'" },
     ];
 
-    it.each(testcases)("should XML decode $input", ({ input, output }) =>
-        expect(entities.decodeXML(input)).toBe(output));
-    it.each(testcases)("should HTML decode $input", ({ input, output }) =>
-        expect(entities.decodeHTML(input)).toBe(output));
+    it.each(sharedTestcases)("should XML decode $input", ({ input, output }) =>
+        expect(decodeXML(input)).toBe(output));
+    it.each(sharedTestcases)("should HTML decode $input", ({ input, output }) =>
+        expect(decodeHTML(input)).toBe(output));
 
     it("should HTML decode partial legacy entity", () => {
-        expect(entities.decodeHTMLStrict("&timesbar")).toBe("&timesbar");
-        expect(entities.decodeHTML("&timesbar")).toBe("×bar");
+        expect(decodeHTMLStrict("&timesbar")).toBe("&timesbar");
+        expect(decodeHTML("&timesbar")).toBe("×bar");
     });
 
     it("should HTML decode legacy entities according to spec", () =>
-        expect(entities.decodeHTML("?&image_uri=1&ℑ=2&image=3")).toBe(
+        expect(decodeHTML("?&image_uri=1&ℑ=2&image=3")).toBe(
             "?&image_uri=1&ℑ=2&image=3",
         ));
 
     it("should back out of legacy entities", () =>
-        expect(entities.decodeHTML("&ampa")).toBe("&a"));
+        expect(decodeHTML("&ampa")).toBe("&a"));
 
     it("should not parse numeric entities in strict mode", () =>
-        expect(entities.decodeHTMLStrict("&#55")).toBe("&#55"));
+        expect(decodeHTMLStrict("&#55")).toBe("&#55"));
+
+    describe("numeric entities without semicolons (legacy mode)", () => {
+        it("should decode decimal entity followed by non-digit", () =>
+            expect(decodeHTML("&#65x")).toBe("Ax"));
+
+        it("should decode hex entity followed by non-hex", () =>
+            expect(decodeHTML("&#x41x")).toBe("Ax"));
+
+        it("should decode decimal entity at end of input", () =>
+            expect(decodeHTML("&#65")).toBe("A"));
+
+        it("should reject decimal entity without semicolon in strict mode", () =>
+            expect(decodeHTMLStrict("&#65x")).toBe("&#65x"));
+
+        it("should reject decimal entity at end of input in strict mode", () =>
+            expect(decodeHTMLStrict("&#65")).toBe("&#65"));
+
+        it("should map numeric values past U+10FFFF to U+FFFD", () => {
+            /*
+             * Sanity: max valid Unicode value passes through, exactly past
+             * max (U+110000) maps to U+FFFD, and a large overflow that —
+             * before the codepoint clamp — would truncate inside the
+             * 21-bit packed-return field and emit a valid-looking
+             * private-use char (U+100000) instead.
+             */
+            expect(decodeHTML("&#1114111;")).toBe("\u{10FFFF}");
+            expect(decodeHTML("&#1114112;")).toBe("�");
+            expect(decodeHTML("&#3145728;")).toBe("�");
+            expect(decodeHTML("&#x300000;")).toBe("�");
+        });
+    });
 
     it("should parse &nbsp followed by < (#852)", () =>
-        expect(entities.decodeHTML("&nbsp<")).toBe("\u00A0<"));
+        expect(decodeHTML("&nbsp<")).toBe("\u00A0<"));
 
     it("should decode trailing legacy entities", () => {
-        expect(entities.decodeHTML("&timesbar;&timesbar")).toBe("⨱×bar");
+        expect(decodeHTML("&timesbar;&timesbar")).toBe("⨱×bar");
     });
 
     it("should decode multi-byte entities", () => {
-        expect(entities.decodeHTML("&NotGreaterFullEqual;")).toBe("≧̸");
+        expect(decodeHTML("&NotGreaterFullEqual;")).toBe("≧̸");
     });
 
-    it("should not decode legacy entities followed by text in attribute mode", () => {
-        expect(
-            entities.decodeHTML("&not", entities.DecodingMode.Attribute),
-        ).toBe("¬");
-
-        expect(
-            entities.decodeHTML("&noti", entities.DecodingMode.Attribute),
-        ).toBe("&noti");
-
-        expect(
-            entities.decodeHTML("&not=", entities.DecodingMode.Attribute),
-        ).toBe("&not=");
-
-        expect(entities.decodeHTMLAttribute("&notp")).toBe("&notp");
-        expect(entities.decodeHTMLAttribute("&notP")).toBe("&notP");
-        expect(entities.decodeHTMLAttribute("&not3")).toBe("&not3");
-    });
-
-    it("should not decode legacy entity in attribute mode when descended-into entity is interrupted (#2208)", () => {
+    describe("attribute mode", () => {
         /*
-         * After &not is matched as a legacy entity, descending into &notin
-         * means the next char (`i`) is alphanumeric, which per the HTML spec
-         * invalidates the legacy match in attribute mode.
+         * Inputs that should be left verbatim in attribute mode. Covers the
+         * four legacy-fallback paths in `stateNamedEntity`:
+         *   - alpha / digit / `=` immediately after the legacy match
+         *   - branch miss after descending past it (#2208)
+         *   - compact-run mismatch after descending past it
          */
-        expect(
-            entities.decodeHTML("&notin\0;", entities.DecodingMode.Attribute),
-        ).toBe("&notin\0;");
+        const rejectCases = [
+            { input: "&notp" },
+            { input: "&notP" },
+            { input: "&not3" },
+            { input: "&noti" },
+            { input: "&not=" },
+            { input: "&notin\0;" },
+            { input: "&notin<" },
+            // Compact-run middle-char mismatch
+            { input: "&ltlaXr;" },
+            // Compact-run first-char mismatch
+            { input: "&ltlXarr;" },
+        ];
 
-        expect(entities.decodeHTMLAttribute("&notin\0;")).toBe("&notin\0;");
+        it.each(rejectCases)("should not decode $input", ({ input }) =>
+            expect(decodeHTMLAttribute(input)).toBe(input));
 
         /*
-         * Same condition with a non-alphanumeric interrupter that would
-         * otherwise pass `isEntityInAttributeInvalidEnd`.
+         * Accept cases:
+         *   - standalone legacy match (no descent / EOF)
+         *   - semicolon-terminated entities ignore the following char
+         *   - numeric entities are always accepted
+         *   - leaf-node legacy match (e.g. `amp`) followed by a char that
+         *     isn't an invalid attribute terminator. The trailing char
+         *     equals the entity's value byte, which previously sent the
+         *     streaming decoder into a phantom node.
          */
-        expect(entities.decodeHTMLAttribute("&notin<")).toBe("&notin<");
+        const acceptCases = [
+            { input: "&not", output: "¬" },
+            { input: "&amp;x", output: "&x" },
+            { input: "&lt;x", output: "<x" },
+            { input: "&amp;=", output: "&=" },
+            { input: "&#65;x", output: "Ax" },
+            { input: "&#x41;x", output: "Ax" },
+            { input: "&#65x", output: "Ax" },
+            { input: "&#x41x", output: "Ax" },
+            { input: "&amp&", output: "&&" },
+            { input: "&amp&x", output: "&&x" },
+            { input: "&lt<", output: "<<" },
+            { input: "&gt>", output: ">>" },
+        ];
+
+        it.each(acceptCases)("should decode $input → $output", ({
+            input,
+            output,
+        }) => expect(decodeHTMLAttribute(input)).toBe(output));
     });
 });
 

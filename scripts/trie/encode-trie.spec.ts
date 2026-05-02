@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { encodeTrie } from "./encode-trie.js";
 import type { TrieNode } from "./trie.js";
 
+const NO_BRANCH_SENTINEL_RE = /no-branch sentinel/;
+
 describe("encode_trie", () => {
     it("should encode an empty node", () => {
         expect(encodeTrie({})).toStrictEqual([0b0000_0000_0000_0000]);
@@ -47,40 +49,121 @@ describe("encode_trie", () => {
                 ["b".charCodeAt(0), nodeC],
             ]),
         };
-        // With packed dictionary keys, A & b share one uint16; destinations follow.
-        const packed = "A".charCodeAt(0) | ("b".charCodeAt(0) << 8);
-        expect(encodeTrie(trie)).toStrictEqual([
-            0b0000_0001_0000_0000,
-            packed,
-            0b100,
-            0b101,
-            0b0100_0000_0000_0000 | "a".charCodeAt(0),
-            0b0000_0000_1000_0000 | "c".charCodeAt(0),
-            0b101, // Index plus one
-        ]);
+
+        /*
+         * Dictionary branch (2 entries: 'A'=65, 'b'=98). Keys packed two per
+         * uint16 (low byte / high byte). nodeA is shared: both 'A' and 'c'
+         * inside nodeC point to the same encoded node.
+         *
+         * [0] header:  branchCount=2 → 2<<7 = 256
+         * [1] keys:    'A'(65) | ('b'(98)<<8)
+         * [2] dest[0]: relative ptr → nodeA at index 4
+         * [3] dest[1]: relative ptr → nodeC at index 5
+         * [4] nodeA:   value "a" inline → 0x4000 | 97
+         * [5] nodeC header: branchCount=1, dictionary (nodeA already encoded)
+         * [6] key:     'c'(99) packed
+         * [7] dest:    relative ptr → nodeA at index 4 (wraps via uint16)
+         */
+        const result = encodeTrie(trie);
+
+        expect(result).toHaveLength(7);
+        // [0]: dictionary header with branchCount=2
+        expect((result[0] >> 7) & 0x3f).toBe(2); // 2 branches
+        expect(result[0] & 0x7f).toBe(0); // No jump offset → dictionary
+        // [1]: packed keys 'A' in low byte, 'b' in high byte
+        expect(result[1] & 0xff).toBe(65); // 'A'
+        expect((result[1] >> 8) & 0xff).toBe(98); // 'b'
+        // [4]: nodeA with inline value 'a'
+        expect(result[4]).toBe(0b0100_0000_0000_0000 | 97);
+        // [2],[3]: relative pointers that resolve to valid node indices
+        expect((2 + result[2]) & 0xff_ff).toBe(4); // Dest[0] → nodeA
+        expect((3 + result[3]) & 0xff_ff).toBe(5); // Dest[1] → nodeC
     });
 
     it("should encode a disjoint recursive branch", () => {
-        const recursiveTrie = { next: new Map() };
-        recursiveTrie.next.set("a".charCodeAt(0), { value: "a" });
-        recursiveTrie.next.set("0".charCodeAt(0), recursiveTrie);
-        const packed = "0".charCodeAt(0) | ("a".charCodeAt(0) << 8);
-        expect(encodeTrie(recursiveTrie)).toStrictEqual([
-            0b0000_0001_0000_0000,
-            packed,
-            0,
-            4,
-            0b0100_0000_0000_0000 | "a".charCodeAt(0),
-        ]);
+        const recursiveTrie: TrieNode = { next: new Map() };
+        recursiveTrie.next!.set("a".charCodeAt(0), { value: "a" });
+        recursiveTrie.next!.set("0".charCodeAt(0), recursiveTrie);
+
+        /*
+         * Dictionary branch (2 entries: '0'=48, 'a'=97).
+         *
+         * [0] header: branchCount=2 → 2<<7 = 256
+         * [1] keys:   '0'(48) | ('a'(97)<<8) = 48 + 24832 = 24880
+         * [2] dest[0]: relative ptr back to self at 0 → (0−2+0x10000)%0x10000 = 65534
+         * [3] dest[1]: relative ptr to {value:"a"} at 4 → (4−3) = 1
+         * [4] node:   value "a" (1-char, inline) → 0x4000 | 97 = 16481
+         */
+        const result = encodeTrie(recursiveTrie);
+
+        expect(result).toHaveLength(5);
+        expect((result[0] >> 7) & 0x3f).toBe(2); // 2 branches
+        // Packed keys: '0' low, 'a' high
+        expect(result[1] & 0xff).toBe(48);
+        expect((result[1] >> 8) & 0xff).toBe(97);
+        // Dest[0] points back to self (index 0) — wraps around via uint16
+        expect((2 + result[2]) & 0xff_ff).toBe(0);
+        // Dest[1] points to the leaf node
+        expect((3 + result[3]) & 0xff_ff).toBe(4);
+        // Leaf: inline value 'a'
+        expect(result[4]).toBe(0b0100_0000_0000_0000 | 97);
     });
 
     it("should encode a recursive branch to a jump map", () => {
-        const jumpRecursiveTrie = { next: new Map() };
-        for (const value of [48, 49, 52, 54, 56, 57]) {
-            jumpRecursiveTrie.next.set(value, jumpRecursiveTrie);
+        /*
+         * Chars 48('0'), 49('1'), 52('4'), 54('6'), 56('8'), 57('9').
+         * Range 48..57 = 10 slots for 6 entries → overhead 10/6 = 1.67 → jump table.
+         *
+         * '0' points at a non-recursive leaf so the first slot's stored value
+         * isn't 0. (A self-ref at pointerPos=1 with childOffset=0 collides
+         * with the no-branch sentinel and the encoder asserts against it —
+         * see the "self-ref that collides" test below.)
+         */
+        const leaf: TrieNode = { value: "a" };
+        const jumpRecursiveTrie: TrieNode = { next: new Map() };
+        jumpRecursiveTrie.next!.set(48, leaf);
+        const selfReferenceChars = [49, 52, 54, 56, 57];
+        for (const value of selfReferenceChars) {
+            jumpRecursiveTrie.next!.set(value, jumpRecursiveTrie);
         }
-        expect(encodeTrie(jumpRecursiveTrie)).toStrictEqual([
-            0b0000_0101_0011_0000, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1,
-        ]);
+
+        const result = encodeTrie(jumpRecursiveTrie);
+
+        // 1 header + 10 jump-table slots + 1 leaf node = 12 words.
+        expect(result).toHaveLength(12);
+        expect((result[0] >> 7) & 0x3f).toBe(10); // Branch count = 10
+        expect(result[0] & 0x7f).toBe(48); // Jump offset = '0'
+
+        const slotFor = (char: number) => result[1 + (char - 48)];
+        // Chars 50,51,53,55 (='2','3','5','7') have no branch → slot = 0.
+        for (const char of [50, 51, 53, 55]) {
+            expect(slotFor(char)).toBe(0);
+        }
+
+        // '0' resolves to the leaf node carrying value "a".
+        const leafStored = slotFor(48);
+        expect(leafStored).not.toBe(0);
+        const leafIndex = (1 + leafStored - 1) & 0xff_ff;
+        expect(result[leafIndex]).toBe(0b0100_0000_0000_0000 | 97);
+
+        // Self-ref slots all resolve back to the root node (index 0).
+        for (const char of selfReferenceChars) {
+            const pointerPos = 1 + (char - 48);
+            const stored = result[pointerPos];
+            expect(stored).not.toBe(0); // Never the no-branch sentinel
+            expect((pointerPos + stored - 1) & 0xff_ff).toBe(0);
+        }
+    });
+
+    it("should reject a jump-table self-ref that would collide with the no-branch sentinel", () => {
+        /*
+         * Two adjacent self-refs → overhead 1, takes the jump-table path.
+         * The first slot (pointerPos=1, childOffset=0) encodes to 0, which
+         * collides with the "no branch" sentinel and must be caught.
+         */
+        const recursive: TrieNode = { next: new Map() };
+        recursive.next!.set(48, recursive);
+        recursive.next!.set(49, recursive);
+        expect(() => encodeTrie(recursive)).toThrow(NO_BRANCH_SENTINEL_RE);
     });
 });

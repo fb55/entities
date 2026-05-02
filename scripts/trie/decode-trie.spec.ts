@@ -18,10 +18,14 @@ function mergeMaps(
     legacy: Record<string, string>,
 ): Record<string, string> {
     const merged: Record<string, string> = {};
-    for (const [k, v] of Object.entries(map)) merged[`${k};`] = v; // Strict default
-    for (const [k, v] of Object.entries(legacy)) {
-        merged[k] = v; // Legacy unsuffixed
-        merged[`${k};`] = v; // And suffixed
+    for (const [k, v] of Object.entries(map)) {
+        if (k in legacy) {
+            // Legacy: unsuffixed only (`;` handled implicitly by decoder, not stored in trie)
+            merged[k] = v;
+        } else {
+            // Strict: suffixed only (`;` required via FLAG13)
+            merged[`${k};`] = v;
+        }
     }
 
     return merged;

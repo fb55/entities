@@ -18,7 +18,7 @@ export function decodeNode(
 
     if (valueLength > 0) {
         // For single-char values, mask out all flag bits (value length bits + flag13)
-        resultMap[prefix] =
+        const decoded =
             valueLength === 1
                 ? String.fromCharCode(
                       decodeMap[startIndex] &
@@ -30,10 +30,10 @@ export function decodeNode(
                         decodeMap[startIndex + 1],
                         decodeMap[startIndex + 2],
                     );
+        resultMap[prefix] = decoded;
         if (current & BinTrieFlags.FLAG13) {
-            // Only emit suffixed variant
-            const suffixed = `${prefix};`;
-            resultMap[suffixed] = resultMap[prefix];
+            // Strict: only emit suffixed variant (`;` required)
+            resultMap[`${prefix};`] = decoded;
             delete resultMap[prefix];
         }
     } else if (current & BinTrieFlags.FLAG13) {
@@ -99,20 +99,20 @@ export function decodeNode(
                 decodeMap,
                 resultMap,
                 prefix + String.fromCharCode(key),
-                decodeMap[destinationIndex],
+                (destinationIndex + decodeMap[destinationIndex]) & 0xff_ff,
             );
         }
     } else {
         for (let index = 0; index < branchLength; index++) {
-            const value = decodeMap[branchIndex + index] - 1;
-            if (value !== -1) {
+            const stored = decodeMap[branchIndex + index];
+            if (stored !== 0) {
                 const code = jumpOffset + index;
-
+                const p = branchIndex + index;
                 decodeNode(
                     decodeMap,
                     resultMap,
                     prefix + String.fromCharCode(code),
-                    value,
+                    (p + stored - 1) & 0xff_ff,
                 );
             }
         }
