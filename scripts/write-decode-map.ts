@@ -68,6 +68,22 @@ function encodeTrieData(data: Uint16Array): {
         (a: [number, number], b: [number, number]) => b[1] - a[1],
     );
 
+    /*
+     * Dict2 has (BASE - DICT_SIZE) * BASE 2-char codes available. The decoder
+     * assumes exactly DICT_SIZE entries in dict1. Bail out loudly if the trie
+     * cardinality is outside the encodable range so we never silently emit a
+     * table that decodeTrieDict can't read back.
+     */
+    const dict2Capacity = (BASE - DICT_SIZE) * BASE;
+    if (
+        sorted.length < DICT_SIZE ||
+        sorted.length > DICT_SIZE + dict2Capacity
+    ) {
+        throw new Error(
+            `Trie has ${sorted.length} unique values; encoder requires [${DICT_SIZE}, ${DICT_SIZE + dict2Capacity}].`,
+        );
+    }
+
     // Dict1: top D values → 1-char codes, sorted ascending for delta encoding
     const dict1 = sorted
         .slice(0, DICT_SIZE)
@@ -179,7 +195,13 @@ function encodeTrieData(data: Uint16Array): {
     // Encode data
     let encodedData = "";
     for (const value of data) {
-        encodedData += valueToCode.get(value);
+        const code = valueToCode.get(value);
+        if (code === undefined) {
+            throw new Error(
+                `No encoded code assigned for trie value ${value}.`,
+            );
+        }
+        encodedData += code;
     }
 
     return { encoded: header + encodedData, headerLength: header.length };

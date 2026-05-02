@@ -99,7 +99,13 @@ describe.each(implementations)("Decode test: %s", (_name, {
     decodeHTMLAttribute,
     decodeXML,
 }) => {
-    const testcases = [
+    /*
+     * Cases where XML and HTML decoders agree. Run through both
+     * `decodeXML` (fast path) and `decodeHTML` (trie). Adding `&lt;`,
+     * `&gt;`, `&quot;`, `&apos;` here gives direct coverage of the
+     * decodeXML switch arms — a typo there would otherwise slip through.
+     */
+    const sharedTestcases = [
         { input: "&amp;amp;", output: "&amp;" },
         { input: "&amp;#38;", output: "&#38;" },
         { input: "&amp;#x26;", output: "&#x26;" },
@@ -114,11 +120,15 @@ describe.each(implementations)("Decode test: %s", (_name, {
         { input: "&#", output: "&#" },
         { input: "&>", output: "&>" },
         { input: "id=770&#anchor", output: "id=770&#anchor" },
+        { input: "&lt;", output: "<" },
+        { input: "&gt;", output: ">" },
+        { input: "&quot;", output: '"' },
+        { input: "&apos;", output: "'" },
     ];
 
-    it.each(testcases)("should XML decode $input", ({ input, output }) =>
+    it.each(sharedTestcases)("should XML decode $input", ({ input, output }) =>
         expect(decodeXML(input)).toBe(output));
-    it.each(testcases)("should HTML decode $input", ({ input, output }) =>
+    it.each(sharedTestcases)("should HTML decode $input", ({ input, output }) =>
         expect(decodeHTML(input)).toBe(output));
 
     it("should HTML decode partial legacy entity", () => {
@@ -165,52 +175,60 @@ describe.each(implementations)("Decode test: %s", (_name, {
         expect(decodeHTML("&NotGreaterFullEqual;")).toBe("≧̸");
     });
 
-    it("should not decode legacy entities followed by text in attribute mode", () => {
-        expect(decodeHTML("&not", entities.DecodingMode.Attribute)).toBe("¬");
-
-        expect(decodeHTML("&noti", entities.DecodingMode.Attribute)).toBe(
-            "&noti",
-        );
-
-        expect(decodeHTML("&not=", entities.DecodingMode.Attribute)).toBe(
-            "&not=",
-        );
-
-        expect(decodeHTMLAttribute("&notp")).toBe("&notp");
-        expect(decodeHTMLAttribute("&notP")).toBe("&notP");
-        expect(decodeHTMLAttribute("&not3")).toBe("&not3");
-    });
-
-    it("should decode semicolon-terminated entities in attribute mode", () => {
-        expect(decodeHTMLAttribute("&amp;x")).toBe("&x");
-        expect(decodeHTMLAttribute("&lt;x")).toBe("<x");
-        expect(decodeHTMLAttribute("&amp;=")).toBe("&=");
-    });
-
-    it("should decode numeric entities in attribute mode", () => {
-        expect(decodeHTMLAttribute("&#65;x")).toBe("Ax");
-        expect(decodeHTMLAttribute("&#x41;x")).toBe("Ax");
-        expect(decodeHTMLAttribute("&#65x")).toBe("Ax");
-        expect(decodeHTMLAttribute("&#x41x")).toBe("Ax");
-    });
-
-    it("should not decode legacy entity in attribute mode when descended-into entity is interrupted (#2208)", () => {
+    describe("attribute mode", () => {
         /*
-         * After &not is matched as a legacy entity, descending into &notin
-         * means the next char (`i`) is alphanumeric, which per the HTML spec
-         * invalidates the legacy match in attribute mode.
+         * Inputs that should be left verbatim in attribute mode. Covers the
+         * four legacy-fallback paths in `stateNamedEntity`:
+         *   - alpha / digit / `=` immediately after the legacy match
+         *   - branch miss after descending past it (#2208)
+         *   - compact-run mismatch after descending past it
          */
-        expect(
-            entities.decodeHTML("&notin\0;", entities.DecodingMode.Attribute),
-        ).toBe("&notin\0;");
+        const rejectCases = [
+            { input: "&notp" },
+            { input: "&notP" },
+            { input: "&not3" },
+            { input: "&noti" },
+            { input: "&not=" },
+            { input: "&notin\0;" },
+            { input: "&notin<" },
+            // Compact-run middle-char mismatch
+            { input: "&ltlaXr;" },
+            // Compact-run first-char mismatch
+            { input: "&ltlXarr;" },
+        ];
 
-        expect(entities.decodeHTMLAttribute("&notin\0;")).toBe("&notin\0;");
+        it.each(rejectCases)("should not decode $input", ({ input }) =>
+            expect(decodeHTMLAttribute(input)).toBe(input));
 
         /*
-         * Same condition with a non-alphanumeric interrupter that would
-         * otherwise pass `isEntityInAttributeInvalidEnd`.
+         * Accept cases:
+         *   - standalone legacy match (no descent / EOF)
+         *   - semicolon-terminated entities ignore the following char
+         *   - numeric entities are always accepted
+         *   - leaf-node legacy match (e.g. `amp`) followed by a char that
+         *     isn't an invalid attribute terminator. The trailing char
+         *     equals the entity's value byte, which previously sent the
+         *     streaming decoder into a phantom node.
          */
-        expect(entities.decodeHTMLAttribute("&notin<")).toBe("&notin<");
+        const acceptCases = [
+            { input: "&not", output: "¬" },
+            { input: "&amp;x", output: "&x" },
+            { input: "&lt;x", output: "<x" },
+            { input: "&amp;=", output: "&=" },
+            { input: "&#65;x", output: "Ax" },
+            { input: "&#x41;x", output: "Ax" },
+            { input: "&#65x", output: "Ax" },
+            { input: "&#x41x", output: "Ax" },
+            { input: "&amp&", output: "&&" },
+            { input: "&amp&x", output: "&&x" },
+            { input: "&lt<", output: "<<" },
+            { input: "&gt>", output: ">>" },
+        ];
+
+        it.each(acceptCases)("should decode $input → $output", ({
+            input,
+            output,
+        }) => expect(decodeHTMLAttribute(input)).toBe(output));
     });
 });
 

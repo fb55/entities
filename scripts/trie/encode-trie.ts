@@ -145,8 +145,14 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
                 const pointerPos = branchIndex + relativeIndex;
                 const childOffset = encodeNode(child);
                 // Store relative offset + 1 (0 = no branch sentinel).
-                enc[pointerPos] =
+                const stored =
                     (childOffset - pointerPos + 1 + 0x1_00_00) % 0x1_00_00;
+                assert.notStrictEqual(
+                    stored,
+                    0,
+                    `Jump-table slot at ${pointerPos} (char ${char}) → child ${childOffset} encodes to 0, which collides with the no-branch sentinel.`,
+                );
+                enc[pointerPos] = stored;
             }
             return;
         }

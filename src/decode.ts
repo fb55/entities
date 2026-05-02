@@ -291,6 +291,25 @@ export class EntityDecoder {
     }
 
     /**
+     * After failed navigation (leaf node, branch miss, or compact-run
+     * mismatch), decide whether to emit the recorded legacy match or
+     * reject the entity. In attribute mode, reject if no legacy was
+     * recorded at the current node, if we descended past it, or if the
+     * pending input character is an invalid attribute terminator.
+     * @param char Pending input character (may be the mismatching char).
+     * @param valueLength Value length at the current trie node.
+     */
+    private emitLegacyOrReject(char: number, valueLength: number): number {
+        return this.result === 0 ||
+            (this.decodeMode === DecodingMode.Attribute &&
+                (valueLength === 0 ||
+                    this.excess > 1 ||
+                    isEntityInAttributeInvalidEnd(char)))
+            ? 0
+            : this.emitNotTerminatedNamedEntity();
+    }
+
+    /**
      * Parses a named entity.
      *
      * Equivalent to the `Named character reference state` in the HTML spec.
@@ -315,9 +334,10 @@ export class EntityDecoder {
                 if (this.runConsumed === 0) {
                     const firstChar = current & BinTrieFlags.JUMP_TABLE;
                     if (input.charCodeAt(offset) !== firstChar) {
-                        return this.result === 0
-                            ? 0
-                            : this.emitNotTerminatedNamedEntity();
+                        return this.emitLegacyOrReject(
+                            input.charCodeAt(offset),
+                            0,
+                        );
                     }
                     offset += 1;
                     this.excess += 1;
@@ -340,9 +360,10 @@ export class EntityDecoder {
 
                     if (input.charCodeAt(offset) !== expectedChar) {
                         this.runConsumed = 0;
-                        return this.result === 0
-                            ? 0
-                            : this.emitNotTerminatedNamedEntity();
+                        return this.emitLegacyOrReject(
+                            input.charCodeAt(offset),
+                            0,
+                        );
                     }
                     offset += 1;
                     this.excess += 1;
@@ -384,7 +405,16 @@ export class EntityDecoder {
                 );
             }
 
-            // Navigate to the next node (valueLength || 1: skip past value words, minimum 1 for header).
+            /*
+             * `valueLength === 1` packs the codepoint into the header word's
+             * low 14 bits, where branch metadata also lives. Skip the branch
+             * lookup on leaves so those value bits aren't reinterpreted as
+             * branch offsets.
+             */
+            if (valueLength === 1) {
+                return this.emitLegacyOrReject(char, valueLength);
+            }
+
             this.treeIndex = determineBranch(
                 decodeTree,
                 current,
@@ -393,21 +423,7 @@ export class EntityDecoder {
             );
 
             if (this.treeIndex < 0) {
-                return this.result === 0 ||
-                    // If we are parsing an attribute
-                    (this.decodeMode === DecodingMode.Attribute &&
-                        // We shouldn't have consumed any characters after the entity,
-                        (valueLength === 0 ||
-                            /*
-                             * We shouldn't have descended past the legacy match
-                             * (any character descended past is alphanumeric and
-                             * would invalidate the legacy match per the spec).
-                             */
-                            this.excess > 1 ||
-                            // And there should be no invalid characters.
-                            isEntityInAttributeInvalidEnd(char)))
-                    ? 0
-                    : this.emitNotTerminatedNamedEntity();
+                return this.emitLegacyOrReject(char, valueLength);
             }
 
             current = decodeTree[this.treeIndex];
@@ -613,7 +629,6 @@ function readTrieValue(
  * Parse a numeric entity (`&#DDD;` or `&#xHHH;`), returning the number of
  * characters consumed (including a trailing `;` when present).  The decoded
  * code point is written to {@link _numericCp} to avoid tuple allocation.
- *
  * @param input       The input string.
  * @param numberStart Index of the `#` character.
  * @param inputLength Cached `input.length`.
@@ -700,10 +715,17 @@ function decodeWithTrie(
         if (firstChar === CharCodes.NUM) {
             consumed = parseNumericEntity(input, entityStart, inputLength);
             // In strict mode, require semicolon termination.
-            if (strict && consumed > 0 && input.charCodeAt(entityStart + consumed - 1) !== CharCodes.SEMI) {
+            if (
+                strict &&
+                consumed > 0 &&
+                input.charCodeAt(entityStart + consumed - 1) !== CharCodes.SEMI
+            ) {
                 consumed = 0;
             }
-            value = consumed > 0 ? String.fromCodePoint(replaceCodePoint(_numericCp)) : "";
+            value =
+                consumed > 0
+                    ? String.fromCodePoint(replaceCodePoint(_numericCp))
+                    : "";
         } else if (isAlpha(firstChar)) {
             consumed = 0;
             value = "";
@@ -954,7 +976,10 @@ export function decodeXML(xmlString: string): string {
         if (c1 === CharCodes.NUM) {
             consumed = parseNumericEntity(xmlString, start, xmlString.length);
             // XML is always strict — require semicolon.
-            if (consumed === 0 || xmlString.charCodeAt(start + consumed - 1) !== CharCodes.SEMI) {
+            if (
+                consumed === 0 ||
+                xmlString.charCodeAt(start + consumed - 1) !== CharCodes.SEMI
+            ) {
                 consumed = 0;
             } else {
                 value = String.fromCodePoint(replaceCodePoint(_numericCp));

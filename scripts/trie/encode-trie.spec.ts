@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { encodeTrie } from "./encode-trie.js";
 import type { TrieNode } from "./trie.js";
 
+const NO_BRANCH_SENTINEL_RE = /no-branch sentinel/;
+
 describe("encode_trie", () => {
     it("should encode an empty node", () => {
         expect(encodeTrie({})).toStrictEqual([0b0000_0000_0000_0000]);
@@ -108,56 +110,60 @@ describe("encode_trie", () => {
     });
 
     it("should encode a recursive branch to a jump map", () => {
-        const jumpRecursiveTrie: TrieNode = { next: new Map() };
         /*
-         * Chars 48('0'), 49('1'), 52('4'), 54('6'), 56('8'), 57('9')
-         * Range 48..57 = 10 slots for 6 entries → overhead 10/6 = 1.67 < 2 → jump table
+         * Chars 48('0'), 49('1'), 52('4'), 54('6'), 56('8'), 57('9').
+         * Range 48..57 = 10 slots for 6 entries → overhead 10/6 = 1.67 → jump table.
+         *
+         * '0' points at a non-recursive leaf so the first slot's stored value
+         * isn't 0. (A self-ref at pointerPos=1 with childOffset=0 collides
+         * with the no-branch sentinel and the encoder asserts against it —
+         * see the "self-ref that collides" test below.)
          */
-        for (const value of [48, 49, 52, 54, 56, 57]) {
+        const leaf: TrieNode = { value: "a" };
+        const jumpRecursiveTrie: TrieNode = { next: new Map() };
+        jumpRecursiveTrie.next!.set(48, leaf);
+        const selfReferenceChars = [49, 52, 54, 56, 57];
+        for (const value of selfReferenceChars) {
             jumpRecursiveTrie.next!.set(value, jumpRecursiveTrie);
         }
 
-        /*
-         * Jump table: offset=48, length=10 (covers '0'..'9').
-         *
-         * [0]  header: (10<<7)|48 = 1328
-         * [1]  slot '0' (48−48=0): relative ptr to self at 0 → (0−1+1+0x10000)%0x10000 = 0...
-         *      Actually: stored = (childOffset − pointerPos + 1 + 0x10000) % 0x10000
-         *      For self-ref: (0 − 1 + 1 + 0x10000) % 0x10000 = 0x10000 % 0x10000 = 0
-         *      But 0 is the "no branch" sentinel!
-         *
-         * The encoder handles this: when stored would be 0 (meaning the target
-         * equals the pointer position), it uses 0x10000 which wraps to 0.
-         * However, the decoder treats 0 as "no branch". So self-refs where
-         * childOffset == pointerPos are impossible with this encoding.
-         *
-         * Let's just verify structural properties.
-         */
         const result = encodeTrie(jumpRecursiveTrie);
 
-        expect(result).toHaveLength(11);
-        // Header: jump table with 10 slots starting at char code 48
+        // 1 header + 10 jump-table slots + 1 leaf node = 12 words.
+        expect(result).toHaveLength(12);
         expect((result[0] >> 7) & 0x3f).toBe(10); // Branch count = 10
         expect(result[0] & 0x7f).toBe(48); // Jump offset = '0'
 
-        /*
-         * Slots at indices 1..10 for chars 48..57.
-         * Chars 50,51,53,55 (='2','3','5','7') have no branch → slot = 0.
-         */
         const slotFor = (char: number) => result[1 + (char - 48)];
-        expect(slotFor(50)).toBe(0); // '2' → no branch
-        expect(slotFor(51)).toBe(0); // '3' → no branch
-        expect(slotFor(53)).toBe(0); // '5' → no branch
-        expect(slotFor(55)).toBe(0); // '7' → no branch
+        // Chars 50,51,53,55 (='2','3','5','7') have no branch → slot = 0.
+        for (const char of [50, 51, 53, 55]) {
+            expect(slotFor(char)).toBe(0);
+        }
 
-        /*
-         * Chars with branches all point back to self (index 0).
-         * resolved = (pointerPos + stored - 1) & 0xFFFF should equal 0.
-         */
-        for (const char of [49, 52, 54, 56, 57]) {
+        // '0' resolves to the leaf node carrying value "a".
+        const leafStored = slotFor(48);
+        expect(leafStored).not.toBe(0);
+        const leafIndex = (1 + leafStored - 1) & 0xff_ff;
+        expect(result[leafIndex]).toBe(0b0100_0000_0000_0000 | 97);
+
+        // Self-ref slots all resolve back to the root node (index 0).
+        for (const char of selfReferenceChars) {
             const pointerPos = 1 + (char - 48);
             const stored = result[pointerPos];
+            expect(stored).not.toBe(0); // Never the no-branch sentinel
             expect((pointerPos + stored - 1) & 0xff_ff).toBe(0);
         }
+    });
+
+    it("should reject a jump-table self-ref that would collide with the no-branch sentinel", () => {
+        /*
+         * Two adjacent self-refs → overhead 1, takes the jump-table path.
+         * The first slot (pointerPos=1, childOffset=0) encodes to 0, which
+         * collides with the "no branch" sentinel and must be caught.
+         */
+        const recursive: TrieNode = { next: new Map() };
+        recursive.next!.set(48, recursive);
+        recursive.next!.set(49, recursive);
+        expect(() => encodeTrie(recursive)).toThrow(NO_BRANCH_SENTINEL_RE);
     });
 });
