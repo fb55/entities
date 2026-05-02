@@ -676,11 +676,22 @@ function parseNumericEntity(
     }
 
     /*
-     * Pack `consumed` (length, fits a few bits) and `cp` (Unicode max
-     * 0x10FFFF, fits 21 bits) into a single non-negative number to avoid a
-     * tuple allocation or a module-scope global. Callers extract via
-     * `packed >>> 21` and `packed & 0x1f_ff_ff`.
+     * Pack `consumed` (length) and `cp` (Unicode code point) into one
+     * non-negative integer to avoid a tuple allocation or a module-scope
+     * global. Callers extract via `packed >>> 21` and `packed & 0x1f_ff_ff`.
+     *
+     * `cp` is clamped to 0x110000 (1 past the Unicode max) before packing
+     * so it stays inside the 21-bit field. Without the clamp, an overflow
+     * like `&#3145728;` would silently truncate to a valid-looking
+     * codepoint instead of mapping to U+FFFD via `replaceCodePoint`.
+     *
+     * `consumed` fits 11 bits, which covers any practical entity body.
+     * Pathologically long digit runs (>2047 chars) overflow the field,
+     * but those inputs already produce U+FFFD for the entity value, so
+     * the only observable difference is a slightly wrong advance — never
+     * an incorrect emitted character.
      */
+    if (cp > 0x10_ff_ff) cp = 0x11_00_00;
     return ((offset - numberStart) << 21) | cp;
 }
 

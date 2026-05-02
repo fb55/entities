@@ -162,6 +162,20 @@ describe.each(implementations)("Decode test: %s", (_name, {
 
         it("should reject decimal entity at end of input in strict mode", () =>
             expect(decodeHTMLStrict("&#65")).toBe("&#65"));
+
+        it("should map numeric values past U+10FFFF to U+FFFD", () => {
+            /*
+             * Sanity: max valid Unicode value passes through, exactly past
+             * max (U+110000) maps to U+FFFD, and a large overflow that —
+             * before the codepoint clamp — would truncate inside the
+             * 21-bit packed-return field and emit a valid-looking
+             * private-use char (U+100000) instead.
+             */
+            expect(decodeHTML("&#1114111;")).toBe("\u{10FFFF}");
+            expect(decodeHTML("&#1114112;")).toBe("�");
+            expect(decodeHTML("&#3145728;")).toBe("�");
+            expect(decodeHTML("&#x300000;")).toBe("�");
+        });
     });
 
     it("should parse &nbsp followed by < (#852)", () =>
