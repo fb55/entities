@@ -70,7 +70,7 @@
         "he": "^1.2.0",
         "html-entities": "^2.6.0",
         "parse-entities": "^4.0.2",
-        "tinybench": "^6.0.0",
+        "tinybench": "^6.0.2",
         "tsx": "^4.21.0",
         "typedoc": "^0.28.17",
         "typescript": "^6.0.3",
