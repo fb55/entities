@@ -74,7 +74,7 @@
         "tsx": "^4.22.0",
         "typedoc": "^0.28.17",
         "typescript": "^6.0.3",
-        "typescript-eslint": "^8.59.3",
+        "typescript-eslint": "^8.59.4",
         "vitest": "^4.1.6"
     },
     "engines": {
