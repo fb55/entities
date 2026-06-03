@@ -71,7 +71,7 @@
         "html-entities": "^2.6.0",
         "parse-entities": "^4.0.2",
         "tinybench": "^6.0.2",
-        "tsx": "^4.22.3",
+        "tsx": "^4.22.4",
         "typedoc": "^0.28.17",
         "typescript": "^6.0.3",
         "typescript-eslint": "^8.60.1",
