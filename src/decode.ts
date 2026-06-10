@@ -341,6 +341,25 @@ export class EntityDecoder {
     }
 
     /**
+     * Flush locally-tracked walk state back to the fields, then emit the
+     * recorded legacy match or reject (cold path — at most once per entity).
+     * @param consumed Locally-tracked consumed count.
+     * @param excess Locally-tracked excess count.
+     * @param char Pending input character (may be the mismatching char).
+     * @param valueLength Value length at the current trie node.
+     */
+    private flushAndEmitLegacyOrReject(
+        consumed: number,
+        excess: number,
+        char: number,
+        valueLength: number,
+    ): number {
+        this.consumed = consumed;
+        this.excess = excess;
+        return this.emitLegacyOrReject(char, valueLength);
+    }
+
+    /**
      * Parses a named entity.
      *
      * Equivalent to the `Named character reference state` in the HTML spec.
@@ -390,9 +409,9 @@ export class EntityDecoder {
                 if (branchCount === 0) {
                     // Single branch encoded inline in the jump offset bits.
                     if (input.charCodeAt(offset) !== jumpOffset) {
-                        this.consumed = consumed;
-                        this.excess = excess;
-                        return this.emitLegacyOrReject(
+                        return this.flushAndEmitLegacyOrReject(
+                            consumed,
+                            excess,
                             input.charCodeAt(offset),
                             0,
                         );
@@ -401,18 +420,18 @@ export class EntityDecoder {
                 } else {
                     const slot = input.charCodeAt(offset) - jumpOffset;
                     if (slot >>> 0 >= branchCount) {
-                        this.consumed = consumed;
-                        this.excess = excess;
-                        return this.emitLegacyOrReject(
+                        return this.flushAndEmitLegacyOrReject(
+                            consumed,
+                            excess,
                             input.charCodeAt(offset),
                             0,
                         );
                     }
                     const stored = decodeTree[treeIndex + 1 + slot];
                     if (stored === 0) {
-                        this.consumed = consumed;
-                        this.excess = excess;
-                        return this.emitLegacyOrReject(
+                        return this.flushAndEmitLegacyOrReject(
+                            consumed,
+                            excess,
                             input.charCodeAt(offset),
                             0,
                         );
@@ -445,9 +464,9 @@ export class EntityDecoder {
                 if (runConsumed === 0) {
                     const firstChar = current & BinTrieFlags.JUMP_TABLE;
                     if (input.charCodeAt(offset) !== firstChar) {
-                        this.consumed = consumed;
-                        this.excess = excess;
-                        return this.emitLegacyOrReject(
+                        return this.flushAndEmitLegacyOrReject(
+                            consumed,
+                            excess,
                             input.charCodeAt(offset),
                             0,
                         );
@@ -477,9 +496,9 @@ export class EntityDecoder {
 
                     if (input.charCodeAt(offset) !== expectedChar) {
                         this.runConsumed = 0;
-                        this.consumed = consumed;
-                        this.excess = excess;
-                        return this.emitLegacyOrReject(
+                        return this.flushAndEmitLegacyOrReject(
+                            consumed,
+                            excess,
                             input.charCodeAt(offset),
                             0,
                         );
@@ -528,9 +547,12 @@ export class EntityDecoder {
                  * reinterpreted as branch offsets.
                  */
                 if (valueLength === 1) {
-                    this.consumed = consumed;
-                    this.excess = excess;
-                    return this.emitLegacyOrReject(char, valueLength);
+                    return this.flushAndEmitLegacyOrReject(
+                        consumed,
+                        excess,
+                        char,
+                        valueLength,
+                    );
                 }
             }
 
@@ -543,9 +565,12 @@ export class EntityDecoder {
             );
 
             if (next < 0) {
-                this.consumed = consumed;
-                this.excess = excess;
-                return this.emitLegacyOrReject(char, valueLength);
+                return this.flushAndEmitLegacyOrReject(
+                    consumed,
+                    excess,
+                    char,
+                    valueLength,
+                );
             }
 
             treeIndex = next;
