@@ -1283,9 +1283,16 @@ export function decodeXML(xmlString: string): string {
             ) {
                 consumed = 0;
             } else {
-                value = String.fromCodePoint(
-                    replaceCodePoint(packed & NumericPacking.CODE_POINT_MASK),
-                );
+                /*
+                 * Fast path for plain BMP code points: [1..0x7F] and
+                 * [0xA0..0xD7FF] pass `replaceCodePoint` unchanged and fit
+                 * a single charCode (0xd760 = 0xD800 - 0xA0).
+                 */
+                const cp = packed & NumericPacking.CODE_POINT_MASK;
+                value =
+                    (cp - 1) >>> 0 < 0x7f || (cp - 0xa0) >>> 0 < 0xd7_60
+                        ? String.fromCharCode(cp)
+                        : String.fromCodePoint(replaceCodePoint(cp));
             }
         } else {
             const c2 = xmlString.charCodeAt(start + 1);
@@ -1339,8 +1346,16 @@ export function decodeXML(xmlString: string): string {
             result += "&";
             lastIndex = start;
         }
-        offset = lastIndex;
-    } while ((offset = xmlString.indexOf("&", offset)) >= 0);
+        /*
+         * Adjacent entities (`&x;&y;`) are common in entity-dense input;
+         * checking the single character at `lastIndex` first skips the
+         * `indexOf` call (and its per-call overhead) for that case.
+         */
+        offset =
+            xmlString.charCodeAt(lastIndex) === CharCodes.AMP
+                ? lastIndex
+                : xmlString.indexOf("&", lastIndex);
+    } while (offset >= 0);
 
     return result + xmlString.slice(lastIndex);
 }
