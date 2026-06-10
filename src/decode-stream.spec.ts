@@ -137,4 +137,65 @@ describe("EntityDecoder Streaming", () => {
 
         expect(callback).toHaveBeenCalledTimes(5);
     });
+
+    /*
+     * A legacy entity ending in a compact run (`&Aacute` — "cute" is a run)
+     * must report exactly the entity's length as consumed (7, not 8): the
+     * run's final character is part of the match, not excess. One extra
+     * consumed character here makes a streaming parser swallow the
+     * character following the entity.
+     */
+    describe("consumed count for legacy entities ending in a compact run", () => {
+        const entity = "&Aacute"; // 7 chars; "cute" is a compact run.
+        const codepoint = 0xc1; // Á
+
+        it("should report 7 consumed when terminated by another char", () => {
+            const callback = vi.fn();
+            const decoder = new EntityDecoder(htmlDecodeTree, callback);
+
+            decoder.startEntity(DecodingMode.Legacy);
+            expect(decoder.write(`${entity} x`, 1)).toBe(entity.length);
+            expect(callback).toHaveBeenCalledWith(codepoint, entity.length);
+        });
+
+        it("should report 7 consumed at the end of input", () => {
+            const callback = vi.fn();
+            const decoder = new EntityDecoder(htmlDecodeTree, callback);
+
+            decoder.startEntity(DecodingMode.Legacy);
+            expect(decoder.write(entity, 1)).toBe(-1);
+            expect(decoder.end()).toBe(entity.length);
+            expect(callback).toHaveBeenCalledWith(codepoint, entity.length);
+        });
+
+        it("should report 7 consumed when written char-by-char", () => {
+            const callback = vi.fn();
+            const decoder = new EntityDecoder(htmlDecodeTree, callback);
+
+            decoder.startEntity(DecodingMode.Legacy);
+            for (let index = 1; index < entity.length; index++) {
+                expect(decoder.write(entity[index], 0)).toBe(-1);
+            }
+            expect(decoder.write(" ", 0)).toBe(entity.length);
+            expect(callback).toHaveBeenCalledWith(codepoint, entity.length);
+        });
+
+        it("should still include the semicolon when present", () => {
+            const callback = vi.fn();
+            const decoder = new EntityDecoder(htmlDecodeTree, callback);
+
+            decoder.startEntity(DecodingMode.Legacy);
+            expect(decoder.write(`${entity};`, 1)).toBe(entity.length + 1);
+            expect(callback).toHaveBeenCalledWith(codepoint, entity.length + 1);
+        });
+
+        it("should reject in attribute mode when followed by `=`", () => {
+            const callback = vi.fn();
+            const decoder = new EntityDecoder(htmlDecodeTree, callback);
+
+            decoder.startEntity(DecodingMode.Attribute);
+            expect(decoder.write(`${entity}=`, 1)).toBe(0);
+            expect(callback).not.toHaveBeenCalled();
+        });
+    });
 });

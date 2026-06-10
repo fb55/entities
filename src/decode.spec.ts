@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import entityMap from "../maps/entities.json" with { type: "json" };
+import legacyMap from "../maps/legacy.json" with { type: "json" };
+import xmlMap from "../maps/xml.json" with { type: "json" };
 import * as entities from "./decode.js";
 
 /**
@@ -221,8 +224,8 @@ describe.each(implementations)("Decode test: %s", (_name, {
          *   - numeric entities are always accepted
          *   - leaf-node legacy match (e.g. `amp`) followed by a char that
          *     isn't an invalid attribute terminator. The trailing char
-         *     equals the entity's value byte, which previously sent the
-         *     streaming decoder into a phantom node.
+         *     equals the entity's value byte — the decoder must not read
+         *     the value slot as a trie node and descend into it.
          */
         const acceptCases = [
             { input: "&not", output: "¬" },
@@ -243,6 +246,77 @@ describe.each(implementations)("Decode test: %s", (_name, {
             input,
             output,
         }) => expect(decodeHTMLAttribute(input)).toBe(output));
+    });
+
+    describe("full entity maps (regression guard for trie generation)", () => {
+        it("should decode every named entity from the WHATWG map", () => {
+            for (const [name, value] of Object.entries(entityMap)) {
+                expect(decodeHTML(`&${name};`)).toBe(value);
+                expect(decodeHTMLStrict(`&${name};`)).toBe(value);
+            }
+        });
+
+        it("should decode every XML entity", () => {
+            for (const [name, value] of Object.entries(xmlMap)) {
+                expect(decodeXML(`&${name};`)).toBe(value);
+            }
+        });
+
+        /*
+         * Covers the streaming `consumed` bookkeeping for entities ending in
+         * compact trie runs: a wrong consumed count makes the streaming
+         * implementations drop or duplicate characters around the entity.
+         */
+        it("should decode every legacy entity without a semicolon", () => {
+            for (const [name, value] of Object.entries(legacyMap)) {
+                expect(decodeHTML(`&${name}`)).toBe(value);
+                expect(decodeHTML(`&${name} after`)).toBe(`${value} after`);
+                expect(decodeHTML(`x&${name}-y`)).toBe(`x${value}-y`);
+            }
+        });
+    });
+
+    describe("non-entities with legacy-like prefixes stay literal", () => {
+        /*
+         * In entities <= 7.0.1, a failed named-entity match could read the
+         * legacy result from a wrong trie index, emitting an unrelated
+         * character (e.g. `&Gdot ` → `Â`). These inputs must stay literal.
+         */
+        const literalCases = [
+            "&Gdot ",
+            "&eta=",
+            "&Ocy ",
+            "&YUcy1",
+            "&backepsilonx",
+            "&bepsix",
+        ];
+
+        it.each(literalCases)("should not decode %j", (input) => {
+            expect(decodeHTML(input)).toBe(input);
+            expect(decodeHTMLStrict(input)).toBe(input);
+            expect(decodeHTMLAttribute(input)).toBe(input);
+        });
+
+        /*
+         * Legacy prefixes of longer names decode in text mode but must stay
+         * literal in attribute mode (next char is alphanumeric).
+         */
+        const prefixCases = [
+            { input: "&centerdot ", text: "¢erdot " },
+            { input: "&copysr ", text: "©sr " },
+            { input: "&divideontimes ", text: "÷ontimes " },
+            { input: "&gtcc ", text: ">cc " },
+        ];
+
+        it.each(
+            prefixCases,
+        )("should decode $input as legacy prefix only in text mode", ({
+            input,
+            text,
+        }) => {
+            expect(decodeHTML(input)).toBe(text);
+            expect(decodeHTMLAttribute(input)).toBe(input);
+        });
     });
 });
 
