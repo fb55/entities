@@ -198,4 +198,59 @@ describe("EntityDecoder Streaming", () => {
             expect(callback).not.toHaveBeenCalled();
         });
     });
+
+    /*
+     * Chunk-boundary invariants of the resumable walk: a legacy match that
+     * lands exactly on a chunk boundary must be recorded before the chunk
+     * ends, so a subsequent `end()` (or rejection in the next chunk) emits
+     * it with the right consumed count.
+     */
+    describe("legacy matches at chunk boundaries", () => {
+        it("should emit a match reached mid-descent across chunks via end()", () => {
+            const callback = vi.fn();
+            const decoder = new EntityDecoder(htmlDecodeTree, callback);
+
+            decoder.startEntity(DecodingMode.Legacy);
+            expect(decoder.write("no", 0)).toBe(-1);
+            expect(decoder.write("t", 0)).toBe(-1);
+            expect(decoder.end()).toBe(4);
+            expect(callback).toHaveBeenCalledWith(0xac, 4); // ¬
+        });
+
+        it("should emit a compact-run match split across chunks via end()", () => {
+            const callback = vi.fn();
+            const decoder = new EntityDecoder(htmlDecodeTree, callback);
+
+            decoder.startEntity(DecodingMode.Legacy);
+            expect(decoder.write("Aac", 0)).toBe(-1);
+            expect(decoder.write("ute", 0)).toBe(-1);
+            expect(decoder.end()).toBe(7);
+            expect(callback).toHaveBeenCalledWith(0xc1, 7); // Á
+        });
+
+        it("should not record strict-only matches at a chunk end", () => {
+            const callback = vi.fn();
+            const decoder = new EntityDecoder(htmlDecodeTree, callback);
+
+            decoder.startEntity(DecodingMode.Strict);
+            expect(decoder.write("amp", 0)).toBe(-1);
+            expect(decoder.end()).toBe(0);
+            expect(callback).not.toHaveBeenCalled();
+        });
+
+        it("should apply attribute terminator rules across a chunk boundary", () => {
+            const callback = vi.fn();
+            const rejecting = new EntityDecoder(htmlDecodeTree, callback);
+            rejecting.startEntity(DecodingMode.Attribute);
+            expect(rejecting.write("Aacute", 0)).toBe(-1);
+            expect(rejecting.write("=", 0)).toBe(0);
+            expect(callback).not.toHaveBeenCalled();
+
+            const accepting = new EntityDecoder(htmlDecodeTree, callback);
+            accepting.startEntity(DecodingMode.Attribute);
+            expect(accepting.write("Aacute", 0)).toBe(-1);
+            expect(accepting.write(" ", 0)).toBe(7);
+            expect(callback).toHaveBeenCalledWith(0xc1, 7);
+        });
+    });
 });
