@@ -43,10 +43,11 @@
     ],
     "scripts": {
         "benchmark": "node --import=tsx scripts/benchmark.ts",
-        "build": "tsc",
+        "build": "npm run clean && tsc",
+        "build:decode-map": "node --import=tsx scripts/write-decode-map.ts",
         "build:docs": "typedoc --hideGenerator src/index.ts",
         "build:encode-trie": "node --import=tsx scripts/write-encode-map.ts",
-        "build:trie": "node --import=tsx scripts/write-decode-map.ts",
+        "clean": "node -e \"fs.rmSync('dist', { recursive: true, force: true })\"",
         "format": "npm run format:es && npm run format:biome",
         "format:biome": "biome check --fix .",
         "format:es": "npm run lint:es -- --fix",
