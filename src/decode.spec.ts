@@ -1,22 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import entityMap from "../maps/entities.json" with { type: "json" };
+import legacyMap from "../maps/legacy.json" with { type: "json" };
+import xmlMap from "../maps/xml.json" with { type: "json" };
 import * as entities from "./decode.js";
 
 /**
- * Build a decode implementation backed by EntityDecoder, feeding entity
+ * Build a decode implementation backed by the streaming decoders, feeding entity
  * bodies in chunks of the given size (Infinity = all at once, 1 = char-by-char).
  * @param chunkSize Number of characters per write call.
  */
 function makeStreamingImpl(chunkSize: number) {
     function decode(
         input: string,
-        decodeTree: Uint16Array,
+        documentType: "html" | "xml",
         decodeMode: entities.DecodingMode,
     ): string {
         let result = "";
-        const decoder = new entities.EntityDecoder(
-            decodeTree,
-            (cp) => (result += String.fromCodePoint(cp)),
-        );
+        const decoder =
+            documentType === "html"
+                ? new entities.HtmlEntityDecoder(
+                      (cp) => (result += String.fromCodePoint(cp)),
+                  )
+                : new entities.XmlEntityDecoder(
+                      (cp) => (result += String.fromCodePoint(cp)),
+                  );
 
         let lastIndex = 0;
         let offset = 0;
@@ -60,21 +67,13 @@ function makeStreamingImpl(chunkSize: number) {
 
     return {
         decodeHTML: (input: string, mode = entities.DecodingMode.Legacy) =>
-            decode(input, entities.htmlDecodeTree, mode),
+            decode(input, "html", mode),
         decodeHTMLStrict: (input: string) =>
-            decode(
-                input,
-                entities.htmlDecodeTree,
-                entities.DecodingMode.Strict,
-            ),
+            decode(input, "html", entities.DecodingMode.Strict),
         decodeHTMLAttribute: (input: string) =>
-            decode(
-                input,
-                entities.htmlDecodeTree,
-                entities.DecodingMode.Attribute,
-            ),
+            decode(input, "html", entities.DecodingMode.Attribute),
         decodeXML: (input: string) =>
-            decode(input, entities.xmlDecodeTree, entities.DecodingMode.Strict),
+            decode(input, "xml", entities.DecodingMode.Strict),
     };
 }
 
@@ -100,10 +99,10 @@ describe.each(implementations)("Decode test: %s", (_name, {
     decodeXML,
 }) => {
     /*
-     * Cases where XML and HTML decoders agree. Run through both
-     * `decodeXML` (fast path) and `decodeHTML` (trie). Adding `&lt;`,
-     * `&gt;`, `&quot;`, `&apos;` here gives direct coverage of the
-     * decodeXML switch arms — a typo there would otherwise slip through.
+     * Cases where the XML and HTML decoders agree. Run through both
+     * `decodeXML` and `decodeHTML` so the two implementations cover the
+     * same inputs. Including `&lt;`, `&gt;`, `&quot;`, `&apos;` gives
+     * direct coverage of the XML entity set.
      */
     const sharedTestcases = [
         { input: "&amp;amp;", output: "&amp;" },
@@ -167,14 +166,37 @@ describe.each(implementations)("Decode test: %s", (_name, {
             /*
              * Sanity: max valid Unicode value passes through, exactly past
              * max (U+110000) maps to U+FFFD, and a large overflow that —
-             * before the codepoint clamp — would truncate inside the
-             * 21-bit packed-return field and emit a valid-looking
+             * before the codepoint clamp — would truncate to a valid-looking
              * private-use char (U+100000) instead.
              */
             expect(decodeHTML("&#1114111;")).toBe("\u{10FFFF}");
             expect(decodeHTML("&#1114112;")).toBe("�");
             expect(decodeHTML("&#3145728;")).toBe("�");
             expect(decodeHTML("&#x300000;")).toBe("�");
+        });
+
+        it("should decode numeric entities with very long digit runs", () => {
+            /*
+             * `consumed` is packed into the upper 11 bits of the parse result,
+             * so runs up to ~2045 digits decode and advance exactly.
+             */
+            const zeros = "0".repeat(2000);
+            expect(decodeHTML(`&#${zeros}65;`)).toBe("A");
+            expect(decodeHTML(`&#x${zeros}41;`)).toBe("A");
+            expect(decodeHTMLStrict(`&#${zeros}65;`)).toBe("A");
+            expect(decodeXML(`&#${zeros}65;`)).toBe("A");
+            // Legacy mode, no terminator.
+            expect(decodeHTML(`&#${zeros}65`)).toBe("A");
+            /*
+             * Across the packing boundary (`consumed === 2048` overflows the
+             * 11-bit field to 0) the decoder must terminate, never loop — the
+             * sync path treats a zero consumed as "no entity" and advances.
+             */
+            for (let n = 2044; n <= 2050; n++) {
+                expect(typeof decodeHTML(`&#${"0".repeat(n)}65;`)).toBe(
+                    "string",
+                );
+            }
         });
     });
 
@@ -191,11 +213,10 @@ describe.each(implementations)("Decode test: %s", (_name, {
 
     describe("attribute mode", () => {
         /*
-         * Inputs that should be left verbatim in attribute mode. Covers the
-         * four legacy-fallback paths in `stateNamedEntity`:
-         *   - alpha / digit / `=` immediately after the legacy match
-         *   - branch miss after descending past it (#2208)
-         *   - compact-run mismatch after descending past it
+         * Inputs that should be left verbatim in attribute mode: an
+         * alphanumeric or `=` immediately after a legacy match rejects it,
+         * including when the name continues past the match and only fails
+         * to be a longer entity later (#2208).
          */
         const rejectCases = [
             { input: "&notp" },
@@ -205,9 +226,9 @@ describe.each(implementations)("Decode test: %s", (_name, {
             { input: "&not=" },
             { input: "&notin\0;" },
             { input: "&notin<" },
-            // Compact-run middle-char mismatch
+            // Middle-character mismatch in a longer candidate name
             { input: "&ltlaXr;" },
-            // Compact-run first-char mismatch
+            // Mismatch right after the legacy match
             { input: "&ltlXarr;" },
         ];
 
@@ -216,13 +237,13 @@ describe.each(implementations)("Decode test: %s", (_name, {
 
         /*
          * Accept cases:
-         *   - standalone legacy match (no descent / EOF)
+         *   - standalone legacy match (end of input)
          *   - semicolon-terminated entities ignore the following char
          *   - numeric entities are always accepted
-         *   - leaf-node legacy match (e.g. `amp`) followed by a char that
-         *     isn't an invalid attribute terminator. The trailing char
-         *     equals the entity's value byte, which previously sent the
-         *     streaming decoder into a phantom node.
+         *   - a legacy match (e.g. `amp`) followed by a char that isn't an
+         *     invalid attribute terminator — including the tricky shape
+         *     where the trailing char equals the entity's replacement
+         *     character, which must not extend the match.
          */
         const acceptCases = [
             { input: "&not", output: "¬" },
@@ -244,17 +265,88 @@ describe.each(implementations)("Decode test: %s", (_name, {
             output,
         }) => expect(decodeHTMLAttribute(input)).toBe(output));
     });
+
+    describe("full entity maps (regression guard for data generation)", () => {
+        it("should decode every named entity from the WHATWG map", () => {
+            for (const [name, value] of Object.entries(entityMap)) {
+                expect(decodeHTML(`&${name};`)).toBe(value);
+                expect(decodeHTMLStrict(`&${name};`)).toBe(value);
+            }
+        });
+
+        it("should decode every XML entity", () => {
+            for (const [name, value] of Object.entries(xmlMap)) {
+                expect(decodeXML(`&${name};`)).toBe(value);
+            }
+        });
+
+        /*
+         * Covers the `consumed` bookkeeping for legacy matches: a wrong
+         * count makes the streaming implementations drop or duplicate
+         * characters around the entity.
+         */
+        it("should decode every legacy entity without a semicolon", () => {
+            for (const [name, value] of Object.entries(legacyMap)) {
+                expect(decodeHTML(`&${name}`)).toBe(value);
+                expect(decodeHTML(`&${name} after`)).toBe(`${value} after`);
+                expect(decodeHTML(`x&${name}-y`)).toBe(`x${value}-y`);
+            }
+        });
+    });
+
+    describe("non-entities with legacy-like prefixes stay literal", () => {
+        /*
+         * In entities <= 7.0.1, a failed named-entity match could emit an
+         * unrelated character from a misindexed legacy lookup (e.g.
+         * `&Gdot ` → `Â`). These inputs must stay literal.
+         */
+        const literalCases = [
+            "&Gdot ",
+            "&eta=",
+            "&Ocy ",
+            "&YUcy1",
+            "&backepsilonx",
+            "&bepsix",
+        ];
+
+        it.each(literalCases)("should not decode %j", (input) => {
+            expect(decodeHTML(input)).toBe(input);
+            expect(decodeHTMLStrict(input)).toBe(input);
+            expect(decodeHTMLAttribute(input)).toBe(input);
+        });
+
+        /*
+         * Legacy prefixes of longer names decode in text mode but must stay
+         * literal in attribute mode (next char is alphanumeric).
+         */
+        const prefixCases = [
+            { input: "&centerdot ", text: "¢erdot " },
+            { input: "&copysr ", text: "©sr " },
+            { input: "&divideontimes ", text: "÷ontimes " },
+            { input: "&gtcc ", text: ">cc " },
+        ];
+
+        it.each(
+            prefixCases,
+        )("should decode $input as legacy prefix only in text mode", ({
+            input,
+            text,
+        }) => {
+            expect(decodeHTML(input)).toBe(text);
+            expect(decodeHTMLAttribute(input)).toBe(input);
+        });
+    });
 });
 
-describe("EntityDecoder", () => {
+describe("HtmlEntityDecoder", () => {
     let callback: ReturnType<
         typeof vi.fn<(cp: number, consumed: number) => void>
     >;
-    let decoder: entities.EntityDecoder;
+    let decoder: entities.HtmlEntityDecoder;
 
     beforeEach(() => {
         callback = vi.fn<(cp: number, consumed: number) => void>();
-        decoder = new entities.EntityDecoder(entities.htmlDecodeTree, callback);
+        decoder = new entities.HtmlEntityDecoder(callback);
     });
 
     it("should decode decimal entities", () => {
@@ -327,14 +419,14 @@ describe("EntityDecoder", () => {
         expect(callback).toHaveBeenCalledTimes(0);
     });
 
-    it("should not commit a legacy match in attribute mode after descending past it (#2208)", () => {
+    it("should not commit a legacy match in attribute mode when the name continues past it (#2208)", () => {
         decoder.startEntity(entities.DecodingMode.Attribute);
         expect(decoder.write("notin\0;", 0)).toBe(0);
         expect(decoder.end()).toBe(0);
         expect(callback).not.toHaveBeenCalled();
     });
 
-    it("should not commit a legacy match in attribute mode after descending past it across chunks (#2208)", () => {
+    it("should not commit a legacy match in attribute mode when the name continues past it across chunks (#2208)", () => {
         decoder.startEntity(entities.DecodingMode.Attribute);
         for (const chunk of ["no", "ti", "n\0", ";"]) {
             const written = decoder.write(chunk, 0);
@@ -345,23 +437,22 @@ describe("EntityDecoder", () => {
     });
 
     /*
-     * Focused tests exercising early exit paths inside a compact run in the real trie.
-     * Discovered prefix: "zi" followed by compact run "grarr"; mismatching inside this run should
-     * return 0 with no emission (result still 0).
+     * Mismatches inside a name must reject without emitting. The decoder
+     * may buffer (-1) until the run's terminator makes the rejection
+     * conclusive; the final outcome is 0 with no emission.
      */
-    describe("compact run mismatches", () => {
+    describe("name mismatches", () => {
         it.each([
             ["first run character mismatch", "ziXgrar"],
             ["mismatch after one correct run char", "zigXarr"],
             ["mismatch after two correct run chars", "zigrXrr"],
-        ])("%s returns 0", (_name, input) => {
+        ])("%s rejects without emitting", (_name, input) => {
             const callback = vi.fn<(cp: number, consumed: number) => void>();
-            const d = new entities.EntityDecoder(
-                entities.htmlDecodeTree,
-                callback,
-            );
+            const d = new entities.HtmlEntityDecoder(callback);
             d.startEntity(entities.DecodingMode.Strict);
-            expect(d.write(input, 0)).toBe(0);
+            const written = d.write(input, 0);
+            expect(written).toBeLessThanOrEqual(0);
+            if (written === -1) expect(d.end()).toBe(0);
             expect(callback).not.toHaveBeenCalled();
         });
     });
@@ -378,11 +469,7 @@ describe("EntityDecoder", () => {
             errorHandlers.absenceOfDigitsInNumericCharacterReference.mockClear();
             errorHandlers.validateNumericCharacterReference.mockClear();
             callback = vi.fn<(cp: number, consumed: number) => void>();
-            decoder = new entities.EntityDecoder(
-                entities.htmlDecodeTree,
-                callback,
-                errorHandlers,
-            );
+            decoder = new entities.HtmlEntityDecoder(callback, errorHandlers);
             decoder.startEntity(entities.DecodingMode.Legacy);
         });
 
