@@ -34,8 +34,7 @@ console.log(`Done!  Data: ${serialized.length} chars`);
 function getTrie(map: Record<string, string>): Map<number, TrieNode> {
     const trie = new Map<number, TrieNode>();
 
-    for (const entity of Object.keys(map)) {
-        const decoded = map[entity];
+    for (const [entity, decoded] of Object.entries(map)) {
         let lastMap = trie;
 
         // Walk all code points except the last one, creating intermediate nodes.
@@ -45,6 +44,7 @@ function getTrie(map: Record<string, string>): Map<number, TrieNode> {
             const cpLength = cp > 0xff_ff ? 2 : 1;
 
             // Check if this is the last code point in the sequence.
+            // eslint-disable-next-line unicorn/no-break-in-nested-loop
             if (index + cpLength >= decoded.length) break;
 
             const next = lastMap.get(cp) ?? {};
@@ -67,7 +67,7 @@ function getTrie(map: Record<string, string>): Map<number, TrieNode> {
 
 function serializeTrie(trie: Map<number, TrieNode>): string {
     // @ts-expect-error `toSorted` requires a lib bump.
-    const entries = [...trie.entries()].toSorted(
+    const entries = [...trie].toSorted(
         (a: [number, TrieNode], b: [number, TrieNode]) => a[0] - b[0],
     );
     let out = "";

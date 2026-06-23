@@ -14,10 +14,9 @@ describe("EntityDecoder Streaming", () => {
         decoder.startEntity(DecodingMode.Strict);
 
         // Feed char by char starting after '&'
-        let result: number;
         for (let index = 1; index < entity.length; index++) {
             const char = entity[index];
-            result = decoder.write(char, 0);
+            const result = decoder.write(char, 0);
 
             if (index < entity.length - 1) {
                 expect(result).toBe(-1);
@@ -91,14 +90,14 @@ describe("EntityDecoder Streaming", () => {
 
         const data = "&amp;&gt;&amp&lt;&copy;&#x61;&#x62&#99;&#100&#101";
 
-        let inEntity = false;
+        let isInEntity = false;
         for (let index = 0; index < data.length; index++) {
             const char = data[index];
 
-            if (!inEntity) {
+            if (!isInEntity) {
                 if (char === "&") {
                     decoder.startEntity(DecodingMode.Strict);
-                    inEntity = true;
+                    isInEntity = true;
                 }
                 continue;
             }
@@ -107,13 +106,13 @@ describe("EntityDecoder Streaming", () => {
 
             if (offset === -1) {
                 if (char === "&") {
-                    inEntity = false;
+                    isInEntity = false;
                     index -= 1; // Reprocess '&' as a new entity start.
                 }
                 continue;
             }
 
-            inEntity = false;
+            isInEntity = false;
 
             if (offset === 0) {
                 index -= 1; // Reprocess current char outside the failed entity.

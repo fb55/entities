@@ -18,14 +18,12 @@ describe("Documents", () => {
     describe.each(levelDocuments)("$name", ({ level, document }) => {
         describe("Decode", () => {
             it("should decode all entities", () => {
-                for (const entity of Object.keys(document)) {
+                for (const [entity, value] of Object.entries(document)) {
                     for (let l = level; l < levels.length; l++) {
-                        expect(entities.decode(`&${entity};`, l)).toBe(
-                            document[entity],
-                        );
+                        expect(entities.decode(`&${entity};`, l)).toBe(value);
                         expect(
                             entities.decode(`&${entity};`, { level: l }),
-                        ).toBe(document[entity]);
+                        ).toBe(value);
                     }
                 }
             });
@@ -33,14 +31,14 @@ describe("Documents", () => {
 
         describe("Decode strict", () => {
             it("should decode all entities", () => {
-                for (const entity of Object.keys(document)) {
+                for (const [entity, value] of Object.entries(document)) {
                     for (let l = level; l < levels.length; l++) {
                         expect(
                             entities.decode(`&${entity};`, {
                                 level: l,
                                 mode: entities.DecodingMode.Strict,
                             }),
-                        ).toBe(document[entity]);
+                        ).toBe(value);
                     }
                 }
             });
@@ -48,11 +46,11 @@ describe("Documents", () => {
 
         describe("Encode", () => {
             it("should roundtrip all entities", () => {
-                for (const entity of Object.keys(document)) {
+                for (const value of Object.values<string>(document)) {
                     for (let l = level; l < levels.length; l++) {
-                        const encoded = entities.encode(document[entity], l);
+                        const encoded = entities.encode(value, l);
                         const decoded = entities.decode(encoded, l);
-                        expect(decoded).toBe(document[entity]);
+                        expect(decoded).toBe(value);
                     }
                 }
             });
@@ -70,29 +68,27 @@ describe("Documents", () => {
     describe("Legacy", () => {
         const legacyMap: Record<string, string> = legacy;
         it("should decode", () => {
-            for (const entity of Object.keys(legacyMap)) {
-                expect(entities.decodeHTML(`&${entity}`)).toBe(
-                    legacyMap[entity],
-                );
+            for (const [entity, value] of Object.entries(legacyMap)) {
+                expect(entities.decodeHTML(`&${entity}`)).toBe(value);
                 expect(
                     entities.decode(`&${entity}`, {
                         level: entities.EntityLevel.HTML,
                         mode: entities.DecodingMode.Legacy,
                     }),
-                ).toBe(legacyMap[entity]);
+                ).toBe(value);
             }
         });
     });
 });
 
 const astral = [
-    ["1d306", "\uD834\uDF06"],
-    ["1d11e", "\uD834\uDD1E"],
+    ["1d306", "\u{1D306}"],
+    ["1d11e", "\u{1D11E}"],
 ];
 
 const astralSpecial = [
-    ["80", "\u20AC"],
-    ["110000", "\uFFFD"],
+    ["80", "\u{20AC}"],
+    ["110000", "\u{FFFD}"],
 ];
 
 describe("Astral entities", () => {

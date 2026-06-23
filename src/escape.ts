@@ -93,7 +93,7 @@ function escapeReplacer(c: string): string {
         case ">": {
             return "&gt;";
         }
-        case "\u00A0": {
+        case "\u{A0}": {
             return "&nbsp;";
         }
     }
@@ -108,10 +108,11 @@ const xmlEscapeRegex = /["&'<>]/g;
  * @param data String to escape.
  */
 export function escapeUTF8(data: string): string {
+    // eslint-disable-next-line unicorn/no-unsafe-string-replacement -- `escapeReplacer` is a function replacer; `$` substitution does not apply
     return data.replace(xmlEscapeRegex, escapeReplacer);
 }
 
-const attributeEscapeRegex = /["&\u00A0]/g;
+const attributeEscapeRegex = /["&\u{A0}]/gu;
 
 /**
  * Encodes all characters that have to be escaped in HTML attributes,
@@ -119,10 +120,11 @@ const attributeEscapeRegex = /["&\u00A0]/g;
  * @param data String to escape.
  */
 export function escapeAttribute(data: string): string {
+    // eslint-disable-next-line unicorn/no-unsafe-string-replacement -- `escapeReplacer` is a function replacer; `$` substitution does not apply
     return data.replace(attributeEscapeRegex, escapeReplacer);
 }
 
-const textEscapeRegex = /[&<>\u00A0]/g;
+const textEscapeRegex = /[&<>\u{A0}]/gu;
 
 /**
  * Encodes all characters that have to be escaped in HTML text,
@@ -130,5 +132,6 @@ const textEscapeRegex = /[&<>\u00A0]/g;
  * @param data String to escape.
  */
 export function escapeText(data: string): string {
+    // eslint-disable-next-line unicorn/no-unsafe-string-replacement -- `escapeReplacer` is a function replacer; `$` substitution does not apply
     return data.replace(textEscapeRegex, escapeReplacer);
 }
