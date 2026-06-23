@@ -20,7 +20,7 @@ export function getTrie(
     const trie = new Map<number, TrieNode>();
     const root = { next: trie };
 
-    for (const key of Object.keys(map)) {
+    for (const [key, value] of Object.entries(map)) {
         // Resolve the key
         let lastMap = trie;
         let next!: TrieNode;
@@ -39,8 +39,7 @@ export function getTrie(
             }
         }
 
-        const value = map[key];
-        const isLegacy = key in legacy;
+        const isLegacy = Object.hasOwn(legacy, key);
 
         /*
          * All entities store the value on the terminal node.

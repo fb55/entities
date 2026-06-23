@@ -12,35 +12,19 @@ function decode(map: number[]) {
 
 describe("compact_run", () => {
     it("encodes a standard compact run", () => {
-        const trie = {
-            next: new Map([
-                [
-                    "a".charCodeAt(0),
-                    {
-                        next: new Map([
-                            [
-                                "b".charCodeAt(0),
-                                {
-                                    next: new Map([
-                                        [
-                                            "c".charCodeAt(0),
-                                            {
-                                                next: new Map([
-                                                    [
-                                                        "d".charCodeAt(0),
-                                                        { value: "X" },
-                                                    ],
-                                                ]),
-                                            },
-                                        ],
-                                    ]),
-                                },
-                            ],
-                        ]),
-                    },
-                ],
-            ]),
-        };
+        // Build the chain a→b→c→d, with "X" stored on the terminal "d" node.
+        const trie: TrieNode = { next: new Map() };
+        let cursor: TrieNode = trie;
+        const chars = [..."abcd"];
+        for (let index = 0; index < chars.length; index++) {
+            const code = chars[index].charCodeAt(0);
+            const child: TrieNode =
+                index === chars.length - 1
+                    ? { value: "X" }
+                    : { next: new Map() };
+            cursor.next!.set(code, child);
+            cursor = child;
+        }
         const enc = encodeTrie(trie);
         // Standard run header: run flag + length(4)<<7 + first char 'a'
         const header = enc[0];

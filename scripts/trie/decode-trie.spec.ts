@@ -19,7 +19,7 @@ function mergeMaps(
 ): Record<string, string> {
     const merged: Record<string, string> = {};
     for (const [k, v] of Object.entries(map)) {
-        if (k in legacy) {
+        if (Object.hasOwn(legacy, k)) {
             // Legacy: unsuffixed only (`;` handled implicitly by decoder, not stored in trie)
             merged[k] = v;
         } else {
@@ -46,46 +46,40 @@ describe("decode_trie", () => {
             "": "ab",
         }));
 
-    it("should decode a branch of size 1", () =>
-        expect(
-            decode(
-                encodeTrie({
-                    next: new Map([["b".charCodeAt(0), { value: "a" }]]),
-                }),
-            ),
-        ).toStrictEqual({ b: "a" }));
+    it("should decode a branch of size 1", () => {
+        const encoded = encodeTrie({
+            next: new Map([["b".charCodeAt(0), { value: "a" }]]),
+        });
+        expect(decode(encoded)).toStrictEqual({ b: "a" });
+    });
 
-    it("should decode a dictionary of size 2", () =>
-        expect(
-            decode(
-                encodeTrie({
-                    next: new Map([
-                        ["A".charCodeAt(0), { value: "a" }],
-                        ["b".charCodeAt(0), { value: "B" }],
-                    ]),
-                }),
-            ),
-        ).toStrictEqual({ A: "a", b: "B" }));
+    it("should decode a dictionary of size 2", () => {
+        const encoded = encodeTrie({
+            next: new Map([
+                ["A".charCodeAt(0), { value: "a" }],
+                ["b".charCodeAt(0), { value: "B" }],
+            ]),
+        });
+        expect(decode(encoded)).toStrictEqual({ A: "a", b: "B" });
+    });
 
-    it("should decode a jump table of size 2", () =>
-        expect(
-            decode(
-                encodeTrie({
-                    next: new Map([
-                        ["a".charCodeAt(0), { value: "a" }],
-                        ["b".charCodeAt(0), { value: "B" }],
-                    ]),
-                }),
-            ),
-        ).toStrictEqual({ a: "a", b: "B" }));
+    it("should decode a jump table of size 2", () => {
+        const encoded = encodeTrie({
+            next: new Map([
+                ["a".charCodeAt(0), { value: "a" }],
+                ["b".charCodeAt(0), { value: "B" }],
+            ]),
+        });
+        expect(decode(encoded)).toStrictEqual({ a: "a", b: "B" });
+    });
 
-    it("should decode the XML map", () =>
-        expect(decode(encodeTrie(getTrie(xmlMap, {})))).toStrictEqual(
-            mergeMaps(xmlMap, {}),
-        ));
+    it("should decode the XML map", () => {
+        const encoded = encodeTrie(getTrie(xmlMap, {}));
+        expect(decode(encoded)).toStrictEqual(mergeMaps(xmlMap, {}));
+    });
 
-    it("should decode the HTML map", () =>
-        expect(decode(encodeTrie(getTrie(entityMap, legacyMap)))).toStrictEqual(
-            mergeMaps(entityMap, legacyMap),
-        ));
+    it("should decode the HTML map", () => {
+        const encoded = encodeTrie(getTrie(entityMap, legacyMap));
+        expect(decode(encoded)).toStrictEqual(mergeMaps(entityMap, legacyMap));
+    });
 });

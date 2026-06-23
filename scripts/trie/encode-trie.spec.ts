@@ -30,11 +30,10 @@ describe("encode_trie", () => {
     });
 
     it("should encode a branch of size 1", () => {
-        expect(
-            encodeTrie({
-                next: new Map([["b".charCodeAt(0), { value: "a" }]]),
-            }),
-        ).toStrictEqual([
+        const trie = {
+            next: new Map([["b".charCodeAt(0), { value: "a" }]]),
+        };
+        expect(encodeTrie(trie)).toStrictEqual([
             "b".charCodeAt(0),
             0b0100_0000_0000_0000 | "a".charCodeAt(0),
         ]);

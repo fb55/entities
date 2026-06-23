@@ -58,7 +58,7 @@ describe("Encode->decode test", () => {
     });
 
     it("should encode trailing parts of entities", () =>
-        expect(entities.encodeHTML("\uD835")).toBe("&#55349;"));
+        expect(entities.encodeHTML("\u{D835}")).toBe("&#55349;"));
 
     it("should encode surrogate pair with first surrogate equivalent of entity, without corresponding entity", () =>
         expect(entities.encodeHTML("\u{1D4A4}")).toBe("&#119972;"));
@@ -66,13 +66,13 @@ describe("Encode->decode test", () => {
 
 describe("multi-code-point entities with ASCII starters", () => {
     it("should encode < + U+20D2 as &nvlt;", () =>
-        expect(entities.encodeHTML("<\u20D2")).toBe("&nvlt;"));
+        expect(entities.encodeHTML("<\u{20D2}")).toBe("&nvlt;"));
 
     it("should encode > + U+20D2 as &nvgt;", () =>
-        expect(entities.encodeHTML(">\u20D2")).toBe("&nvgt;"));
+        expect(entities.encodeHTML(">\u{20D2}")).toBe("&nvgt;"));
 
     it("should encode = + U+20E5 as &bne;", () =>
-        expect(entities.encodeHTML("=\u20E5")).toBe("&bne;"));
+        expect(entities.encodeHTML("=\u{20E5}")).toBe("&bne;"));
 
     it("should still encode < alone as &lt;", () =>
         expect(entities.encodeHTML("<")).toBe("&lt;"));
@@ -81,7 +81,7 @@ describe("multi-code-point entities with ASCII starters", () => {
         expect(entities.encodeHTML(">")).toBe("&gt;"));
 
     it("should encode < followed by unrelated char as &lt; + numeric", () =>
-        expect(entities.encodeHTML("<\u20D3")).toBe("&lt;&#8403;"));
+        expect(entities.encodeHTML("<\u{20D3}")).toBe("&lt;&#8403;"));
 });
 
 describe("encodeNonAsciiHTML", () => {

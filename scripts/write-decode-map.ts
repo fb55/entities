@@ -64,7 +64,7 @@ function encodeTrieData(data: Uint16Array): {
     const freq = new Map<number, number>();
     for (const value of data) freq.set(value, (freq.get(value) ?? 0) + 1);
     // @ts-expect-error `toSorted` requires a lib bump.
-    const sorted: [number, number][] = [...freq.entries()].toSorted(
+    const sorted: [number, number][] = [...freq].toSorted(
         (a: [number, number], b: [number, number]) => b[1] - a[1],
     );
 

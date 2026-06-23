@@ -28,6 +28,7 @@ function makeStreamingImpl(chunkSize: number) {
             const entityStart = offset + 1;
             let length: number;
 
+            // eslint-disable-next-line unicorn/prefer-global-number-constants -- biome's useNumberNamespace enforces `Number.POSITIVE_INFINITY`
             if (chunkSize === Number.POSITIVE_INFINITY) {
                 length = decoder.write(input, entityStart);
             } else {
@@ -89,6 +90,7 @@ const syncImpl: DecoderImpl = {
 
 const implementations: [string, DecoderImpl][] = [
     ["sync", syncImpl],
+    // eslint-disable-next-line unicorn/prefer-global-number-constants -- biome's useNumberNamespace enforces `Number.POSITIVE_INFINITY`
     ["streaming (all at once)", makeStreamingImpl(Number.POSITIVE_INFINITY)],
     ["streaming (char-by-char)", makeStreamingImpl(1)],
 ];
@@ -179,7 +181,7 @@ describe.each(implementations)("Decode test: %s", (_name, {
     });
 
     it("should parse &nbsp followed by < (#852)", () =>
-        expect(decodeHTML("&nbsp<")).toBe("\u00A0<"));
+        expect(decodeHTML("&nbsp<")).toBe("\u{A0}<"));
 
     it("should decode trailing legacy entities", () => {
         expect(decodeHTML("&timesbar;&timesbar")).toBe("⨱×bar");

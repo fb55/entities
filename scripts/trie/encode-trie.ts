@@ -24,18 +24,17 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
         if (cached != null) return cached;
         const startIndex = enc.length;
         encodeCache.set(node, startIndex);
-        const nodeIndex = enc.push(0) - 1;
+        const nodeIndex = enc.length;
+        enc.push(0);
 
         if (node.value != null) {
-            let valueLength = 0;
-            if (
+            let valueLength =
                 node.next !== undefined ||
                 node.value.length > 1 ||
                 binaryLength(node.value.charCodeAt(0)) > 14 ||
                 (node.value.charCodeAt(0) & BinTrieFlags.FLAG13) !== 0
-            ) {
-                valueLength = node.value.length;
-            }
+                    ? node.value.length
+                    : 0;
             valueLength += 1;
             assert.ok(
                 binaryLength(valueLength) <= 2,
@@ -109,7 +108,7 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
     }
 
     function addBranches(next: Map<number, TrieNode>, nodeIndex: number) {
-        const branches = [...next.entries()];
+        const branches = [...next];
         if (branches.length === 0) return;
         branches.sort(([a], [b]) => a - b);
         assert.ok(

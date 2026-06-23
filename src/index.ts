@@ -125,16 +125,14 @@ export function encode(
             return escapeText(input);
         }
         case EncodingMode.ASCII: {
-            return level === EntityLevel.HTML
-                ? encodeNonAsciiHTML(input)
-                : encodeXML(input);
+            return (
+                level === EntityLevel.HTML ? encodeNonAsciiHTML : encodeXML
+            )(input);
         }
         // biome-ignore lint/complexity/noUselessSwitchCase: we get an error for the switch not being exhaustive
         case EncodingMode.Extensive:
         default: {
-            return level === EntityLevel.HTML
-                ? encodeHTML(input)
-                : encodeXML(input);
+            return (level === EntityLevel.HTML ? encodeHTML : encodeXML)(input);
         }
     }
 }
