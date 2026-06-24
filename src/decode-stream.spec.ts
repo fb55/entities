@@ -47,10 +47,12 @@ describe("EntityDecoder Streaming", () => {
         const callback = vi.fn();
         const decoder = new EntityDecoder(htmlDecodeTree, callback);
 
-        // `&Egrave` is a legacy (semicolon-optional) entity stored as a
-        // compact run. When it is terminated by the next character, only
-        // its 7 characters (`&Egrave`) should be consumed -- the following
-        // `&` must remain available to start the next entity.
+        /*
+         * The `&Egrave` string is a legacy (semicolon-optional) entity stored
+         * as a compact run. When it is terminated by the next character, only
+         * its 7 characters (`&Egrave`) should be consumed -- the following `&`
+         * must remain available to start the next entity.
+         */
         decoder.startEntity(DecodingMode.Legacy);
 
         expect(decoder.write("&Egrave&CHcy", 1)).toBe(7);
