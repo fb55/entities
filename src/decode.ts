@@ -383,8 +383,13 @@ export class EntityDecoder {
                     (current & BinTrieFlags.FLAG13) === 0
                 ) {
                     this.result = this.treeIndex;
-                    this.consumed += this.excess;
-                    this.excess = 0;
+                    /*
+                     * The `excess` counter started at 1 to count the leading
+                     * `&`, which is already in `consumed`; subtract it so the
+                     * run's characters are not counted twice.
+                     */
+                    this.consumed += this.excess - 1;
+                    this.excess = 1;
                 }
             }
 

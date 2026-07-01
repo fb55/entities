@@ -43,6 +43,22 @@ describe("EntityDecoder Streaming", () => {
         expect(callback).toHaveBeenCalledWith(8755, 33);
     });
 
+    it("should not over-consume a legacy compact-run entity (e.g. `&Egrave`)", () => {
+        const callback = vi.fn();
+        const decoder = new EntityDecoder(htmlDecodeTree, callback);
+
+        /*
+         * The `&Egrave` string is a legacy (semicolon-optional) entity stored
+         * as a compact run. When it is terminated by the next character, only
+         * its 7 characters (`&Egrave`) should be consumed -- the following `&`
+         * must remain available to start the next entity.
+         */
+        decoder.startEntity(DecodingMode.Legacy);
+
+        expect(decoder.write("&Egrave&CHcy", 1)).toBe(7);
+        expect(callback).toHaveBeenCalledWith(0xc8, 7); // È
+    });
+
     it("should decode xml entities (single chunk)", () => {
         const callback = vi.fn();
         const decoder = new EntityDecoder(xmlDecodeTree, callback);
