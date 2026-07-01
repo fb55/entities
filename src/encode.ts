@@ -204,11 +204,12 @@ function isEncodable(bitset: Uint32Array, code: number): boolean {
  * break-even is ~7 characters; below it the per-call regex overhead
  * dominates, above it the regex skips clean spans faster in native code).
  * So we scan at most `INLINE_SCAN_WINDOW` characters inline before deferring
- * to the regex, and once the regex has skipped at least `LONG_GAP_THRESHOLD`
- * characters past that window we treat gaps as long and skip the inline scan
- * entirely until a short gap reappears. Keeping the threshold below the window
- * avoids a dead zone where mid-length gaps repeatedly pay the full inline scan
- * without ever switching to the regex-only path.
+ * to the regex. Any gap long enough to exhaust the window switches to
+ * long-gap mode, which skips the inline scan entirely; we stay in that mode
+ * while total gaps are at least `LONG_GAP_THRESHOLD` characters long and
+ * drop back to the inline scan as soon as a shorter gap appears. Gaps are
+ * always measured from where they start, so every window-exhausting gap
+ * enters long-gap mode and no gap length pays both scans repeatedly.
  */
 /** @internal Exported for tests; not re-exported from the package entry. */
 export const INLINE_SCAN_WINDOW = 16;
@@ -223,7 +224,7 @@ function encodeHTMLTrieRe(
     let out: string | undefined;
     let last = 0; // Start of the next untouched slice.
     let index = 0;
-    let wasLongGap = false; // The previous gap crossed LONG_GAP_THRESHOLD.
+    let wasLongGap = false; // The previous gap was long; skip the inline scan.
 
     while (index < length) {
         const char = input.charCodeAt(index);
@@ -234,10 +235,11 @@ function encodeHTMLTrieRe(
          * few characters, so scan a short window inline first; the regex —
          * which matches exactly the same characters and skips clean spans
          * in native code — runs for longer gaps. Gap lengths cluster, so
-         * after one regex-sized gap the window is skipped until a gap fits
-         * it again.
+         * after a window-exhausting gap the window is skipped until a gap
+         * shorter than LONG_GAP_THRESHOLD reappears.
          */
         if (!isEncodable(bitset, char)) {
+            const gapStart = index;
             let next = index + 1;
             if (!wasLongGap) {
                 const bound = Math.min(index + INLINE_SCAN_WINDOW, length);
@@ -260,7 +262,14 @@ function encodeHTMLTrieRe(
             re.lastIndex = next;
             if (!re.test(input)) break;
             index = re.lastIndex - 1;
-            wasLongGap = index - next >= LONG_GAP_THRESHOLD;
+            /*
+             * Reaching the regex from the inline scan means the gap
+             * exhausted the window, so it is long by definition; once in
+             * long-gap mode, stay until a gap shorter than the threshold
+             * appears.
+             */
+            wasLongGap =
+                !wasLongGap || index - gapStart >= LONG_GAP_THRESHOLD;
             continue;
         }
 
