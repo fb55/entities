@@ -100,3 +100,28 @@ describe("encodeNonAsciiHTML", () => {
             "&#9810;&#65039;&#9811;&#65039;&#9800;&#65039;&#9801;&#65039;&#9802;&#65039;&#9803;&#65039;&#9804;&#65039;&#9805;&#65039;&#9806;&#65039;&#9807;&#65039;&#9808;&#65039;&#9809;&#65039;",
         ));
 });
+
+describe("scan-path consistency (regex jump vs inline scan)", () => {
+    /*
+     * The scan uses a bitset to test single characters inline and a regex to
+     * skip clean spans. These are two hand-maintained encodings of the same
+     * set, so a drift between them would silently let a character slip through
+     * the regex-jump path unencoded. Encoding each code unit both alone (inline
+     * path) and after a long clean prefix (which forces the regex-jump path)
+     * must agree for every code unit, in both HTML and non-ASCII modes.
+     */
+    const prefix = "a".repeat(64); // Longer than the inline window.
+    it.each([
+        ["encodeHTML", entities.encodeHTML],
+        ["encodeNonAsciiHTML", entities.encodeNonAsciiHTML],
+    ])("%s: regex-jump path matches inline path for all code units", (_, encoder) => {
+        const mismatches: number[] = [];
+        for (let code = 0; code <= 0xff_ff; code++) {
+            const ch = String.fromCharCode(code);
+            const inline = encoder(ch);
+            const viaRegex = encoder(prefix + ch).slice(prefix.length);
+            if (viaRegex !== inline) mismatches.push(code);
+        }
+        expect(mismatches).toStrictEqual([]);
+    });
+});
