@@ -220,5 +220,16 @@ export function encodeTrie(
         ),
         "Too many bits",
     );
+    /*
+     * Branch pointers are stored end-relative modulo 2^16 and the decoder
+     * reconstructs them with `& 0xffff`. That round-trips only while every
+     * node index fits in a uint16; a larger trie would alias a forward
+     * pointer onto the wrong node without any per-pointer check catching it.
+     */
+    assert.ok(
+        enc.length <= 0x1_00_00,
+        `Trie has ${enc.length} words; end-relative branch pointers are ` +
+            "uint16, so the trie must not exceed 65536 words.",
+    );
     return enc;
 }

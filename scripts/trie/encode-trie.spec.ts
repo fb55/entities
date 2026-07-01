@@ -176,4 +176,50 @@ describe("encode_trie", () => {
             expect((branchEnd + result[pointerPos] - 1) & 0xff_ff).toBe(0);
         }
     });
+
+    it("uses a jump table for a contiguous range of 63 children (the 6-bit BRANCH_LENGTH limit)", () => {
+        /*
+         * Span 63 equals branch count 63: fits both the jump-table length
+         * field and the overhead budget, so the node is a jump table whose
+         * header carries the first char in JUMP_TABLE and 63 in BRANCH_LENGTH.
+         */
+        const next = new Map<number, TrieNode>();
+        for (let char = 1; char <= 63; char++) next.set(char, { value: "a" });
+        const header = encodeTrie({ next })[0];
+        // JUMP_TABLE field holds the first covered char.
+        expect(header & 0b0111_1111).toBe(1);
+        // BRANCH_LENGTH field holds the run length.
+        expect((header >> 7) & 0b0011_1111).toBe(63);
+    });
+
+    it("falls back to a dictionary when the jump-table span exceeds 63 but the branch count fits", () => {
+        /*
+         * 63 children spanning 64 chars (one gap at 63): the branch count
+         * still fits the 6-bit field, but the jump-table length (span) is 64,
+         * so the `jumpTableLength <= 63` guard forces the dictionary encoding
+         * (JUMP_TABLE field is 0).
+         */
+        const next = new Map<number, TrieNode>();
+        for (let char = 1; char <= 62; char++) next.set(char, { value: "a" });
+        // Gap at 63; char 64 makes the span 64.
+        next.set(64, { value: "a" });
+        const header = encodeTrie({ next })[0];
+        // Dictionary node: JUMP_TABLE field is 0.
+        expect(header & 0b0111_1111).toBe(0);
+        // BRANCH_LENGTH field holds all 63 branches.
+        expect((header >> 7) & 0b0011_1111).toBe(63);
+    });
+
+    it("cannot encode a node with 64 children (exceeds the 6-bit BRANCH_LENGTH field)", () => {
+        /*
+         * 64 overflows the 6-bit branch-count field for both the jump-table
+         * and dictionary encodings, so encoding must fail loudly rather than
+         * silently corrupt the header.
+         */
+        const next = new Map<number, TrieNode>();
+        for (let char = 1; char <= 64; char++) next.set(char, { value: "a" });
+        expect(() => encodeTrie({ next })).toThrow(
+            "Too many bits for branches",
+        );
+    });
 });

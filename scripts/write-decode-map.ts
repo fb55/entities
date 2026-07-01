@@ -458,6 +458,19 @@ function tryEncodeWithSplit(
     atomEntries.sort((x, y) => y.use - x.use || x.value - y.value);
 
     const dict1AtomCount = dictSize - bpe.promotedNgrams.size;
+    /*
+     * `dict1 = atomEntries.slice(0, dict1AtomCount)` clamps to atomCount, but
+     * the header still reports dict1AtomCount. If dict1AtomCount exceeded the
+     * atoms actually emitted, the decoder's `decodeDelta(dict1AtomCount, 0)`
+     * would over-read into the following streams and corrupt the trie.
+     */
+    if (dict1AtomCount > atomCount) {
+        throw new Error(
+            `dict1AtomCount (${dict1AtomCount}) exceeds the atom count ` +
+                `(${atomCount}); the dict1 atom stream would under-fill and ` +
+                "the decoder would over-read the following streams.",
+        );
+    }
     const byValue = (x: AtomEntry, y: AtomEntry) => x.value - y.value;
     // eslint-disable-next-line unicorn/no-array-sort -- TS lib doesn't expose toSorted yet
     const dict1 = atomEntries.slice(0, dict1AtomCount).sort(byValue);
