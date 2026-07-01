@@ -23,10 +23,10 @@ type EncodeTrieNode =
  * encoding, a direct `asciiEntities[charCode]` array index is much faster
  * than `Map.get(charCode)` because it avoids hashing and bucket lookup.
  *
- * A few ASCII characters also have multi-code-point children in the trie
- * (e.g. `<` + U+20D2 → `&nvlt;`).  The encoder checks the trie for those
- * multi-char matches first, then falls back to this table for the
- * single-char entity.
+ * A few ASCII characters also start multi-code-point entities
+ * (e.g. `<` + U+20D2 → `&nvlt;`).  For those, the table holds the branch
+ * node itself (children plus the single-char value), so the ASCII path
+ * never consults `htmlTrie`.
  */
 const asciiEntities: (EncodeTrieNode | null)[] = /* #__PURE__ */ Array.from(
     { length: 128 },

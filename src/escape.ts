@@ -25,7 +25,7 @@ export const xmlEncodeRegex: RegExp = /["&'<>\u0080-\uFFFF]/g;
 /**
  * Whether `code` (a UTF-16 code unit) is escaped by {@link encodeXML}: a
  * non-ASCII unit, or one of the five XML specials flagged in
- * `XML_BITSET_VALUE` (which is only meaningful for code units 32\u201363).
+ * `XML_BITSET_VALUE` (which is only meaningful for code units 32-63).
  * @param code Code unit to test.
  */
 function isXmlEscapable(code: number): boolean {
