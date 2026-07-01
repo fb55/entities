@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { INLINE_SCAN_WINDOW } from "./encode.js";
 import * as entities from "./index.js";
 
 describe("Encode->decode test", () => {
@@ -109,8 +110,11 @@ describe("scan-path consistency (regex jump vs inline scan)", () => {
      * the regex-jump path unencoded. Encoding each code unit both alone (inline
      * path) and after a long clean prefix (which forces the regex-jump path)
      * must agree for every code unit, in both HTML and non-ASCII modes.
+     *
+     * The prefix is derived from `INLINE_SCAN_WINDOW` so it keeps forcing the
+     * regex path even if that constant is retuned upward.
      */
-    const prefix = "a".repeat(64); // Longer than the inline window.
+    const prefix = "a".repeat(INLINE_SCAN_WINDOW * 4);
     it.each([
         ["encodeHTML", entities.encodeHTML],
         ["encodeNonAsciiHTML", entities.encodeNonAsciiHTML],

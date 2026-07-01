@@ -211,7 +211,8 @@ function isEncodable(bitset: Uint32Array, code: number): boolean {
  * avoids a dead zone where mid-length gaps repeatedly pay the full inline scan
  * without ever switching to the regex-only path.
  */
-const INLINE_SCAN_WINDOW = 16;
+/** @internal Exported for tests; not re-exported from the package entry. */
+export const INLINE_SCAN_WINDOW = 16;
 const LONG_GAP_THRESHOLD = 8;
 
 function encodeHTMLTrieRe(
