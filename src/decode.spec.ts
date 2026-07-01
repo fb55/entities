@@ -184,6 +184,52 @@ describe.each(implementations)("Decode test: %s", (_name, {
         });
     });
 
+    describe("overlong numeric entities (packed consumed-field overflow)", () => {
+        /*
+         * The sync `parseNumericEntity` packs `(consumed << 21) | cp`;
+         * entities of ≥ 2047 characters exceed the 11-bit consumed field
+         * and take the `longNumericConsumed` side channel. Whatever the
+         * body length, the whole entity must be consumed and produce
+         * U+FFFD (matching entities@7.0.1) — a wrapped consumed count
+         * would leak digits into the output.
+         */
+        const digitCounts = [2045, 2046, 2047, 2048, 4096];
+        const bases: [string, string][] = [
+            ["decimal", ""],
+            ["hex", "x"],
+        ];
+
+        describe.each(bases)("%s", (_base, prefix) => {
+            it.each(digitCounts)("should decode a %i-digit body with semicolon", (count) => {
+                const input = `&#${prefix}${"1".repeat(count)};X`;
+                expect(decodeHTML(input)).toBe("�X");
+                expect(decodeHTMLStrict(input)).toBe("�X");
+                expect(decodeHTMLAttribute(input)).toBe("�X");
+                expect(decodeXML(input)).toBe("�X");
+            });
+
+            it.each(digitCounts)("should decode a %i-digit body without semicolon", (count) => {
+                const input = `&#${prefix}${"1".repeat(count)}X`;
+                expect(decodeHTML(input)).toBe("�X");
+                expect(decodeHTMLAttribute(input)).toBe("�X");
+                // Strict modes require the semicolon.
+                expect(decodeHTMLStrict(input)).toBe(input);
+                expect(decodeXML(input)).toBe(input);
+            });
+
+            it.each(digitCounts)("should decode a %i-digit body at the end of input", (count) => {
+                const input = `&#${prefix}${"1".repeat(count)}`;
+                expect(decodeHTML(input)).toBe("�");
+                expect(decodeHTMLStrict(input)).toBe(input);
+            });
+        });
+
+        it("should recover the exact code point after thousands of leading zeros", () => {
+            expect(decodeHTML(`&#${"0".repeat(2048)}65;X`)).toBe("AX");
+            expect(decodeXML(`&#x${"0".repeat(2048)}41;X`)).toBe("AX");
+        });
+    });
+
     it("should parse &nbsp followed by < (#852)", () =>
         expect(decodeHTML("&nbsp<")).toBe("\u{A0}<"));
 
@@ -449,6 +495,55 @@ describe("EntityDecoder", () => {
      * Discovered prefix: "zi" followed by compact run "grarr"; mismatching inside this run should
      * return 0 with no emission (result still 0).
      */
+    describe("overlong numeric entities", () => {
+        /*
+         * The streaming decoder tracks `consumed` as a plain field, so —
+         * unlike the sync parser's packed return value — no length ever
+         * overflows. These pin the equivalence for the sync boundary cases.
+         */
+        const digitCounts = [2045, 2046, 2047, 2048, 4096];
+
+        it.each(digitCounts)("should report full consumed for %i decimal digits", (count) => {
+            decoder.startEntity(entities.DecodingMode.Strict);
+            expect(decoder.write(`&#${"1".repeat(count)};`, 1)).toBe(
+                count + 3,
+            );
+            expect(callback).toHaveBeenCalledExactlyOnceWith(
+                0xff_fd,
+                count + 3,
+            );
+        });
+
+        it.each(digitCounts)("should report full consumed for %i hex digits", (count) => {
+            decoder.startEntity(entities.DecodingMode.Strict);
+            expect(decoder.write(`&#x${"1".repeat(count)};`, 1)).toBe(
+                count + 4,
+            );
+            expect(callback).toHaveBeenCalledExactlyOnceWith(
+                0xff_fd,
+                count + 4,
+            );
+        });
+
+        it("should clamp the accumulator before it reaches the errors callbacks", () => {
+            const errorHandlers = {
+                missingSemicolonAfterCharacterReference: vi.fn(),
+                absenceOfDigitsInNumericCharacterReference: vi.fn(),
+                validateNumericCharacterReference: vi.fn(),
+            };
+            const errorDecoder = new entities.EntityDecoder(
+                entities.htmlDecodeTree,
+                callback,
+                errorHandlers,
+            );
+            errorDecoder.startEntity(entities.DecodingMode.Strict);
+            errorDecoder.write(`&#x${"f".repeat(4096)};`, 1);
+            expect(
+                errorHandlers.validateNumericCharacterReference,
+            ).toHaveBeenCalledExactlyOnceWith(0x11_00_00);
+        });
+    });
+
     describe("compact run mismatches", () => {
         it.each([
             ["first run character mismatch", "ziXgrar"],

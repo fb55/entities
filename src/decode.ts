@@ -22,15 +22,34 @@ const enum CharCodes {
 /** Bit that needs to be set to convert an upper case ASCII character to lower case */
 const TO_LOWER_BIT = 0b10_0000;
 
-/**
- * `parseNumericEntity` packs its two results into one non-negative integer:
+/*
+ * `parseNumericEntity` packs its two results into one 32-bit integer:
  * `(consumed << CONSUMED_SHIFT) | codePoint`. The 21-bit code point field
- * fits any valid Unicode value (max 0x10FFFF, clamped before packing).
+ * fits any valid Unicode value (max 0x10FFFF, clamped before packing); the
+ * consumed count gets the remaining 11 bits. Extract `consumed` with `>>>`
+ * so the topmost bit isn't treated as a sign.
+ *
+ * Plain consts rather than a `const enum`: with `isolatedModules`, enum
+ * member reads compile to runtime property loads, which showed up in
+ * numeric-entity-heavy benchmarks on these per-entity paths.
  */
-const enum NumericPacking {
-    CONSUMED_SHIFT = 21,
-    CODE_POINT_MASK = 0x1f_ff_ff,
-}
+const CONSUMED_SHIFT = 21;
+const CODE_POINT_MASK = 0x1f_ff_ff;
+/**
+ * All-ones consumed field: the entity is at least 2047 characters long
+ * and the true count is in `longNumericConsumed`.
+ */
+const CONSUMED_OVERFLOW = 0x7_ff;
+
+/**
+ * Side channel for the rare numeric entity whose length doesn't fit the
+ * packed 11-bit consumed field (entities of ≥ 2047 characters, i.e. bodies
+ * of ~2045+ digits). Set by `parseNumericEntity` whenever the consumed
+ * field it returns is `CONSUMED_OVERFLOW`; callers read the true length
+ * from here. A module-level slot avoids a tuple allocation on the hot path
+ * for an input that in practice only appears in fuzzers and attacks.
+ */
+let longNumericConsumed = 0;
 
 /**
  * Unsigned subtraction trick: (code - lo) >>> 0 wraps negatives to large
@@ -220,7 +239,9 @@ export class EntityDecoder {
     /**
      * Parses a hexadecimal numeric entity.
      *
-     * Equivalent to the `Hexademical character reference state` in the HTML spec.
+     * Equivalent to the `Hexademical character reference state` in the HTML
+     * spec. Sync counterpart: the hex loop in `parseNumericEntity`; digit
+     * and clamping behavior must stay in sync between the two.
      * @param input The string containing the entity (or a continuation of the entity).
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
@@ -239,6 +260,13 @@ export class EntityDecoder {
                         ? char - CharCodes.ZERO
                         : (char | TO_LOWER_BIT) - CharCodes.LOWER_A + 10;
                 result = result * 16 + digit;
+                /*
+                 * Clamp overflow to 1 past the Unicode max, matching
+                 * `parseNumericEntity`. Keeps the accumulator a small
+                 * integer (long bodies would reach Infinity) so the
+                 * `errors` callbacks always see a finite code point.
+                 */
+                if (result > 0x10_ff_ff) result = 0x11_00_00;
                 consumed += 1;
                 offset += 1;
             } else {
@@ -255,7 +283,9 @@ export class EntityDecoder {
     /**
      * Parses a decimal numeric entity.
      *
-     * Equivalent to the `Decimal character reference state` in the HTML spec.
+     * Equivalent to the `Decimal character reference state` in the HTML
+     * spec. Sync counterpart: the decimal loop in `parseNumericEntity`;
+     * digit and clamping behavior must stay in sync between the two.
      * @param input The string containing the entity (or a continuation of the entity).
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
@@ -273,6 +303,8 @@ export class EntityDecoder {
                 return this.emitNumericEntity(digit + CharCodes.ZERO, 2);
             }
             result = result * 10 + digit;
+            // Clamp overflow, matching `parseNumericEntity` (see stateNumericHex).
+            if (result > 0x10_ff_ff) result = 0x11_00_00;
             consumed += 1;
             offset += 1;
         }
@@ -779,10 +811,13 @@ function readTrieValue(
 /**
  * Parse a numeric entity (`&#DDD;` or `&#xHHH;`).
  *
- * Encodes the result as `(consumed << 21) | codepoint`. The 21-bit codepoint
- * field fits any valid Unicode value (max 0x10FFFF), and packing both into
- * one integer avoids the file-scope `_numericCp` tuple-by-globals pattern.
- * Returns 0 when no digits were found.
+ * Encodes the result as `(consumed << 21) | codepoint` (see
+ * `NumericPacking`; overlong entities spill their length into
+ * `longNumericConsumed`). Returns 0 when no digits were found.
+ *
+ * This is the sync counterpart of the streaming
+ * `EntityDecoder#stateNumericDecimal` / `#stateNumericHex`; digit and
+ * clamping behavior must stay in sync between the two.
  * @param input       The input string.
  * @param numberStart Index of the `#` character.
  * @param inputLength Cached `input.length`.
@@ -836,22 +871,31 @@ function parseNumericEntity(
 
     /*
      * Pack `consumed` (length) and `cp` (Unicode code point) into one
-     * non-negative integer to avoid a tuple allocation or a module-scope
-     * global. Callers extract the two fields via `NumericPacking`.
+     * integer to avoid a tuple allocation on the hot path. Callers extract
+     * the two fields via `NumericPacking`.
      *
      * `cp` is clamped to 0x110000 (1 past the Unicode max) before packing
      * so it stays inside the 21-bit field. Without the clamp, an overflow
      * like `&#3145728;` would silently truncate to a valid-looking
-     * codepoint instead of mapping to U+FFFD via `replaceCodePoint`.
+     * codepoint instead of mapping to U+FFFD via `replaceCodePoint`. The
+     * streaming parser applies the same clamp per digit (see
+     * `stateNumericDecimal` / `stateNumericHex`).
      *
-     * `consumed` fits 11 bits, which covers any practical entity body.
-     * Pathologically long digit runs (>2047 chars) overflow the field,
-     * but those inputs already produce U+FFFD for the entity value, so
-     * the only observable difference is a slightly wrong advance — never
-     * an incorrect emitted character.
+     * `consumed` fits its 11-bit field for any entity shorter than 2047
+     * characters, which covers any practical body. Longer digit runs would
+     * wrap the field (mis-consuming input and leaking digits into the
+     * output), so they are routed through the `longNumericConsumed` side
+     * channel instead: the consumed field is pinned at CONSUMED_OVERFLOW
+     * and callers recover the true length from the module-level slot.
      */
     if (cp > 0x10_ff_ff) cp = 0x11_00_00;
-    return ((offset - numberStart) << NumericPacking.CONSUMED_SHIFT) | cp;
+    let consumed = offset - numberStart;
+    if (consumed >= CONSUMED_OVERFLOW) {
+        // eslint-disable-next-line unicorn/no-top-level-assignment-in-function -- deliberate side channel, see `longNumericConsumed`
+        longNumericConsumed = consumed;
+        consumed = CONSUMED_OVERFLOW;
+    }
+    return (consumed << CONSUMED_SHIFT) | cp;
 }
 
 /**
@@ -899,7 +943,11 @@ function decodeWithTrie(
         let value: string;
         if (firstChar === CharCodes.NUM) {
             const packed = parseNumericEntity(input, entityStart, inputLength);
-            consumed = packed >>> NumericPacking.CONSUMED_SHIFT;
+            consumed = packed >>> CONSUMED_SHIFT;
+            // Overlong entity: the true length is in the side channel.
+            if (consumed === CONSUMED_OVERFLOW) {
+                consumed = longNumericConsumed;
+            }
             // In strict mode, require semicolon termination.
             if (
                 isStrict &&
@@ -917,7 +965,7 @@ function decodeWithTrie(
                  * C1 remap, surrogate, or out-of-range handling) and fit a
                  * single charCode.
                  */
-                const cp = packed & NumericPacking.CODE_POINT_MASK;
+                const cp = packed & CODE_POINT_MASK;
                 value =
                     // 0xd760 = 0xD800 (first surrogate) - 0xA0.
                     (cp - 1) >>> 0 < 0x7f || (cp - 0xa0) >>> 0 < 0xd7_60
@@ -1283,7 +1331,11 @@ export function decodeXML(xmlString: string): string {
                 start,
                 xmlString.length,
             );
-            consumed = packed >>> NumericPacking.CONSUMED_SHIFT;
+            consumed = packed >>> CONSUMED_SHIFT;
+            // Overlong entity: the true length is in the side channel.
+            if (consumed === CONSUMED_OVERFLOW) {
+                consumed = longNumericConsumed;
+            }
             // XML is always strict — require semicolon.
             if (
                 consumed === 0 ||
@@ -1296,7 +1348,7 @@ export function decodeXML(xmlString: string): string {
                  * [0xA0..0xD7FF] pass `replaceCodePoint` unchanged and fit
                  * a single charCode (0xd760 = 0xD800 - 0xA0).
                  */
-                const cp = packed & NumericPacking.CODE_POINT_MASK;
+                const cp = packed & CODE_POINT_MASK;
                 value =
                     (cp - 1) >>> 0 < 0x7f || (cp - 0xa0) >>> 0 < 0xd7_60
                         ? String.fromCharCode(cp)
