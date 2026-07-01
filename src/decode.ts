@@ -1,4 +1,4 @@
-import { replaceCodePoint } from "./decode-codepoint.js";
+import { codePointToString, replaceCodePoint } from "./decode-codepoint.js";
 import { htmlDecodeTree } from "./generated/decode-data-html.js";
 import { BinTrieFlags } from "./internal/bin-trie-flags.js";
 
@@ -956,22 +956,10 @@ function decodeWithTrie(
             ) {
                 consumed = 0;
             }
-            if (consumed === 0) {
-                value = "";
-            } else {
-                /*
-                 * Fast path for plain BMP code points: [1..0x7F] and
-                 * [0xA0..0xD7FF] pass `replaceCodePoint` unchanged (no NUL,
-                 * C1 remap, surrogate, or out-of-range handling) and fit a
-                 * single charCode.
-                 */
-                const cp = packed & CODE_POINT_MASK;
-                value =
-                    // 0xd760 = 0xD800 (first surrogate) - 0xA0.
-                    (cp - 1) >>> 0 < 0x7f || (cp - 0xa0) >>> 0 < 0xd7_60
-                        ? String.fromCharCode(cp)
-                        : String.fromCodePoint(replaceCodePoint(cp));
-            }
+            value =
+                consumed === 0
+                    ? ""
+                    : codePointToString(packed & CODE_POINT_MASK);
         } else if (isAlpha(firstChar)) {
             consumed = 0;
             value = "";
@@ -1343,16 +1331,7 @@ export function decodeXML(xmlString: string): string {
             ) {
                 consumed = 0;
             } else {
-                /*
-                 * Fast path for plain BMP code points: [1..0x7F] and
-                 * [0xA0..0xD7FF] pass `replaceCodePoint` unchanged and fit
-                 * a single charCode (0xd760 = 0xD800 - 0xA0).
-                 */
-                const cp = packed & CODE_POINT_MASK;
-                value =
-                    (cp - 1) >>> 0 < 0x7f || (cp - 0xa0) >>> 0 < 0xd7_60
-                        ? String.fromCharCode(cp)
-                        : String.fromCodePoint(replaceCodePoint(cp));
+                value = codePointToString(packed & CODE_POINT_MASK);
             }
         } else {
             const c2 = xmlString.charCodeAt(start + 1);

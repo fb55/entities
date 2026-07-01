@@ -31,3 +31,19 @@ export function replaceCodePoint(codePoint: number): number {
 
     return codePoint;
 }
+
+/**
+ * Convert the code point of a decoded numeric entity to a string, replacing
+ * invalid values.
+ *
+ * Fast path for plain BMP code points: [1..0x7F] and [0xA0..0xD7FF] pass
+ * `replaceCodePoint` unchanged (no NUL, C1 remap, surrogate, or out-of-range
+ * handling) and fit a single charCode. 0xd760 = 0xD800 (the first surrogate)
+ * - 0xA0.
+ * @param codePoint Unicode code point to convert.
+ */
+export function codePointToString(codePoint: number): string {
+    return (codePoint - 1) >>> 0 < 0x7f || (codePoint - 0xa0) >>> 0 < 0xd7_60
+        ? String.fromCharCode(codePoint)
+        : String.fromCodePoint(replaceCodePoint(codePoint));
+}
