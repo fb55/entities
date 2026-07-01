@@ -11,27 +11,64 @@ const xmlCodeMap = new Map([
  */
 export const XML_BITSET_VALUE = 0x50_00_00_c4; // 32..63 -> 34 ("),38 (&),39 ('),60 (<),62 (>)
 
+/*
+ * Matches exactly the characters `encodeXML` escapes: the five XML special
+ * characters plus every non-ASCII code unit (lone surrogates included — no
+ * `u` flag). Kept in sync with `XML_BITSET_VALUE`.
+ */
+// eslint-disable-next-line unicorn/prefer-unicode-code-point-escapes -- the `\u{\u2026}` form requires the `u` flag, which we deliberately omit so lone surrogates match by code unit
+const xmlEncodeRegex = /["&'<>\u0080-\uFFFF]/g;
+
+/**
+ * Whether `code` (a UTF-16 code unit) is escaped by {@link encodeXML}: a
+ * non-ASCII unit, or one of the five XML specials flagged in
+ * `XML_BITSET_VALUE` (which is only meaningful for code units 32\u201363).
+ * @param code Code unit to test.
+ */
+function isXmlEscapable(code: number): boolean {
+    return (
+        code >= 0x80 ||
+        (code >= 32 && code < 64 && ((XML_BITSET_VALUE >>> code) & 1) === 1)
+    );
+}
+
 /**
  * Encodes all non-ASCII characters, as well as characters not valid in XML
- * documents using XML entities. Uses a fast bitset scan instead of RegExp.
+ * documents using XML entities.
  *
  * If a character has no equivalent entity, a numeric decimal reference
  * (eg. `&#252;`) will be used.
  * @param input Input string to encode or decode.
  */
 export function encodeXML(input: string): string {
+    const { length } = input;
     let out: string | undefined;
     let last = 0;
-    const { length } = input;
+    let index = 0;
 
-    for (let index = 0; index < length; index++) {
+    while (index < length) {
         const char = input.charCodeAt(index);
 
-        // Check for ASCII chars that don't need escaping
-        if (
-            char < 0x80 &&
-            (((XML_BITSET_VALUE >>> char) & 1) === 0 || char >= 64 || char < 32)
-        ) {
+        /*
+         * Find the next character to escape: scan a short window inline
+         * (escapable characters cluster in markup-heavy input), then fall
+         * back to the regex, which skips clean spans in native code.
+         */
+        if (!isXmlEscapable(char)) {
+            const bound = Math.min(index + 32, length);
+            let next = index + 1;
+            while (next < bound && !isXmlEscapable(input.charCodeAt(next))) {
+                next++;
+            }
+            if (next < bound) {
+                index = next;
+                continue;
+            }
+            if (next >= length) break;
+            xmlEncodeRegex.lastIndex = next;
+            const match = xmlEncodeRegex.exec(input);
+            if (match === null) break;
+            ({ index } = match);
             continue;
         }
 
@@ -41,7 +78,7 @@ export function encodeXML(input: string): string {
         if (char < 64) {
             // Known replacement
             out += xmlCodeMap.get(char)!;
-            last = index + 1;
+            last = index += 1;
             continue;
         }
 
@@ -49,7 +86,7 @@ export function encodeXML(input: string): string {
         const cp = input.codePointAt(index)!;
         out += `&#${cp};`;
         if (cp !== char) index++; // Skip trailing surrogate
-        last = index + 1;
+        last = index += 1;
     }
 
     if (out === undefined) return input;
@@ -68,36 +105,39 @@ export function encodeXML(input: string): string {
 export const escape: typeof encodeXML = encodeXML;
 
 /**
- * Replacement callback used by {@link escapeUTF8}, {@link escapeAttribute},
- * and {@link escapeText} to map specific characters to their XML/HTML
- * entity representations.
- *
- * Converts `"`, `&`, `'`, `<`, `>`, and non-breaking space (`\u00A0`)
- * to their corresponding entities; returns all other characters unchanged.
- * @param c Single character match from the respective escape RegExp.
+ * Escape `data` using `re`, mapping each matched character to its entity.
+ * @param re Global regex matching exactly the characters to escape
+ *   (`"`, `&`, `'`, `<`, `>`, `\u00A0` at most).
+ * @param data String to escape.
  */
-function escapeReplacer(c: string): string {
-    switch (c) {
-        case '"': {
-            return "&quot;";
-        }
-        case "&": {
-            return "&amp;";
-        }
-        case "'": {
-            return "&apos;";
-        }
-        case "<": {
-            return "&lt;";
-        }
-        case ">": {
-            return "&gt;";
-        }
-        case "\u{A0}": {
-            return "&nbsp;";
-        }
-    }
-    return c;
+function escapeWithRegex(re: RegExp, data: string): string {
+    re.lastIndex = 0;
+    let match = re.exec(data);
+    if (match === null) return data;
+
+    let out = "";
+    let last = 0;
+    do {
+        const { index } = match;
+        if (last !== index) out += data.substring(last, index);
+        const char = data.charCodeAt(index);
+        out +=
+            char === 34
+                ? "&quot;"
+                : char === 38
+                  ? "&amp;"
+                  : char === 39
+                    ? "&apos;"
+                    : char === 60
+                      ? "&lt;"
+                      : char === 62
+                        ? "&gt;"
+                        : "&nbsp;";
+        last = index + 1;
+        match = re.exec(data);
+    } while (match !== null);
+
+    return out + data.substring(last);
 }
 
 const xmlEscapeRegex = /["&'<>]/g;
@@ -108,8 +148,7 @@ const xmlEscapeRegex = /["&'<>]/g;
  * @param data String to escape.
  */
 export function escapeUTF8(data: string): string {
-    // eslint-disable-next-line unicorn/no-unsafe-string-replacement -- `escapeReplacer` is a function replacer; `$` substitution does not apply
-    return data.replace(xmlEscapeRegex, escapeReplacer);
+    return escapeWithRegex(xmlEscapeRegex, data);
 }
 
 const attributeEscapeRegex = /["&\u{A0}]/gu;
@@ -120,8 +159,7 @@ const attributeEscapeRegex = /["&\u{A0}]/gu;
  * @param data String to escape.
  */
 export function escapeAttribute(data: string): string {
-    // eslint-disable-next-line unicorn/no-unsafe-string-replacement -- `escapeReplacer` is a function replacer; `$` substitution does not apply
-    return data.replace(attributeEscapeRegex, escapeReplacer);
+    return escapeWithRegex(attributeEscapeRegex, data);
 }
 
 const textEscapeRegex = /[&<>\u{A0}]/gu;
@@ -132,6 +170,5 @@ const textEscapeRegex = /[&<>\u{A0}]/gu;
  * @param data String to escape.
  */
 export function escapeText(data: string): string {
-    // eslint-disable-next-line unicorn/no-unsafe-string-replacement -- `escapeReplacer` is a function replacer; `$` substitution does not apply
-    return data.replace(textEscapeRegex, escapeReplacer);
+    return escapeWithRegex(textEscapeRegex, data);
 }
