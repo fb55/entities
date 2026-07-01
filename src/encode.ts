@@ -227,7 +227,7 @@ function encodeHTMLTrieRe(
     let wasLongGap = false; // The previous gap was long; skip the inline scan.
 
     while (index < length) {
-        const char = input.charCodeAt(index);
+        let char = input.charCodeAt(index);
 
         /*
          * Find the next encodable character (one matching `bitset`, or any
@@ -236,41 +236,49 @@ function encodeHTMLTrieRe(
          * which matches exactly the same characters and skips clean spans
          * in native code — runs for longer gaps. Gap lengths cluster, so
          * after a window-exhausting gap the window is skipped until a gap
-         * shorter than LONG_GAP_THRESHOLD reappears.
+         * shorter than LONG_GAP_THRESHOLD reappears. Once located, the
+         * character is captured in `char` and control falls through to the
+         * encode logic below instead of re-testing it on the next loop
+         * iteration.
          */
         if (!isEncodable(bitset, char)) {
             const gapStart = index;
             let next = index + 1;
+            let wasFound = false;
             if (!wasLongGap) {
                 const bound = Math.min(index + INLINE_SCAN_WINDOW, length);
                 while (
                     next < bound &&
-                    !isEncodable(bitset, input.charCodeAt(next))
+                    !isEncodable(bitset, (char = input.charCodeAt(next)))
                 ) {
                     next++;
                 }
                 if (next < bound) {
+                    // `char` already holds the encodable unit at `next`.
                     index = next;
-                    continue;
+                    wasFound = true;
+                } else if (next >= length) {
+                    break;
                 }
-                if (next >= length) break;
             }
-            /*
-             * Every match is a single code unit, so `test` pins it at
-             * `lastIndex - 1` without allocating a match object.
-             */
-            re.lastIndex = next;
-            if (!re.test(input)) break;
-            index = re.lastIndex - 1;
-            /*
-             * Reaching the regex from the inline scan means the gap
-             * exhausted the window, so it is long by definition; once in
-             * long-gap mode, stay until a gap shorter than the threshold
-             * appears.
-             */
-            wasLongGap =
-                !wasLongGap || index - gapStart >= LONG_GAP_THRESHOLD;
-            continue;
+            if (!wasFound) {
+                /*
+                 * Every match is a single code unit, so `test` pins it at
+                 * `lastIndex - 1` without allocating a match object.
+                 */
+                re.lastIndex = next;
+                if (!re.test(input)) break;
+                index = re.lastIndex - 1;
+                /*
+                 * Reaching the regex from the inline scan means the gap
+                 * exhausted the window, so it is long by definition; once
+                 * in long-gap mode, stay until a gap shorter than the
+                 * threshold appears.
+                 */
+                wasLongGap =
+                    !wasLongGap || index - gapStart >= LONG_GAP_THRESHOLD;
+                char = input.charCodeAt(index);
+            }
         }
 
         // Lazy-init: copy the prefix before the first character that needs encoding.
