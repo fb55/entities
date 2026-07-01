@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import entityMap from "../maps/entities.json" with { type: "json" };
+import html4Names from "../maps/html4.json" with { type: "json" };
 import legacyMap from "../maps/legacy.json" with { type: "json" };
 import xmlMap from "../maps/xml.json" with { type: "json" };
 import * as entities from "./decode.js";
@@ -319,6 +320,29 @@ describe.each(implementations)("Decode test: %s", (_name, {
             expect(decodeHTML(input)).toBe(text);
             expect(decodeHTMLAttribute(input)).toBe(input);
         });
+    });
+});
+
+/*
+ * `maps/html4.json` drives the hot/cold trie-encoding split in
+ * `scripts/write-decode-map.ts`: names listed there keep the fast jump-table
+ * encoding. A name that is duplicated (wasted hot budget) or missing from the
+ * WHATWG map (silently ignored when marking hot paths) would degrade the
+ * generated trie without failing the build.
+ */
+describe("entity map contracts", () => {
+    it("html4.json should be duplicate-free", () => {
+        const duplicates = html4Names.filter(
+            (name, index) => html4Names.indexOf(name) !== index,
+        );
+        expect(duplicates).toStrictEqual([]);
+    });
+
+    it("every html4.json name should be a key in entities.json", () => {
+        const missing = html4Names.filter(
+            (name) => !Object.hasOwn(entityMap, name),
+        );
+        expect(missing).toStrictEqual([]);
     });
 });
 

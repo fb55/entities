@@ -459,7 +459,7 @@ export class EntityDecoder {
                 BinTrieFlags.FLAG13
             ) {
                 const runLength =
-                    (current & BinTrieFlags.BRANCH_LENGTH) >> 7; /* 2..63 */
+                    (current & BinTrieFlags.BRANCH_LENGTH) >> 7; /* 3..63 */
                 let { runConsumed } = this;
 
                 // If we are starting a run, check the first char.

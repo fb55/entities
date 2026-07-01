@@ -27,7 +27,7 @@
  *                  (low byte first), then n pointer words storing the
  *                  child's offset from the END of the branch data.
  *   Compact run    VALUE_LENGTH = 0, FLAG13 set. BRANCH_LENGTH = run
- *                  length (2..63), JUMP_TABLE = first char; remaining run
+ *                  length (3..63), JUMP_TABLE = first char; remaining run
  *                  chars packed two per word after the header. The target
  *                  node follows the packed words immediately.
  *
