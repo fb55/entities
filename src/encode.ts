@@ -153,8 +153,10 @@ const XML_BITSET = /* #__PURE__ */ new Uint32Array([0, XML_BITSET_VALUE, 0, 0]);
  * the scan uses the regex to find candidates and the bitset to re-check
  * adjacent characters.
  */
+/* eslint-disable unicorn/prefer-unicode-code-point-escapes -- the `\u{\u2026}` form requires the `u` flag, which we deliberately omit so lone surrogates match by code unit */
 const HTML_ENCODE_RE = /[\t\n\f!-/:-@[-`{-}\u0080-\uFFFF]/g;
 const XML_ENCODE_RE = /["&'<>\u0080-\uFFFF]/g;
+/* eslint-enable unicorn/prefer-unicode-code-point-escapes */
 
 const numericReference = (cp: number) => `&#${cp};`;
 
@@ -186,6 +188,30 @@ export function encodeNonAsciiHTML(input: string): string {
     return encodeHTMLTrieRe(XML_BITSET, XML_ENCODE_RE, input);
 }
 
+/**
+ * Whether `code` (a UTF-16 code unit) must be encoded: any non-ASCII unit, or
+ * an ASCII unit flagged in `bitset`.
+ * @param bitset Bitset of ASCII characters to encode.
+ * @param code Code unit to test.
+ */
+function isEncodable(bitset: Uint32Array, code: number): boolean {
+    return code >= 0x80 || ((bitset[code >>> 5] >>> code) & 1) === 1;
+}
+
+/*
+ * The inline scan beats the regex jump only for short gaps (measured
+ * break-even is ~7 characters; below it the per-call regex overhead
+ * dominates, above it the regex skips clean spans faster in native code).
+ * So we scan at most `INLINE_SCAN_WINDOW` characters inline before deferring
+ * to the regex, and once the regex has skipped at least `LONG_GAP_THRESHOLD`
+ * characters past that window we treat gaps as long and skip the inline scan
+ * entirely until a short gap reappears. Keeping the threshold below the window
+ * avoids a dead zone where mid-length gaps repeatedly pay the full inline scan
+ * without ever switching to the regex-only path.
+ */
+const INLINE_SCAN_WINDOW = 16;
+const LONG_GAP_THRESHOLD = 8;
+
 function encodeHTMLTrieRe(
     bitset: Uint32Array,
     re: RegExp,
@@ -195,7 +221,7 @@ function encodeHTMLTrieRe(
     let out: string | undefined;
     let last = 0; // Start of the next untouched slice.
     let index = 0;
-    let longGaps = false; // The previous gap was longer than the inline window.
+    let wasLongGap = false; // The previous gap crossed LONG_GAP_THRESHOLD.
 
     while (index < length) {
         const char = input.charCodeAt(index);
@@ -209,15 +235,14 @@ function encodeHTMLTrieRe(
          * after one regex-sized gap the window is skipped until a gap fits
          * it again.
          */
-        if (char < 0x80 && !((bitset[char >>> 5] >>> char) & 1)) {
+        if (!isEncodable(bitset, char)) {
             let next = index + 1;
-            if (!longGaps) {
-                const bound = Math.min(index + 32, length);
-                while (next < bound) {
-                    const code = input.charCodeAt(next);
-                    if (code >= 0x80 || (bitset[code >>> 5] >>> code) & 1) {
-                        break;
-                    }
+            if (!wasLongGap) {
+                const bound = Math.min(index + INLINE_SCAN_WINDOW, length);
+                while (
+                    next < bound &&
+                    !isEncodable(bitset, input.charCodeAt(next))
+                ) {
                     next++;
                 }
                 if (next < bound) {
@@ -233,7 +258,7 @@ function encodeHTMLTrieRe(
             re.lastIndex = next;
             if (!re.test(input)) break;
             index = re.lastIndex - 1;
-            longGaps = index - next >= 32;
+            wasLongGap = index - next >= LONG_GAP_THRESHOLD;
             continue;
         }
 
