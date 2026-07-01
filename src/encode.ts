@@ -28,8 +28,10 @@ type EncodeTrieNode =
  * multi-char matches first, then falls back to this table for the
  * single-char entity.
  */
-const asciiEntities: (EncodeTrieNode | null)[] =
-    /* #__PURE__ */ Array.from({ length: 128 }, () => null);
+const asciiEntities: (EncodeTrieNode | null)[] = /* #__PURE__ */ Array.from(
+    { length: 128 },
+    () => null,
+);
 
 const htmlTrie: Map<number, EncodeTrieNode> = (() => {
     /**
