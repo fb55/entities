@@ -145,8 +145,10 @@ export function encodeTrie(
             jumpTableLength <= 63
         ) {
             assert.ok(
-                binaryLength(jumpOffset) <= 16,
-                `Offset ${jumpOffset} too large at ${binaryLength(jumpOffset)}`,
+                binaryLength(jumpOffset) <= 7,
+                `Jump-table first char ${jumpOffset} needs ${binaryLength(
+                    jumpOffset,
+                )} bits but the JUMP_TABLE field is only 7`,
             );
             enc[nodeIndex] |= (jumpTableLength << 7) | jumpOffset;
             assert.ok(

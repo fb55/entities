@@ -658,10 +658,20 @@ function convertMapToBinaryTrie(
      */
     const rootJumpOffset = data[0] & BinTrieFlags.JUMP_TABLE;
     const rootBranchCount = (data[0] & BinTrieFlags.BRANCH_LENGTH) >> 7;
-    if (name === "html" && (rootJumpOffset === 0 || rootBranchCount === 0)) {
+    /*
+     * The decoder's inline root navigation also assumes the root carries no
+     * value and is not a compact run; otherwise the descent loop is skipped
+     * and every entity is rejected.
+     */
+    const hasRootValueOrRun =
+        (data[0] & (BinTrieFlags.VALUE_LENGTH | BinTrieFlags.FLAG13)) !== 0;
+    if (
+        name === "html" &&
+        (rootJumpOffset === 0 || rootBranchCount === 0 || hasRootValueOrRun)
+    ) {
         throw new Error(
-            "HTML trie root must be a multi-branch jump table for the " +
-                "decoder's inline root navigation; got header " +
+            "HTML trie root must be a value-less multi-branch jump table for " +
+                "the decoder's inline root navigation; got header " +
                 `0x${data[0].toString(16)}.`,
         );
     }
