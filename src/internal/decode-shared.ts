@@ -97,9 +97,11 @@ export function decodeTrieDict(
             } else {
                 const next = at(pos++);
                 previous +=
-                    next < 90
-                        ? 89 + next * base + at(pos++)
-                        : 89 + at(pos++) * 8281 + at(pos++) * base + at(pos++);
+                    89 +
+                    // eslint-disable-next-line unicorn/prefer-minimal-ternary -- branches read a different number of side-effecting `at(pos++)` bytes
+                    (next < 90
+                        ? next * base + at(pos++)
+                        : at(pos++) * 8281 + at(pos++) * base + at(pos++));
                 slots[off + index++] = [previous];
             }
         }
@@ -139,7 +141,8 @@ export function decodeTrieDict(
     const out = new Uint16Array(resultLength);
     let outIndex = 0;
     while (pos < input.length) {
-        for (const value of slots[readSlotCode()]) out[outIndex++] = value;
+        const slotValues = slots[readSlotCode()];
+        for (const value of slotValues) out[outIndex++] = value;
     }
     return out;
 }

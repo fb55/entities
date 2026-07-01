@@ -301,7 +301,7 @@ function bpeOptimize(
          */
         let nextDict1Slot = dict1AtomCount;
         let nextDict2Slot = dictSize + (atomCount - dict1AtomCount);
-        for (const [k] of ngrams.entries()) {
+        for (const k of ngrams.keys()) {
             const id = atomCount + k;
             const slot = promotedNgrams.has(id)
                 ? nextDict1Slot++
@@ -344,24 +344,27 @@ function bpeOptimize(
         const counts = countPairs(seq);
         const dict2NgramSlot = atomCount + ngrams.length;
         const dict2Length = slotCodeLength(dict2NgramSlot, dictSize);
-        const canPromote = dictSize - promotedNgrams.size > 0;
+        const canPromote = dictSize > promotedNgrams.size;
 
         const candidates: Candidate[] = [];
         for (const [key, count] of counts) {
+            // eslint-disable-next-line unicorn/no-break-in-nested-loop
             if (count < 2) continue;
             const a = Math.floor(key / PAIR_RADIX);
             const b = key % PAIR_RADIX;
             const sum = codeLength[a] + codeLength[b];
-            const dict2Allowed = !(
+            const isDict2Allowed = !(
                 promotedNgrams.has(a) || promotedNgrams.has(b)
             );
 
-            const dict2Net = dict2Allowed
+            const dict2Net = isDict2Allowed
                 ? (sum - dict2Length) * count - sum
-                : Number.NEGATIVE_INFINITY;
+                : // eslint-disable-next-line unicorn/prefer-global-number-constants -- biome's useNumberNamespace enforces `Number.NEGATIVE_INFINITY`
+                  Number.NEGATIVE_INFINITY;
             const dict1Net = canPromote
                 ? (sum - 1) * count - sum - demotedFreq
-                : Number.NEGATIVE_INFINITY;
+                : // eslint-disable-next-line unicorn/prefer-global-number-constants -- biome's useNumberNamespace enforces `Number.NEGATIVE_INFINITY`
+                  Number.NEGATIVE_INFINITY;
             const net = Math.max(dict1Net, dict2Net);
             if (net > 0) {
                 candidates.push({
@@ -417,10 +420,12 @@ function tryEncodeWithSplit(
     const valueToId = new Map<number, number>();
     const idToValue: number[] = [];
     for (const v of data) {
-        if (!valueToId.has(v)) {
-            valueToId.set(v, idToValue.length);
-            idToValue.push(v);
+        if (valueToId.has(v)) {
+            continue;
         }
+
+        valueToId.set(v, idToValue.length);
+        idToValue.push(v);
     }
     const atomCount = idToValue.length;
     if (capacity < atomCount) return null;
@@ -599,6 +604,7 @@ function computeNodeTraffic(
         let node = root;
         for (let index = 0; index < key.length; index++) {
             const next = node.next?.get(key.charCodeAt(index));
+            // eslint-disable-next-line unicorn/no-break-in-nested-loop
             if (!next) break;
             node = next;
             traffic.set(node, (traffic.get(node) ?? 0) + 1);

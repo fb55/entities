@@ -33,18 +33,17 @@ export function encodeTrie(
         if (cached != null) return cached;
         const startIndex = enc.length;
         encodeCache.set(node, startIndex);
-        const nodeIndex = enc.push(0) - 1;
+        enc.push(0);
+        const nodeIndex = enc.length - 1;
 
         if (node.value != null) {
-            let valueLength = 0;
-            if (
+            let valueLength =
                 node.next !== undefined ||
                 node.value.length > 1 ||
                 binaryLength(node.value.charCodeAt(0)) > 14 ||
                 (node.value.charCodeAt(0) & BinTrieFlags.FLAG13) !== 0
-            ) {
-                valueLength = node.value.length;
-            }
+                    ? node.value.length
+                    : 0;
             valueLength += 1;
             assert.ok(
                 binaryLength(valueLength) <= 2,
@@ -121,7 +120,7 @@ export function encodeTrie(
     }
 
     function addBranches(node: TrieNode, nodeIndex: number) {
-        const branches = [...node.next!.entries()];
+        const branches = [...node.next!];
         if (branches.length === 0) return;
         branches.sort(([a], [b]) => a - b);
         assert.ok(

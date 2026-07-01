@@ -95,23 +95,6 @@ export interface EntityErrorProducer {
  * Token decoder with support of writing partial entities.
  */
 export class EntityDecoder {
-    constructor(
-        /** The tree used to decode entities. */
-        // biome-ignore lint/correctness/noUnusedPrivateClassMembers: False positive
-        private readonly decodeTree: Uint16Array,
-        /**
-         * The function that is called when a codepoint is decoded.
-         *
-         * For multi-byte named entities, this will be called multiple times,
-         * with the second codepoint, and the same `consumed` value.
-         * @param codepoint The decoded codepoint.
-         * @param consumed The number of bytes consumed by the decoder.
-         */
-        private readonly emitCodePoint: (cp: number, consumed: number) => void,
-        /** An object that is used to produce errors. */
-        private readonly errors?: EntityErrorProducer | undefined,
-    ) {}
-
     /** The current state of the decoder. */
     private state: number = EntityDecoderState.EntityStart;
     /** Characters that were consumed while parsing an entity. */
@@ -137,6 +120,23 @@ export class EntityDecoder {
     /** The number of characters that have been consumed in the current run. */
     // biome-ignore lint/correctness/noUnusedPrivateClassMembers: False positive
     private runConsumed = 0;
+
+    constructor(
+        /** The tree used to decode entities. */
+        // biome-ignore lint/correctness/noUnusedPrivateClassMembers: False positive
+        private readonly decodeTree: Uint16Array,
+        /**
+         * The function that is called when a codepoint is decoded.
+         *
+         * For multi-byte named entities, this will be called multiple times,
+         * with the second codepoint, and the same `consumed` value.
+         * @param codepoint The decoded codepoint.
+         * @param consumed The number of bytes consumed by the decoder.
+         */
+        private readonly emitCodePoint: (cp: number, consumed: number) => void,
+        /** An object that is used to produce errors. */
+        private readonly errors?: EntityErrorProducer | undefined,
+    ) {}
 
     /**
      * Resets the instance to make it reusable.
@@ -201,6 +201,7 @@ export class EntityDecoder {
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
      */
+    // eslint-disable-next-line unicorn/consistent-class-member-order
     private stateNumericStart(input: string, offset: number): number {
         if (offset >= input.length) {
             return -1;
@@ -370,7 +371,7 @@ export class EntityDecoder {
     private stateNamedEntity(input: string, offset: number): number {
         const { decodeTree } = this;
         const inputLength = input.length;
-        const strict = this.decodeMode === DecodingMode.Strict;
+        const isStrict = this.decodeMode === DecodingMode.Strict;
 
         /*
          * Local copies of the resumable walk state — a store per character
@@ -446,6 +447,7 @@ export class EntityDecoder {
                  * `charCodeAt` past the end returns NaN, which would alias
                  * to slot 0 after `>>> 0` — bail out explicitly.
                  */
+                // eslint-disable-next-line unicorn/no-break-in-nested-loop
                 if (offset >= inputLength) break;
             }
             if (offset >= inputLength) break;
@@ -490,9 +492,9 @@ export class EntityDecoder {
                     const packedWord =
                         decodeTree[treeIndex + 1 + (charIndexInPacked >> 1)];
                     const expectedChar =
-                        (charIndexInPacked & 1) === 0
-                            ? packedWord & 0xff
-                            : (packedWord >> 8) & 0xff;
+                        (packedWord >>
+                            ((charIndexInPacked & 1) === 0 ? 0 : 8)) &
+                        0xff;
 
                     if (input.charCodeAt(offset) !== expectedChar) {
                         this.runConsumed = 0;
@@ -521,7 +523,7 @@ export class EntityDecoder {
 
             if (valueLength !== 0) {
                 // Record a legacy match (FLAG13 clear = semicolon optional).
-                if (!strict && (current & BinTrieFlags.FLAG13) === 0) {
+                if (!isStrict && (current & BinTrieFlags.FLAG13) === 0) {
                     this.result = treeIndex;
                     consumed += excess - 1;
                     excess = 1;
@@ -584,7 +586,7 @@ export class EntityDecoder {
          * subsequent `end()` emits it, then persist the walk state.
          */
         if (
-            !strict &&
+            !isStrict &&
             current >>> 14 !== 0 &&
             (current & BinTrieFlags.FLAG13) === 0
         ) {
@@ -856,15 +858,15 @@ function parseNumericEntity(
  * Decode all entities in `input` using the given trie.
  * @param input      The string to decode.
  * @param decodeTree The binary trie (XML or HTML).
- * @param strict Only match semicolon-terminated entities.
- * @param attribute Whether to apply attribute-specific parsing rules (disallowing certain non-semicolon terminators).
+ * @param isStrict Only match semicolon-terminated entities.
+ * @param isAttribute Whether to apply attribute-specific parsing rules (disallowing certain non-semicolon terminators).
  * @returns The decoded string.
  */
 function decodeWithTrie(
     input: string,
     decodeTree: Uint16Array,
-    strict: boolean,
-    attribute: boolean,
+    isStrict: boolean,
+    isAttribute: boolean,
 ): string {
     // Fast path: no entities at all — return input without any allocation.
     let offset = input.indexOf("&");
@@ -900,7 +902,7 @@ function decodeWithTrie(
             consumed = packed >>> NumericPacking.CONSUMED_SHIFT;
             // In strict mode, require semicolon termination.
             if (
-                strict &&
+                isStrict &&
                 consumed > 0 &&
                 input.charCodeAt(entityStart + consumed - 1) !== CharCodes.SEMI
             ) {
@@ -1028,6 +1030,7 @@ function decodeWithTrie(
                         input.charCodeAt(index) !==
                         (current & BinTrieFlags.JUMP_TABLE)
                     ) {
+                        // eslint-disable-next-line unicorn/no-break-in-nested-loop
                         break;
                     }
                     index += 1;
@@ -1062,12 +1065,14 @@ function decodeWithTrie(
                             input.charCodeAt(index) !==
                             (decodeTree[wordIndex] & 0xff)
                         )
+                            // eslint-disable-next-line unicorn/no-break-in-nested-loop
                             break;
                         index += 1;
                     }
 
                     nodeIndex += 1 + (runLength >> 1);
                     current = decodeTree[nodeIndex];
+                    // eslint-disable-next-line unicorn/no-break-in-nested-loop
                     continue;
                 }
 
@@ -1105,11 +1110,12 @@ function decodeWithTrie(
                                       nodeIndex,
                                       valueLength,
                                   );
+                        // eslint-disable-next-line unicorn/no-break-in-nested-loop
                         break;
                     }
 
                     // Record non-terminated (legacy) match (FLAG13 clear = semicolon optional).
-                    if (!strict && (current & BinTrieFlags.FLAG13) === 0) {
+                    if (!isStrict && (current & BinTrieFlags.FLAG13) === 0) {
                         consumed = index - entityStart;
                         bestNodeIndex = nodeIndex;
                         bestValueLength = valueLength;
@@ -1120,6 +1126,7 @@ function decodeWithTrie(
                      * word — these are always leaf nodes with no branches, so we can
                      * stop walking the trie.
                      */
+                    // eslint-disable-next-line unicorn/no-break-in-nested-loop
                     if (valueLength === 1) break;
                 }
 
@@ -1130,6 +1137,7 @@ function decodeWithTrie(
                     nodeIndex + (valueLength || 1),
                     char,
                 );
+                // eslint-disable-next-line unicorn/no-break-in-nested-loop
                 if (next < 0) break;
 
                 nodeIndex = next;
@@ -1148,7 +1156,7 @@ function decodeWithTrie(
                 const finalVL = current >>> 14;
                 if (
                     finalVL !== 0 &&
-                    !strict &&
+                    !isStrict &&
                     (current & BinTrieFlags.FLAG13) === 0
                 ) {
                     consumed = index - entityStart;
@@ -1178,7 +1186,7 @@ function decodeWithTrie(
          */
         if (
             consumed === 0 ||
-            (attribute &&
+            (isAttribute &&
                 firstChar !== CharCodes.NUM &&
                 input.charCodeAt(entityStart + consumed - 1) !==
                     CharCodes.SEMI &&
