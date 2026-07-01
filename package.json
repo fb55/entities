@@ -59,7 +59,7 @@
         "test:vi": "vitest run"
     },
     "devDependencies": {
-        "@biomejs/biome": "^2.5.1",
+        "@biomejs/biome": "^2.5.2",
         "@eslint/compat": "^2.1.0",
         "@feedic/eslint-config": "^0.5.0",
         "@types/he": "^1.2.3",
