@@ -1,4 +1,4 @@
-import { XML_BITSET_VALUE } from "./escape.js";
+import { XML_BITSET_VALUE, xmlEncodeRegex } from "./escape.js";
 import htmlTrieData from "./generated/encode-html.js";
 
 /**
@@ -150,15 +150,14 @@ const HTML_BITSET = /* #__PURE__ */ new Uint32Array([
 const XML_BITSET = /* #__PURE__ */ new Uint32Array([0, XML_BITSET_VALUE, 0, 0]);
 
 /*
- * Regex equivalents of the bitsets (plus all non-ASCII code units, lone
- * surrogates included — no `u` flag). Must stay in sync with the bitsets:
+ * Regex equivalent of `HTML_BITSET` (plus all non-ASCII code units, lone
+ * surrogates included — no `u` flag). Must stay in sync with the bitset:
  * the scan uses the regex to find candidates and the bitset to re-check
- * adjacent characters.
+ * adjacent characters. The XML equivalent is `xmlEncodeRegex`, shared with
+ * `escape.ts`.
  */
-/* eslint-disable unicorn/prefer-unicode-code-point-escapes -- the `\u{\u2026}` form requires the `u` flag, which we deliberately omit so lone surrogates match by code unit */
+// eslint-disable-next-line unicorn/prefer-unicode-code-point-escapes -- the `\u{...}` form requires the `u` flag, which we deliberately omit so lone surrogates match by code unit
 const HTML_ENCODE_RE = /[\t\n\f!-/:-@[-`{-}\u0080-\uFFFF]/g;
-const XML_ENCODE_RE = /["&'<>\u0080-\uFFFF]/g;
-/* eslint-enable unicorn/prefer-unicode-code-point-escapes */
 
 const numericReference = (cp: number) => `&#${cp};`;
 
@@ -187,7 +186,7 @@ export function encodeHTML(input: string): string {
  * @param input Input string to encode or decode.
  */
 export function encodeNonAsciiHTML(input: string): string {
-    return encodeHTMLTrieRe(XML_BITSET, XML_ENCODE_RE, input);
+    return encodeHTMLTrieRe(XML_BITSET, xmlEncodeRegex, input);
 }
 
 /**
