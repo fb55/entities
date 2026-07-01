@@ -60,8 +60,8 @@ export interface DecodingOptions {
      * Decoding mode. If `Legacy`, will support legacy entities not terminated
      * with a semicolon (`;`).
      *
-     * Always `Strict` for XML. For HTML, set this to `true` if you are parsing
-     * an attribute value.
+     * Always `Strict` for XML. For HTML, set this to
+     * {@link DecodingMode.Attribute} if you are parsing an attribute value.
      * @default {@link DecodingMode.Legacy}
      */
     mode?: DecodingMode | undefined;
