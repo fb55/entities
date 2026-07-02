@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import entityMap from "../maps/entities.json" with { type: "json" };
+import html4Names from "../maps/html4.json" with { type: "json" };
+import legacyMap from "../maps/legacy.json" with { type: "json" };
+import xmlMap from "../maps/xml.json" with { type: "json" };
 import * as entities from "./decode.js";
 
 /**
@@ -180,6 +184,58 @@ describe.each(implementations)("Decode test: %s", (_name, {
         });
     });
 
+    describe("overlong numeric entities (packed consumed-field overflow)", () => {
+        /*
+         * The sync `parseNumericEntity` packs `(consumed << 21) | cp`;
+         * entities of ≥ 2047 characters exceed the 11-bit consumed field
+         * and take the `longNumericConsumed` side channel. Whatever the
+         * body length, the whole entity must be consumed and produce
+         * U+FFFD (matching entities@7.0.1) — a wrapped consumed count
+         * would leak digits into the output.
+         */
+        const digitCounts = [2045, 2046, 2047, 2048, 4096];
+        const bases: [string, string][] = [
+            ["decimal", ""],
+            ["hex", "x"],
+        ];
+
+        describe.each(bases)("%s", (_base, prefix) => {
+            it.each(
+                digitCounts,
+            )("should decode a %i-digit body with semicolon", (count) => {
+                const input = `&#${prefix}${"1".repeat(count)};X`;
+                expect(decodeHTML(input)).toBe("�X");
+                expect(decodeHTMLStrict(input)).toBe("�X");
+                expect(decodeHTMLAttribute(input)).toBe("�X");
+                expect(decodeXML(input)).toBe("�X");
+            });
+
+            it.each(
+                digitCounts,
+            )("should decode a %i-digit body without semicolon", (count) => {
+                const input = `&#${prefix}${"1".repeat(count)}X`;
+                expect(decodeHTML(input)).toBe("�X");
+                expect(decodeHTMLAttribute(input)).toBe("�X");
+                // Strict modes require the semicolon.
+                expect(decodeHTMLStrict(input)).toBe(input);
+                expect(decodeXML(input)).toBe(input);
+            });
+
+            it.each(
+                digitCounts,
+            )("should decode a %i-digit body at the end of input", (count) => {
+                const input = `&#${prefix}${"1".repeat(count)}`;
+                expect(decodeHTML(input)).toBe("�");
+                expect(decodeHTMLStrict(input)).toBe(input);
+            });
+        });
+
+        it("should recover the exact code point after thousands of leading zeros", () => {
+            expect(decodeHTML(`&#${"0".repeat(2048)}65;X`)).toBe("AX");
+            expect(decodeXML(`&#x${"0".repeat(2048)}41;X`)).toBe("AX");
+        });
+    });
+
     it("should parse &nbsp followed by < (#852)", () =>
         expect(decodeHTML("&nbsp<")).toBe("\u{A0}<"));
 
@@ -223,8 +279,8 @@ describe.each(implementations)("Decode test: %s", (_name, {
          *   - numeric entities are always accepted
          *   - leaf-node legacy match (e.g. `amp`) followed by a char that
          *     isn't an invalid attribute terminator. The trailing char
-         *     equals the entity's value byte, which previously sent the
-         *     streaming decoder into a phantom node.
+         *     equals the entity's value byte — the decoder must not read
+         *     the value slot as a trie node and descend into it.
          */
         const acceptCases = [
             { input: "&not", output: "¬" },
@@ -245,6 +301,100 @@ describe.each(implementations)("Decode test: %s", (_name, {
             input,
             output,
         }) => expect(decodeHTMLAttribute(input)).toBe(output));
+    });
+
+    describe("full entity maps (regression guard for trie generation)", () => {
+        it("should decode every named entity from the WHATWG map", () => {
+            for (const [name, value] of Object.entries(entityMap)) {
+                expect(decodeHTML(`&${name};`)).toBe(value);
+                expect(decodeHTMLStrict(`&${name};`)).toBe(value);
+            }
+        });
+
+        it("should decode every XML entity", () => {
+            for (const [name, value] of Object.entries(xmlMap)) {
+                expect(decodeXML(`&${name};`)).toBe(value);
+            }
+        });
+
+        /*
+         * Covers the streaming `consumed` bookkeeping for entities ending in
+         * compact trie runs: a wrong consumed count makes the streaming
+         * implementations drop or duplicate characters around the entity.
+         */
+        it("should decode every legacy entity without a semicolon", () => {
+            for (const [name, value] of Object.entries(legacyMap)) {
+                expect(decodeHTML(`&${name}`)).toBe(value);
+                expect(decodeHTML(`&${name} after`)).toBe(`${value} after`);
+                expect(decodeHTML(`x&${name}-y`)).toBe(`x${value}-y`);
+            }
+        });
+    });
+
+    describe("non-entities with legacy-like prefixes stay literal", () => {
+        /*
+         * In entities <= 7.0.1, a failed named-entity match could read the
+         * legacy result from a wrong trie index, emitting an unrelated
+         * character (e.g. `&Gdot ` → `Â`). These inputs must stay literal.
+         */
+        const literalCases = [
+            "&Gdot ",
+            "&eta=",
+            "&Ocy ",
+            "&YUcy1",
+            "&backepsilonx",
+            "&bepsix",
+        ];
+
+        it.each(literalCases)("should not decode %j", (input) => {
+            expect(decodeHTML(input)).toBe(input);
+            expect(decodeHTMLStrict(input)).toBe(input);
+            expect(decodeHTMLAttribute(input)).toBe(input);
+        });
+
+        /*
+         * Legacy prefixes of longer names decode in text mode but must stay
+         * literal in attribute mode (next char is alphanumeric).
+         */
+        const prefixCases = [
+            { input: "&centerdot ", text: "¢erdot " },
+            { input: "&copysr ", text: "©sr " },
+            { input: "&divideontimes ", text: "÷ontimes " },
+            { input: "&gtcc ", text: ">cc " },
+        ];
+
+        it.each(
+            prefixCases,
+        )("should decode $input as legacy prefix only in text mode", ({
+            input,
+            text,
+        }) => {
+            expect(decodeHTML(input)).toBe(text);
+            expect(decodeHTMLAttribute(input)).toBe(input);
+        });
+    });
+});
+
+/*
+ * `maps/html4.json` drives the hot/cold trie-encoding split in
+ * `scripts/write-decode-map.ts`: names listed there keep the fast jump-table
+ * encoding. A name that is duplicated (wasted hot budget) or missing from the
+ * WHATWG map (silently ignored when marking hot paths) would degrade the
+ * generated trie without failing the build.
+ */
+describe("entity map contracts", () => {
+    it("html4.json should be duplicate-free", () => {
+        const duplicates = html4Names.filter(
+            (name, index) => html4Names.indexOf(name) !== index,
+        );
+        expect(duplicates).toStrictEqual([]);
+    });
+
+    it("every html4.json name should be a key in entities.json", () => {
+        const missing = html4Names.filter(
+            (name) => !Object.hasOwn(entityMap, name),
+        );
+        expect(missing).toStrictEqual([]);
     });
 });
 
@@ -351,6 +501,57 @@ describe("EntityDecoder", () => {
      * Discovered prefix: "zi" followed by compact run "grarr"; mismatching inside this run should
      * return 0 with no emission (result still 0).
      */
+    describe("overlong numeric entities", () => {
+        /*
+         * The streaming decoder tracks `consumed` as a plain field, so —
+         * unlike the sync parser's packed return value — no length ever
+         * overflows. These pin the equivalence for the sync boundary cases.
+         */
+        const digitCounts = [2045, 2046, 2047, 2048, 4096];
+
+        it.each(
+            digitCounts,
+        )("should report full consumed for %i decimal digits", (count) => {
+            decoder.startEntity(entities.DecodingMode.Strict);
+            expect(decoder.write(`&#${"1".repeat(count)};`, 1)).toBe(count + 3);
+            expect(callback).toHaveBeenCalledExactlyOnceWith(
+                0xff_fd,
+                count + 3,
+            );
+        });
+
+        it.each(
+            digitCounts,
+        )("should report full consumed for %i hex digits", (count) => {
+            decoder.startEntity(entities.DecodingMode.Strict);
+            expect(decoder.write(`&#x${"1".repeat(count)};`, 1)).toBe(
+                count + 4,
+            );
+            expect(callback).toHaveBeenCalledExactlyOnceWith(
+                0xff_fd,
+                count + 4,
+            );
+        });
+
+        it("should clamp the accumulator before it reaches the errors callbacks", () => {
+            const errorHandlers = {
+                missingSemicolonAfterCharacterReference: vi.fn(),
+                absenceOfDigitsInNumericCharacterReference: vi.fn(),
+                validateNumericCharacterReference: vi.fn(),
+            };
+            const errorDecoder = new entities.EntityDecoder(
+                entities.htmlDecodeTree,
+                callback,
+                errorHandlers,
+            );
+            errorDecoder.startEntity(entities.DecodingMode.Strict);
+            errorDecoder.write(`&#x${"f".repeat(4096)};`, 1);
+            expect(
+                errorHandlers.validateNumericCharacterReference,
+            ).toHaveBeenCalledExactlyOnceWith(0x11_00_00);
+        });
+    });
+
     describe("compact run mismatches", () => {
         it.each([
             ["first run character mismatch", "ziXgrar"],

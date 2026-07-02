@@ -1,211 +1,34 @@
+import * as assert from "node:assert";
 import * as fs from "node:fs";
 import entityMap from "../maps/entities.json" with { type: "json" };
+import html4Names from "../maps/html4.json" with { type: "json" };
 import legacyMap from "../maps/legacy.json" with { type: "json" };
 import xmlMap from "../maps/xml.json" with { type: "json" };
+import { BinTrieFlags } from "../src/internal/bin-trie-flags.js";
+import { type EncodedTrie, encodeFullTrie } from "./trie/encode-dict.js";
 import { encodeTrie } from "./trie/encode-trie.js";
-import { getTrie } from "./trie/trie.js";
+import { getTrie, type TrieNode } from "./trie/trie.js";
 
-/**
- * Printable ASCII chars safe in JS string literals (0x21–0x7E minus `"`, `$`, `\`).
- * 91 chars. `$` is excluded to prevent `${` sequences that trip linters.
+/*
+ * Entities defined in HTML 4.01 (lat1, symbol, and special DTDs), from
+ * maps/html4.json. These are the entities with decades of real-world usage
+ * behind them — used as the "hot" set for trie encoding decisions, so their
+ * lookup paths keep the fast jump-table encoding while the long tail of
+ * rarely-used HTML5 names can use the more compact dictionary encoding.
  */
-const SAFE: number[] = [];
-for (let codePoint = 0x21; codePoint <= 0x7e; codePoint++) {
-    if (codePoint !== 0x22 && codePoint !== 0x24 && codePoint !== 0x5c) {
-        SAFE.push(codePoint);
-    }
-}
-const BASE = SAFE.length; // 91
+const HTML4_NAMES: string[] = html4Names;
 
-/** Number of most-frequent values assigned to 1-char codes. */
-const DICT_SIZE = 61;
-
-/**
- * Encode trie data using dictionary + delta-encoded value table.
- *
- * Format: [dict1: delta/RLE var-len][dict2: delta/RLE var-len][data]
- *
- * - dict1: base values for the D most-frequent entries, delta+RLE variable-length base-91.
- * - dict2: all remaining unique values, delta+RLE variable-length base-91.
- *   Deltas < 90 → 1 char; 90–8279 → escape + 2 chars; larger → double-escape + 3 chars.
- * - data: each trie value encoded as 1 char (dict1 lookup) or 2 chars (dict2 lookup).
- *
- * This gives ~24% smaller raw and ~16% better gzip than base64.
- * @param data Trie data to encode.
+/*
+ * Staleness guard for `BPE_RANK_OVERRIDES` (scripts/trie/encode-dict.ts).
+ * The overrides were tuned by coordinate descent against the exact HTML trie
+ * contents, so they are stale the moment the trie changes. If this assert
+ * fires: the encoding still round-trips correctly, but the overrides (and
+ * this constant) should be re-tuned for the new data — re-run the tuning,
+ * or reset the overrides to `{}` and compare bundle gzip/brotli sizes.
  */
-function encodeTrieData(data: Uint16Array): {
-    encoded: string;
-    headerLength: number;
-} {
-    // For small tries (e.g. XML), skip the dictionary and use plain var-len base91.
-    if (data.length < 100) {
-        const twoCharCount = 84;
-        const split = twoCharCount * BASE;
-        let result = "";
-        for (const value of data) {
-            if (value < split) {
-                result += String.fromCharCode(
-                    SAFE[Math.floor(value / BASE)],
-                    SAFE[value % BASE],
-                );
-            } else {
-                const adjusted = value - split;
-                result += String.fromCharCode(
-                    SAFE[twoCharCount + Math.floor(adjusted / (BASE * BASE))],
-                    SAFE[Math.floor(adjusted / BASE) % BASE],
-                    SAFE[adjusted % BASE],
-                );
-            }
-        }
-        return { encoded: result, headerLength: 0 };
-    }
+const EXPECTED_HTML_ENCODED_LENGTH = 18_575;
 
-    // Count frequencies
-    const freq = new Map<number, number>();
-    for (const value of data) freq.set(value, (freq.get(value) ?? 0) + 1);
-    // @ts-expect-error `toSorted` requires a lib bump.
-    const sorted: [number, number][] = [...freq].toSorted(
-        (a: [number, number], b: [number, number]) => b[1] - a[1],
-    );
-
-    /*
-     * Dict2 has (BASE - DICT_SIZE) * BASE 2-char codes available. The decoder
-     * assumes exactly DICT_SIZE entries in dict1. Bail out loudly if the trie
-     * cardinality is outside the encodable range so we never silently emit a
-     * table that decodeTrieDict can't read back.
-     */
-    const dict2Capacity = (BASE - DICT_SIZE) * BASE;
-    if (
-        sorted.length < DICT_SIZE ||
-        sorted.length > DICT_SIZE + dict2Capacity
-    ) {
-        throw new Error(
-            `Trie has ${sorted.length} unique values; encoder requires [${DICT_SIZE}, ${DICT_SIZE + dict2Capacity}].`,
-        );
-    }
-
-    // Dict1: top D values → 1-char codes, sorted ascending for delta encoding
-    const dict1 = sorted
-        .slice(0, DICT_SIZE)
-        .map(([value]) => value)
-        // eslint-disable-next-line unicorn/no-array-sort -- TS doesn't know toSorted
-        .sort((a: number, b: number) => a - b);
-    const dict1Set = new Set(dict1);
-
-    // Dict2: remaining values, sorted ascending for delta encoding
-    const dict2Sorted = sorted
-        .filter(([value]: [number, number]) => !dict1Set.has(value))
-        .map(([value]: [number, number]) => value)
-        // eslint-disable-next-line unicorn/no-array-sort -- TS doesn't know toSorted
-        .sort((a: number, b: number) => a - b);
-
-    /*
-     * Encode header: dict1 then dict2, each delta variable-length from 0.
-     *
-     * Encoding:
-     *   delta < 89        → 1 char: SAFE[delta]
-     *   SAFE[89]          → run-length marker: next char encodes N-2 (≥1),
-     *                       meaning N consecutive delta-1 values
-     *   SAFE[90]          → escape for large deltas (same as before but threshold 89)
-     *   SAFE[90] SAFE[90] → double escape for very large deltas
-     */
-    const RLE_MARKER = SAFE[89];
-    const ESCAPE = SAFE[90];
-    let header = "";
-    function deltaEncode(values: number[]) {
-        let previous = 0;
-        let index = 0;
-        while (index < values.length) {
-            const delta = values[index] - previous;
-            if (delta === 1) {
-                // Count consecutive delta=1 values
-                let runLength = 1;
-                while (
-                    index + runLength < values.length &&
-                    values[index + runLength] -
-                        values[index + runLength - 1] ===
-                        1
-                ) {
-                    runLength++;
-                }
-                if (runLength >= 3) {
-                    // Emit RLE-encoded runs (max chunk = BASE+1=92, stored as SAFE[0..90])
-                    let remaining = runLength;
-                    while (remaining >= 3) {
-                        const chunk = Math.min(remaining, BASE + 1);
-                        header += String.fromCharCode(
-                            RLE_MARKER,
-                            SAFE[chunk - 2],
-                        );
-                        remaining -= chunk;
-                    }
-                    // Emit leftover 1-2 values as plain delta=1
-                    for (let r = 0; r < remaining; r++) {
-                        header += String.fromCharCode(SAFE[1]);
-                    }
-                    previous = values[index + runLength - 1];
-                    index += runLength;
-                    continue;
-                }
-            }
-            // Non-run or short run: emit single delta
-            if (delta < 89) {
-                header += String.fromCharCode(SAFE[delta]);
-            } else {
-                const adjusted = delta - 89;
-                header +=
-                    adjusted < 90 * BASE
-                        ? String.fromCharCode(
-                              ESCAPE,
-                              SAFE[Math.floor(adjusted / BASE)],
-                              SAFE[adjusted % BASE],
-                          )
-                        : String.fromCharCode(
-                              ESCAPE,
-                              ESCAPE,
-                              SAFE[Math.floor(adjusted / (BASE * BASE))],
-                              SAFE[Math.floor(adjusted / BASE) % BASE],
-                              SAFE[adjusted % BASE],
-                          );
-            }
-            previous = values[index];
-            index++;
-        }
-    }
-    deltaEncode(dict1);
-    deltaEncode(dict2Sorted);
-
-    // Build value → code mapping
-    const valueToCode = new Map<number, string>();
-    for (let index = 0; index < DICT_SIZE; index++) {
-        valueToCode.set(dict1[index], String.fromCharCode(SAFE[index]));
-    }
-    let codeIndex = 0;
-    for (const value of dict2Sorted) {
-        valueToCode.set(
-            value,
-            String.fromCharCode(
-                SAFE[DICT_SIZE + Math.floor(codeIndex / BASE)],
-                SAFE[codeIndex % BASE],
-            ),
-        );
-        codeIndex++;
-    }
-
-    // Encode data
-    let encodedData = "";
-    for (const value of data) {
-        const code = valueToCode.get(value);
-        if (code === undefined) {
-            throw new Error(
-                `No encoded code assigned for trie value ${value}.`,
-            );
-        }
-        encodedData += code;
-    }
-
-    return { encoded: header + encodedData, headerLength: header.length };
-}
+// --- File generation ------------------------------------------------------
 
 function formatNumber(value: number): string {
     return value >= 10_000
@@ -213,29 +36,83 @@ function formatNumber(value: number): string {
         : String(value);
 }
 
-function generateFile(name: string, data: Uint16Array): string {
-    const { encoded, headerLength } = encodeTrieData(data);
+/**
+ * Formatter line width — must match biome's configured width (the default,
+ * 80) so `biome check` leaves the generated files untouched.
+ */
+const FORMAT_LINE_WIDTH = 80;
+/** Max content chars per line: width minus 4-space indent and trailing comma. */
+const FORMAT_CONTENT_WIDTH = FORMAT_LINE_WIDTH - 4 - 1;
 
-    // For small tries, emit an inline literal array (no decoder import needed).
-    if (headerLength === 0) {
-        const values = [...data].map((v) => formatNumber(v)).join(", ");
-        return `// Generated using scripts/write-decode-map.ts
+function generateInlineFile(name: string, data: Uint16Array): string {
+    /*
+     * Greedily fill lines to the formatter's width, matching biome's array
+     * formatting so the formatter leaves the generated file untouched.
+     */
+    const tokens = [...data].map((v) => formatNumber(v));
+    const lines: string[] = [];
+    let line = "";
+    for (const token of tokens) {
+        const piece = (line ? ", " : "") + token;
+        if (line && line.length + piece.length > FORMAT_CONTENT_WIDTH) {
+            lines.push(`${line},`);
+            line = token;
+        } else {
+            line += piece;
+        }
+    }
+    if (line) lines.push(`${line},`);
+    const body = lines.map((l) => `    ${l}`).join("\n");
+    return `// Generated using scripts/write-decode-map.ts
 
 /** Packed ${name.toUpperCase()} decode trie data. */
 export const ${name}DecodeTree: Uint16Array = /* #__PURE__ */ new Uint16Array([
-    ${values},
+${body}
 ]);`;
-    }
+}
 
+function generateDecoderFile(
+    name: string,
+    data: Uint16Array,
+    result: EncodedTrie,
+): string {
     return `// Generated using scripts/write-decode-map.ts
 
 import { decodeTrieDict } from "../internal/decode-shared.js";
 /** Packed ${name.toUpperCase()} decode trie data. */
 export const ${name}DecodeTree: Uint16Array = /* #__PURE__ */ decodeTrieDict(
-    ${JSON.stringify(encoded)},
+    ${JSON.stringify(result.encoded)},
     ${formatNumber(data.length)},
-    ${formatNumber(headerLength)},
+    ${formatNumber(result.atomCount)},
+    ${formatNumber(result.dict1AtomCount)},
+    ${formatNumber(result.ngramCount)},
+    ${result.dictSize},
 );`;
+}
+
+/**
+ * Count how many entities pass through each trie node (node "traffic").
+ * Shared (deduplicated) subtree nodes accumulate counts from every path
+ * that reaches them.
+ * @param root The trie root.
+ * @param keys The entity names inserted into the trie.
+ */
+function computeNodeTraffic(
+    root: TrieNode,
+    keys: string[],
+): Map<TrieNode, number> {
+    const traffic = new Map<TrieNode, number>([[root, keys.length]]);
+    for (const key of keys) {
+        let node = root;
+        for (let index = 0; index < key.length; index++) {
+            const next = node.next?.get(key.charCodeAt(index));
+            // eslint-disable-next-line unicorn/no-break-in-nested-loop
+            if (!next) break;
+            node = next;
+            traffic.set(node, (traffic.get(node) ?? 0) + 1);
+        }
+    }
+    return traffic;
 }
 
 function convertMapToBinaryTrie(
@@ -243,11 +120,82 @@ function convertMapToBinaryTrie(
     map: Record<string, string>,
     legacy: Record<string, string>,
 ) {
-    const encoded = new Uint16Array(encodeTrie(getTrie(map, legacy), 1.2));
-    const code = `${generateFile(name, encoded)}\n`;
+    /*
+     * Hot/cold jump-table threshold: nodes on the lookup path of an HTML4
+     * entity (the empirically common set) or with high entity traffic keep
+     * `maxJumpTableOverhead=4` (jump tables: O(1) indexed read, handled
+     * inline by the decoder's descent loop — −22% to −30% decode time on
+     * entity-dense workloads). The long tail of rare HTML5 names uses the
+     * compact linear-scan dictionary encoding instead, which keeps the
+     * trie words (and the shipped bundle) smaller.
+     */
+    const hotTraffic = 16;
+    const coldOverhead = 1.2;
+    const trie = getTrie(map, legacy);
+    const hotNodes = new Set<TrieNode>();
+    for (const name of HTML4_NAMES) {
+        let node: TrieNode | undefined = trie;
+        hotNodes.add(node);
+        for (let index = 0; index < name.length && node; index++) {
+            node = node.next?.get(name.charCodeAt(index));
+            if (node) hotNodes.add(node);
+        }
+    }
+    const traffic = computeNodeTraffic(trie, Object.keys(map));
+    const data = new Uint16Array(
+        encodeTrie(trie, (node) =>
+            hotNodes.has(node) || (traffic.get(node) ?? 0) >= hotTraffic
+                ? 4
+                : coldOverhead,
+        ),
+    );
+
+    /*
+     * `decodeWithTrie` (used for all HTML decoding) inlines root navigation
+     * assuming the root header is a multi-branch jump table — it falls back
+     * to rejecting every entity, not to a slow path, if the shape differs.
+     * Fail the build instead of shipping a trie that silently never
+     * matches. (The XML trie is exempt: `decodeXML` has a hand-coded fast
+     * path and the streaming decoder handles any root shape.)
+     */
+    const rootJumpOffset = data[0] & BinTrieFlags.JUMP_TABLE;
+    const rootBranchCount = (data[0] & BinTrieFlags.BRANCH_LENGTH) >> 7;
+    /*
+     * The decoder's inline root navigation also assumes the root carries no
+     * value and is not a compact run; otherwise the descent loop is skipped
+     * and every entity is rejected.
+     */
+    const hasRootValueOrRun =
+        (data[0] & (BinTrieFlags.VALUE_LENGTH | BinTrieFlags.FLAG13)) !== 0;
+    if (
+        name === "html" &&
+        (rootJumpOffset === 0 || rootBranchCount === 0 || hasRootValueOrRun)
+    ) {
+        throw new Error(
+            "HTML trie root must be a value-less multi-branch jump table for " +
+                "the decoder's inline root navigation; got header " +
+                `0x${data[0].toString(16)}.`,
+        );
+    }
+
+    let file: string;
+    if (data.length < 100) {
+        // Tiny tries (XML) skip the dict; ~25 values fits inline cheaply.
+        file = generateInlineFile(name, data);
+    } else {
+        const result = encodeFullTrie(data);
+        assert.strictEqual(
+            result.encoded.length,
+            EXPECTED_HTML_ENCODED_LENGTH,
+            "Encoded HTML trie length changed — BPE_RANK_OVERRIDES (and " +
+                "EXPECTED_HTML_ENCODED_LENGTH) are stale; see the comment " +
+                "on the constant.",
+        );
+        file = generateDecoderFile(name, data, result);
+    }
     fs.writeFileSync(
         new URL(`../src/generated/decode-data-${name}.ts`, import.meta.url),
-        code,
+        `${file}\n`,
     );
 }
 
