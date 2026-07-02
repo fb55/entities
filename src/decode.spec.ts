@@ -200,7 +200,9 @@ describe.each(implementations)("Decode test: %s", (_name, {
         ];
 
         describe.each(bases)("%s", (_base, prefix) => {
-            it.each(digitCounts)("should decode a %i-digit body with semicolon", (count) => {
+            it.each(
+                digitCounts,
+            )("should decode a %i-digit body with semicolon", (count) => {
                 const input = `&#${prefix}${"1".repeat(count)};X`;
                 expect(decodeHTML(input)).toBe("�X");
                 expect(decodeHTMLStrict(input)).toBe("�X");
@@ -208,7 +210,9 @@ describe.each(implementations)("Decode test: %s", (_name, {
                 expect(decodeXML(input)).toBe("�X");
             });
 
-            it.each(digitCounts)("should decode a %i-digit body without semicolon", (count) => {
+            it.each(
+                digitCounts,
+            )("should decode a %i-digit body without semicolon", (count) => {
                 const input = `&#${prefix}${"1".repeat(count)}X`;
                 expect(decodeHTML(input)).toBe("�X");
                 expect(decodeHTMLAttribute(input)).toBe("�X");
@@ -217,7 +221,9 @@ describe.each(implementations)("Decode test: %s", (_name, {
                 expect(decodeXML(input)).toBe(input);
             });
 
-            it.each(digitCounts)("should decode a %i-digit body at the end of input", (count) => {
+            it.each(
+                digitCounts,
+            )("should decode a %i-digit body at the end of input", (count) => {
                 const input = `&#${prefix}${"1".repeat(count)}`;
                 expect(decodeHTML(input)).toBe("�");
                 expect(decodeHTMLStrict(input)).toBe(input);
@@ -503,18 +509,20 @@ describe("EntityDecoder", () => {
          */
         const digitCounts = [2045, 2046, 2047, 2048, 4096];
 
-        it.each(digitCounts)("should report full consumed for %i decimal digits", (count) => {
+        it.each(
+            digitCounts,
+        )("should report full consumed for %i decimal digits", (count) => {
             decoder.startEntity(entities.DecodingMode.Strict);
-            expect(decoder.write(`&#${"1".repeat(count)};`, 1)).toBe(
-                count + 3,
-            );
+            expect(decoder.write(`&#${"1".repeat(count)};`, 1)).toBe(count + 3);
             expect(callback).toHaveBeenCalledExactlyOnceWith(
                 0xff_fd,
                 count + 3,
             );
         });
 
-        it.each(digitCounts)("should report full consumed for %i hex digits", (count) => {
+        it.each(
+            digitCounts,
+        )("should report full consumed for %i hex digits", (count) => {
             decoder.startEntity(entities.DecodingMode.Strict);
             expect(decoder.write(`&#x${"1".repeat(count)};`, 1)).toBe(
                 count + 4,

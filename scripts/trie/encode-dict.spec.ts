@@ -40,9 +40,7 @@ function roundTrip(data: Uint16Array, dictSize?: number): void {
 
 describe("encode-dict ↔ decodeTrieDict round-trip", () => {
     it("should round-trip the real HTML trie", () => {
-        const data = new Uint16Array(
-            encodeTrie(getTrie(entityMap, legacyMap)),
-        );
+        const data = new Uint16Array(encodeTrie(getTrie(entityMap, legacyMap)));
         roundTrip(data);
     });
 

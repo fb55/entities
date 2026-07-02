@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import entityMap from "../maps/entities.json" with { type: "json" };
 import xmlMap from "../maps/xml.json" with { type: "json" };
-import { decodeHTML, decodeXML, DecodingMode, EntityDecoder } from "./decode.js";
+import {
+    DecodingMode,
+    decodeHTML,
+    decodeXML,
+    EntityDecoder,
+} from "./decode.js";
 import { htmlDecodeTree } from "./generated/decode-data-html.js";
 import { xmlDecodeTree } from "./generated/decode-data-xml.js";
 
@@ -252,7 +257,9 @@ describe("EntityDecoder Streaming", () => {
             ["char-by-char", 1],
         ] as const;
 
-        it.each(chunkSizes)("should decode every HTML entity (%s)", (_name, chunkSize) => {
+        it.each(
+            chunkSizes,
+        )("should decode every HTML entity (%s)", (_name, chunkSize) => {
             for (const name of Object.keys(entityMap)) {
                 const input = `&${name};`;
                 const result = streamEntity(htmlDecodeTree, input, chunkSize);
@@ -261,7 +268,9 @@ describe("EntityDecoder Streaming", () => {
             }
         });
 
-        it.each(chunkSizes)("should decode every XML entity (%s)", (_name, chunkSize) => {
+        it.each(
+            chunkSizes,
+        )("should decode every XML entity (%s)", (_name, chunkSize) => {
             for (const name of Object.keys(xmlMap)) {
                 const input = `&${name};`;
                 const result = streamEntity(xmlDecodeTree, input, chunkSize);
