@@ -28,7 +28,7 @@ import * as entities from "entities";
 
 // Encoding
 entities.escapeUTF8("&#38; ü"); // "&amp;#38; ü"
-entities.encodeXML("&#38; ü"); // "&amp;#38; &#xfc;"
+entities.encodeXML("&#38; ü"); // "&amp;#38; &#252;"
 entities.encodeHTML("&#38; ü"); // "&amp;&num;38&semi; &uuml;"
 
 // Decoding
