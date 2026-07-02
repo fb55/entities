@@ -28,6 +28,11 @@ describe("getCodePoint", () => {
         expect(getCodePoint("💯", 0)).toBe(128_175);
         expect(getCodePoint("a\u{1F4A9}", 1)).toBe(0x1_f4_a9);
     });
+
+    it("should return NaN for out-of-range indices", () => {
+        expect(getCodePoint("abc", 3)).toBeNaN();
+        expect(getCodePoint("", 0)).toBeNaN();
+    });
 });
 
 describe("encodeXML scan", () => {

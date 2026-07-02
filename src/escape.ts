@@ -8,15 +8,16 @@ const xmlCodeMap = new Map([
 
 /**
  * Read a code point at a given index.
- * @param input Input string to encode or decode.
+ * @param input String to read the code point from.
  * @param index Current read position in the input string.
+ * @returns The code point at `index`, or `NaN` if `index` is out of range.
  * @deprecated Use `String.prototype.codePointAt` directly instead; this export
  *   will be removed in the next major.
  */
-export const getCodePoint: (c: string, index: number) => number = (
+export const getCodePoint: (input: string, index: number) => number = (
     input: string,
     index: number,
-): number => input.codePointAt(index)!;
+): number => input.codePointAt(index) ?? NaN;
 
 /**
  * Bitset for ASCII characters that need to be escaped in XML.
