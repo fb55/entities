@@ -17,7 +17,7 @@ const xmlCodeMap = new Map([
 export const getCodePoint: (input: string, index: number) => number = (
     input: string,
     index: number,
-): number => input.codePointAt(index) ?? NaN;
+): number => input.codePointAt(index) ?? Number.NaN;
 
 /**
  * Bitset for ASCII characters that need to be escaped in XML.
