@@ -157,7 +157,7 @@ const numericReference = (cp: number) => `&#${cp};`;
  *
  * If a character has no equivalent entity, a numeric decimal reference
  * (eg. `&#252;`) will be used.
- * @param input Input string to encode or decode.
+ * @param input Input string to encode.
  */
 export function encodeHTML(input: string): string {
     return encodeHTMLTrieRe(HTML_BITSET, input);
@@ -169,7 +169,7 @@ export function encodeHTML(input: string): string {
  *
  * If a character has no equivalent entity, a numeric decimal reference
  * (eg. `&#252;`) will be used.
- * @param input Input string to encode or decode.
+ * @param input Input string to encode.
  */
 export function encodeNonAsciiHTML(input: string): string {
     return encodeHTMLTrieRe(XML_BITSET, input);

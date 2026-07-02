@@ -73,7 +73,7 @@ function isAlpha(code: number): boolean {
  *
  * Attribute values that aren't terminated properly aren't parsed, and shouldn't lead to a parser error.
  * See the example in https://html.spec.whatwg.org/multipage/parsing.html#named-character-reference-state
- * @param code Code point to decode.
+ * @param code Code point to check.
  */
 function isEntityInAttributeInvalidEnd(code: number): boolean {
     return code === CharCodes.EQUALS || isAlpha(code) || isNumber(code);
@@ -147,10 +147,11 @@ export class EntityDecoder {
         /**
          * The function that is called when a codepoint is decoded.
          *
-         * For multi-byte named entities, this will be called multiple times,
-         * with the second codepoint, and the same `consumed` value.
+         * For named entities that decode to multiple code points, this will
+         * be called multiple times, with the second codepoint, and the same
+         * `consumed` value.
          * @param codepoint The decoded codepoint.
-         * @param consumed The number of bytes consumed by the decoder.
+         * @param consumed The number of characters consumed by the decoder.
          */
         private readonly emitCodePoint: (cp: number, consumed: number) => void,
         /** An object that is used to produce errors. */

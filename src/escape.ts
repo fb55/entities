@@ -38,7 +38,7 @@ function isXmlEscapable(code: number): boolean {
  *
  * If a character has no equivalent entity, a numeric decimal reference
  * (eg. `&#252;`) will be used.
- * @param input Input string to encode or decode.
+ * @param input Input string to encode.
  */
 export function encodeXML(input: string): string {
     const { length } = input;

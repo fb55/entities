@@ -11,9 +11,10 @@ const c1: number[] = [
 ];
 
 /**
- * Replace the given code point with a replacement character if it is a
- * surrogate or is outside the valid range. Otherwise return the code
- * point unchanged.
+ * Replace the given code point with U+FFFD if it is NUL (0), a surrogate, or
+ * outside the valid Unicode range. Code points in the C1 controls range
+ * (128–159) are remapped to their Windows-1252 equivalents, following the
+ * HTML spec. All other code points are returned unchanged.
  * @param codePoint Unicode code point to convert.
  */
 export function replaceCodePoint(codePoint: number): number {
