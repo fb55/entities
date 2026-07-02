@@ -33,10 +33,10 @@ jobs:
             fail-fast: false
             matrix:
                 node:
-                    - 20
-                    - 22
-                    - 24
-                    - lts/*
+                    - '20.19.0'
+                    - '22'
+                    - '24'
+                    - 'lts/*'
 
         steps:
             - uses: actions/checkout@v7
