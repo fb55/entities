@@ -11,18 +11,21 @@ const xmlCodeMap = new Map([
  */
 export const XML_BITSET_VALUE = 0x50_00_00_c4; // 32..63 -> 34 ("),38 (&),39 ('),60 (<),62 (>)
 
-/*
+/**
  * Matches exactly the characters `encodeXML` escapes: the five XML special
  * characters plus every non-ASCII code unit (lone surrogates included — no
  * `u` flag). Kept in sync with `XML_BITSET_VALUE`.
+ *
+ * Shared with `encodeNonAsciiHTML` in `encode.ts`. Because the regex is
+ * stateful (`g` flag), every call site must set `lastIndex` before use.
  */
-// eslint-disable-next-line unicorn/prefer-unicode-code-point-escapes -- the `\u{\u2026}` form requires the `u` flag, which we deliberately omit so lone surrogates match by code unit
-const xmlEncodeRegex = /["&'<>\u0080-\uFFFF]/g;
+// eslint-disable-next-line unicorn/prefer-unicode-code-point-escapes -- the `\u{...}` form requires the `u` flag, which we deliberately omit so lone surrogates match by code unit
+export const xmlEncodeRegex: RegExp = /["&'<>\u0080-\uFFFF]/g;
 
 /**
  * Whether `code` (a UTF-16 code unit) is escaped by {@link encodeXML}: a
  * non-ASCII unit, or one of the five XML specials flagged in
- * `XML_BITSET_VALUE` (which is only meaningful for code units 32\u201363).
+ * `XML_BITSET_VALUE` (which is only meaningful for code units 32-63).
  * @param code Code unit to test.
  */
 function isXmlEscapable(code: number): boolean {
