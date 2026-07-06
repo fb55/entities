@@ -7,6 +7,19 @@ const xmlCodeMap = new Map([
 ]);
 
 /**
+ * Read a code point at a given index.
+ * @param input String to read the code point from.
+ * @param index Current read position in the input string.
+ * @returns The code point at `index`, or `NaN` if `index` is out of range.
+ * @deprecated Use `String.prototype.codePointAt` directly instead; this export
+ *   will be removed in the next major.
+ */
+export const getCodePoint: (input: string, index: number) => number = (
+    input: string,
+    index: number,
+): number => input.codePointAt(index) ?? Number.NaN;
+
+/**
  * Bitset for ASCII characters that need to be escaped in XML.
  */
 export const XML_BITSET_VALUE = 0x50_00_00_c4; // 32..63 -> 34 ("),38 (&),39 ('),60 (<),62 (>)
