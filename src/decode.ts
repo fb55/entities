@@ -206,6 +206,8 @@ export class EntityDecoder {
      * Parses a hexadecimal numeric entity.
      *
      * Equivalent to the `Hexademical character reference state` in the HTML spec.
+     *
+     * Mirrors the sync `parseNumericEntity`; fixes here must be mirrored there.
      * @param input The string containing the entity (or a continuation of the entity).
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
@@ -220,6 +222,8 @@ export class EntityDecoder {
                         ? char - CharCodes.ZERO
                         : (char | TO_LOWER_BIT) - CharCodes.LOWER_A + 10;
                 this.result = this.result * 16 + digit;
+                // Clamp overflow to 1 past the Unicode max (like `parseNumericEntity`).
+                if (this.result > 0x10_ff_ff) this.result = 0x11_00_00;
                 this.consumed += 1;
                 offset += 1;
             } else {
@@ -233,6 +237,8 @@ export class EntityDecoder {
      * Parses a decimal numeric entity.
      *
      * Equivalent to the `Decimal character reference state` in the HTML spec.
+     *
+     * Mirrors the sync `parseNumericEntity`; fixes here must be mirrored there.
      * @param input The string containing the entity (or a continuation of the entity).
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
@@ -242,6 +248,8 @@ export class EntityDecoder {
             const char = input.charCodeAt(offset);
             if (isNumber(char)) {
                 this.result = this.result * 10 + (char - CharCodes.ZERO);
+                // Clamp overflow to 1 past the Unicode max (like `parseNumericEntity`).
+                if (this.result > 0x10_ff_ff) this.result = 0x11_00_00;
                 this.consumed += 1;
                 offset += 1;
             } else {
@@ -632,12 +640,63 @@ function readTrieValue(
 }
 
 /**
+ * Maximum value of the 11-bit `consumed` field in `parseNumericEntity`'s
+ * packed result. Callers that see this value must recompute the true
+ * length via `numericEntityLength`.
+ */
+const NUMERIC_CONSUMED_MAX = 0x7_ff;
+
+/**
+ * Recompute the length of a numeric entity directly from the input.
+ *
+ * Only used when the `consumed` field of `parseNumericEntity`'s packed
+ * result saturates at `NUMERIC_CONSUMED_MAX` (entities of 2047+
+ * characters), so this cold path favors simplicity over speed.
+ * @param input       The input string.
+ * @param numberStart Index of the `#` character.
+ * @returns The number of characters in the entity, starting at (and
+ *          including) the `#`, including the terminating semicolon if
+ *          present.
+ */
+function numericEntityLength(input: string, numberStart: number): number {
+    const inputLength = input.length;
+    let offset = numberStart + 1; // Skip "#"
+    let isHex = false;
+
+    if (offset < inputLength) {
+        const first = input.charCodeAt(offset);
+        if (first === CharCodes.LOWER_X || first === CharCodes.UPPER_X) {
+            isHex = true;
+            offset += 1;
+        }
+    }
+
+    while (
+        offset < inputLength &&
+        (isNumber(input.charCodeAt(offset)) ||
+            (isHex && isHexadecimalCharacter(input.charCodeAt(offset))))
+    ) {
+        offset += 1;
+    }
+
+    // Include the semicolon when present, mirroring `parseNumericEntity`.
+    if (offset < inputLength && input.charCodeAt(offset) === CharCodes.SEMI) {
+        offset += 1;
+    }
+
+    return offset - numberStart;
+}
+
+/**
  * Parse a numeric entity (`&#DDD;` or `&#xHHH;`).
  *
  * Encodes the result as `(consumed << 21) | codepoint`. The 21-bit codepoint
  * field fits any valid Unicode value (max 0x10FFFF), and packing both into
  * one integer avoids the file-scope `_numericCp` tuple-by-globals pattern.
  * Returns 0 when no digits were found.
+ *
+ * Mirrors the streaming `stateNumericDecimal` / `stateNumericHex` in
+ * `EntityDecoder`; fixes here must be mirrored there.
  * @param input       The input string.
  * @param numberStart Index of the `#` character.
  * @param inputLength Cached `input.length`.
@@ -692,14 +751,19 @@ function parseNumericEntity(
      * like `&#3145728;` would silently truncate to a valid-looking
      * codepoint instead of mapping to U+FFFD via `replaceCodePoint`.
      *
-     * `consumed` fits 11 bits, which covers any practical entity body.
-     * Pathologically long digit runs (>2047 chars) overflow the field,
-     * but those inputs already produce U+FFFD for the entity value, so
-     * the only observable difference is a slightly wrong advance — never
-     * an incorrect emitted character.
+     * `consumed` gets 11 bits, which covers any practical entity body.
+     * Pathological digit runs would overflow the field and wrap the `<< 21`,
+     * corrupting the advance past the entity — swallowing or re-emitting
+     * input, and not only around U+FFFD outputs: with leading zeros (e.g.
+     * `&#000…038;`) `cp` stays perfectly valid. Instead, `consumed` is
+     * saturated at NUMERIC_CONSUMED_MAX; callers seeing that value
+     * recompute the true length with `numericEntityLength` — a cold path
+     * that keeps the common case branch-predictable and allocation-free.
      */
     if (cp > 0x10_ff_ff) cp = 0x11_00_00;
-    return ((offset - numberStart) << 21) | cp;
+    let consumed = offset - numberStart;
+    if (consumed > NUMERIC_CONSUMED_MAX) consumed = NUMERIC_CONSUMED_MAX;
+    return (consumed << 21) | cp;
 }
 
 /**
@@ -739,6 +803,10 @@ function decodeWithTrie(
         if (firstChar === CharCodes.NUM) {
             const packed = parseNumericEntity(input, entityStart, inputLength);
             consumed = packed >>> 21;
+            // Saturated `consumed` — recompute the true length (cold path).
+            if (consumed === NUMERIC_CONSUMED_MAX) {
+                consumed = numericEntityLength(input, entityStart);
+            }
             // In strict mode, require semicolon termination.
             if (
                 isStrict &&
@@ -1015,6 +1083,10 @@ export function decodeXML(xmlString: string): string {
                 xmlString.length,
             );
             consumed = packed >>> 21;
+            // Saturated `consumed` — recompute the true length (cold path).
+            if (consumed === NUMERIC_CONSUMED_MAX) {
+                consumed = numericEntityLength(xmlString, start);
+            }
             // XML is always strict — require semicolon.
             if (
                 consumed === 0 ||
