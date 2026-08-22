@@ -178,6 +178,54 @@ describe.each(implementations)("Decode test: %s", (_name, {
         });
     });
 
+    describe("pathologically long numeric entities (11-bit `consumed` overflow)", () => {
+        /*
+         * `parseNumericEntity` packs `consumed` into an 11-bit field; long
+         * digit runs used to wrap the `<< 21` shift and corrupt the advance
+         * past the entity. Full entity lengths (`#` + [x] + digits + `;`)
+         * cross the 2047 limit at 2046 decimal / 2045 hex digits, so this
+         * matrix brackets the boundary on both sides.
+         *
+         * Expected strings verified against entities@7.0.1.
+         */
+        const cases = [2044, 2045, 2046, 2047, 2048, 4096].flatMap((digits) =>
+            [false, true].flatMap((isHex) =>
+                [true, false].map((hasSemi) => ({ digits, isHex, hasSemi })),
+            ),
+        );
+
+        it.each(
+            cases,
+        )("should decode a body of $digits digits (hex: $isHex, semicolon: $hasSemi)", ({
+            digits,
+            isHex,
+            hasSemi,
+        }) => {
+            const body = (isHex ? "f" : "1").repeat(digits);
+            const input = `PRE&#${isHex ? "x" : ""}${body}${hasSemi ? ";" : ""}POST`;
+            const decoded = "PRE�POST";
+
+            expect(decodeHTML(input)).toBe(decoded);
+            expect(decodeHTMLAttribute(input)).toBe(decoded);
+            // Strict modes only decode semicolon-terminated entities.
+            expect(decodeHTMLStrict(input)).toBe(hasSemi ? decoded : input);
+            expect(decodeXML(input)).toBe(hasSemi ? decoded : input);
+        });
+
+        it("should advance exactly past an overlong entity", () =>
+            expect(decodeHTML(`&#${"1".repeat(2048)};X`)).toBe("�X"));
+
+        it("should not swallow input after an entity with overlong leading zeros", () => {
+            // The codepoint (38, `&`) is valid; only `consumed` overflows.
+            const input = `PRE&#${"0".repeat(4090)}38;POST`;
+
+            expect(decodeHTML(input)).toBe("PRE&POST");
+            expect(decodeHTMLStrict(input)).toBe("PRE&POST");
+            expect(decodeHTMLAttribute(input)).toBe("PRE&POST");
+            expect(decodeXML(input)).toBe("PRE&POST");
+        });
+    });
+
     it("should parse &nbsp followed by < (#852)", () =>
         expect(decodeHTML("&nbsp<")).toBe("\u{A0}<"));
 
@@ -423,6 +471,20 @@ describe("EntityDecoder", () => {
             expect(
                 errorHandlers.validateNumericCharacterReference,
             ).toHaveBeenCalledWith(0x3a);
+        });
+
+        it("should clamp overflowing numeric values before reporting them", () => {
+            const digits = "9".repeat(2048);
+
+            expect(decoder.write(`&#${digits};`, 1)).toBe(digits.length + 3);
+
+            expect(callback).toHaveBeenCalledTimes(1);
+            // Consumed: `&` + `#` + digits + `;`.
+            expect(callback).toHaveBeenCalledWith(0xff_fd, digits.length + 3);
+            // Clamped to 1 past the Unicode max — not Infinity.
+            expect(
+                errorHandlers.validateNumericCharacterReference,
+            ).toHaveBeenCalledWith(0x11_00_00);
         });
 
         it("should produce an error for numeric entities without digits", () => {
