@@ -139,7 +139,7 @@ describe.each(implementations)("Decode test: %s", (_name, {
     /*
      * Strict named entities have no semicolon-less form. When the next
      * character cannot continue the name, the reference must stay literal.
-     * npm 7.0.0–8.0.0 emitted an unrelated code point and ate the trailer
+     * npm 7.0.0 through 8.0.0 emitted an unrelated code point and ate the trailer
      * (decodeHTML("&Xi$") === "Â"). See #2331.
      */
     it.each([
