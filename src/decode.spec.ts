@@ -136,6 +136,22 @@ describe.each(implementations)("Decode test: %s", (_name, {
         expect(decodeHTML("&timesbar")).toBe("×bar");
     });
 
+    /*
+     * Strict named entities have no semicolon-less form. When the next
+     * character cannot continue the name, the reference must stay literal.
+     * npm 7.0.0–8.0.0 emitted an unrelated code point and ate the trailer
+     * (decodeHTML("&Xi$") === "Â"). See #2331.
+     */
+    it.each([
+        "&Xi$",
+        "&Chi)",
+        "&eta8",
+        "&Psi-",
+    ])("should not decode unterminated strict entity %s (#2331)", (input) => {
+        expect(decodeHTML(input)).toBe(input);
+        expect(decodeHTMLStrict(input)).toBe(input);
+    });
+
     it("should HTML decode legacy entities according to spec", () =>
         expect(decodeHTML("?&image_uri=1&ℑ=2&image=3")).toBe(
             "?&image_uri=1&ℑ=2&image=3",
