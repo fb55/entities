@@ -349,12 +349,10 @@ function bpeOptimize(
 
             const dict2Net = isDict2Allowed
                 ? (sum - dict2Length) * count - sum
-                : // eslint-disable-next-line unicorn/prefer-global-number-constants -- biome's useNumberNamespace enforces `Number.NEGATIVE_INFINITY`
-                  Number.NEGATIVE_INFINITY;
+                : Number.NEGATIVE_INFINITY;
             const dict1Net = canPromote
                 ? (sum - 1) * count - sum - demotedFreq
-                : // eslint-disable-next-line unicorn/prefer-global-number-constants -- biome's useNumberNamespace enforces `Number.NEGATIVE_INFINITY`
-                  Number.NEGATIVE_INFINITY;
+                : Number.NEGATIVE_INFINITY;
             const net = Math.max(dict1Net, dict2Net);
             if (net > best.net) {
                 best = { net, a, b, promote: dict1Net > dict2Net };

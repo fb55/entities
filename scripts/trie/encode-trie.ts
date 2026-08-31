@@ -16,10 +16,7 @@ function binaryLength(integer: number): number {
  * @param maxJumpTableOverhead Maximum allowed jump-table overhead before
  *   using linear encoding.
  */
-export function encodeTrie(
-    trie: TrieNode,
-    maxJumpTableOverhead = 2,
-): number[] {
+export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
     const encodeCache = new Map<TrieNode, number>();
     const enc: number[] = [];
 
@@ -174,6 +171,7 @@ export function encodeTrie(
             for (let index = 0; index < jumpTableLength; index++) enc.push(0);
             const branchIndex = enc.length - jumpTableLength;
             const branchEnd = branchIndex + jumpTableLength;
+            // eslint-disable-next-line unicorn/no-array-sort -- TS lib doesn't expose toSorted yet
             for (const [char, child] of [...branches].sort(bySubtreeSize)) {
                 const relativeIndex = char - jumpOffset;
                 const pointerPos = branchIndex + relativeIndex;
@@ -211,10 +209,10 @@ export function encodeTrie(
             enc[packedIndex] |= (index & 1) === 0 ? value : value << 8;
         }
         // Encode children smallest-first; pointers go to key-ordered slots.
-        const indexed = [...branches.entries()].sort(([, a], [, b]) =>
-            bySubtreeSize(a, b),
-        );
-        for (const [index, [, child]] of indexed) {
+        const indexed = branches.map((branch, index) => ({ branch, index }));
+        indexed.sort((x, y) => bySubtreeSize(x.branch, y.branch));
+        for (const { branch, index } of indexed) {
+            const child = branch[1];
             const destinationIndex = branchIndex + packedKeySlots + index;
             assert.strictEqual(
                 enc[destinationIndex],
