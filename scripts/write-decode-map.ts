@@ -132,15 +132,11 @@ function convertMapToBinaryTrie(
     const hotTraffic = 16;
     const coldOverhead = 1.2;
     const trie = getTrie(map, legacy);
-    const hotNodes = new Set<TrieNode>();
-    for (const name of HTML4_NAMES) {
-        let node: TrieNode | undefined = trie;
-        hotNodes.add(node);
-        for (let index = 0; index < name.length && node; index++) {
-            node = node.next?.get(name.charCodeAt(index));
-            if (node) hotNodes.add(node);
-        }
-    }
+    /*
+     * Hot nodes: everything on the lookup path of an HTML4 entity. Reuses
+     * computeNodeTraffic for the walk; only membership matters here.
+     */
+    const hotNodes = computeNodeTraffic(trie, HTML4_NAMES);
     const traffic = computeNodeTraffic(trie, Object.keys(map));
     const data = new Uint16Array(
         encodeTrie(trie, (node) =>
@@ -179,8 +175,8 @@ function convertMapToBinaryTrie(
     }
 
     let file: string;
-    if (data.length < 100) {
-        // Tiny tries (XML) skip the dict; ~25 values fits inline cheaply.
+    if (name === "xml") {
+        // The tiny XML trie skips the dict; ~25 values fits inline cheaply.
         file = generateInlineFile(name, data);
     } else {
         const result = encodeFullTrie(data);

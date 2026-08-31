@@ -210,6 +210,27 @@ function replacePair(
     return out;
 }
 
+/**
+ * Count each atom's total use: standalone occurrences in `seq` plus uses as
+ * a component inside ngram entries — every use pays its slot's code length.
+ * @param seq Token sequence (atoms and ngram ids).
+ * @param ngrams Ngram component pairs.
+ * @param atomCount Number of atom token ids (ngram ids start here).
+ */
+function countAtomUse(
+    seq: number[],
+    ngrams: Pair[],
+    atomCount: number,
+): Int32Array {
+    const use = new Int32Array(atomCount);
+    for (const t of seq) if (t < atomCount) use[t]++;
+    for (const [a, b] of ngrams) {
+        if (a < atomCount) use[a]++;
+        if (b < atomCount) use[b]++;
+    }
+    return use;
+}
+
 interface BpeResult {
     /** Token sequence after all merges have been applied. */
     seq: number[];
@@ -254,16 +275,7 @@ function bpeOptimize(
         const totalTokens = atomCount + ngrams.length;
         const dict1AtomCount = dictSize - promotedNgrams.size;
 
-        /*
-         * Atom use = standalone occurrences in `seq` plus uses as a component
-         * inside ngram entries — every use pays its slot's code length.
-         */
-        const use = new Int32Array(atomCount);
-        for (const t of seq) if (t < atomCount) use[t]++;
-        for (const [a, b] of ngrams) {
-            if (a < atomCount) use[a]++;
-            if (b < atomCount) use[b]++;
-        }
+        const use = countAtomUse(seq, ngrams, atomCount);
 
         const atomsByUse = Array.from(
             { length: atomCount },
@@ -280,8 +292,8 @@ function bpeOptimize(
             codeLength[id] = slotCodeLength(slot, dictSize);
         }
         /*
-         * Each ngram's slot: 1-char if promoted, otherwise 2-char (or 3-char
-         * if dict2 overflows). Within both kinds, slots increase in BPE order.
+         * Each ngram's slot: 1-char if promoted, otherwise 2-char (dict2).
+         * Within both kinds, slots increase in BPE order.
          */
         let nextDict1Slot = dict1AtomCount;
         let nextDict2Slot = dictSize + (atomCount - dict1AtomCount);
@@ -330,8 +342,11 @@ function bpeOptimize(
     }
     for (let mergeCount = 0; mergeCount < BPE_MERGE_CAP; mergeCount++) {
         const counts = countPairs(seq);
-        const dict2NgramSlot = atomCount + ngrams.length;
-        const dict2Length = slotCodeLength(dict2NgramSlot, dictSize);
+        /*
+         * Un-promoted ngrams always land in dict2 slots (>= dictSize),
+         * which are 2-char codes by construction.
+         */
+        const dict2Length = 2;
         const canPromote = dictSize > promotedNgrams.size;
 
         const candidates: Candidate[] = [];
@@ -381,7 +396,9 @@ function bpeOptimize(
 // --- Encoding tries -------------------------------------------------------
 
 /**
- *
+ * A dict+BPE-encoded trie plus the header values the runtime
+ * `decodeTrieDict` needs to decode it (see the format comment at the top
+ * of this file).
  */
 export interface EncodedTrie {
     encoded: string;
@@ -426,16 +443,11 @@ export function tryEncodeWithSplit(
     if (atomCount + bpe.ngrams.length > capacity) return null;
 
     /*
-     * Partition atoms into dict1 (top-use, 1-char) and dict2 (rest, 2-char or
-     * 3-char). Within each partition, sort by VALUE so the delta+RLE stream
-     * stays compact. Total atom use = standalone uses + ngram-component uses.
+     * Partition atoms into dict1 (top-use, 1-char) and dict2 (rest, 2-char).
+     * Within each partition, sort by VALUE so the delta+RLE stream stays
+     * compact. Total atom use = standalone uses + ngram-component uses.
      */
-    const totalUse = new Int32Array(atomCount);
-    for (const t of bpe.seq) if (t < atomCount) totalUse[t]++;
-    for (const [a, b] of bpe.ngrams) {
-        if (a < atomCount) totalUse[a]++;
-        if (b < atomCount) totalUse[b]++;
-    }
+    const totalUse = countAtomUse(bpe.seq, bpe.ngrams, atomCount);
     interface AtomEntry {
         id: number;
         value: number;

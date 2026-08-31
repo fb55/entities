@@ -14,27 +14,23 @@ function binaryLength(integer: number): number {
  * Encode a trie into compact binary representation.
  * @param trie Trie node map to encode.
  * @param maxJumpTableOverhead Maximum allowed jump-table overhead before
- *   using linear encoding — either a constant or a per-node function (used
- *   to give hot nodes a more generous threshold than cold ones).
+ *   using linear encoding, per node (used to give hot nodes a more
+ *   generous threshold than cold ones).
  */
 export function encodeTrie(
     trie: TrieNode,
-    maxJumpTableOverhead: number | ((node: TrieNode) => number) = 2,
+    maxJumpTableOverhead: (node: TrieNode) => number = () => 2,
 ): number[] {
     const encodeCache = new Map<TrieNode, number>();
     const enc: number[] = [];
-    const overheadForNode =
-        typeof maxJumpTableOverhead === "function"
-            ? maxJumpTableOverhead
-            : () => maxJumpTableOverhead;
 
     function encodeNode(node: TrieNode): number {
         const cached = encodeCache.get(node);
         if (cached != null) return cached;
-        const startIndex = enc.length;
-        encodeCache.set(node, startIndex);
+        // The node's header word; everything below appends after it.
+        const nodeIndex = enc.length;
+        encodeCache.set(node, nodeIndex);
         enc.push(0);
-        const nodeIndex = enc.length - 1;
 
         if (node.value != null) {
             let valueLength =
@@ -89,8 +85,7 @@ export function encodeTrie(
                     const runLength = runChars.length;
                     if (runLength > 63) {
                         addBranches(node, nodeIndex);
-                        assert.strictEqual(nodeIndex, startIndex);
-                        return startIndex;
+                        return nodeIndex;
                     }
                     const firstChar = runChars[0];
                     assert.ok(firstChar < 0x80, "run first char must be < 128");
@@ -108,15 +103,13 @@ export function encodeTrie(
                         enc.push(low | (high << 8));
                     }
                     encodeNode(current);
-                    assert.strictEqual(nodeIndex, startIndex);
-                    return startIndex;
+                    return nodeIndex;
                 }
             }
             addBranches(node, nodeIndex);
         }
 
-        assert.strictEqual(nodeIndex, startIndex, "Has expected location");
-        return startIndex;
+        return nodeIndex;
     }
 
     function addBranches(node: TrieNode, nodeIndex: number) {
@@ -141,7 +134,7 @@ export function encodeTrie(
         const jumpTableOverhead = jumpTableLength / branches.length;
         // BRANCH_LENGTH is 6 bits → jumpTableLength must fit in 63 too.
         if (
-            jumpTableOverhead <= overheadForNode(node) &&
+            jumpTableOverhead <= maxJumpTableOverhead(node) &&
             jumpTableLength <= 63
         ) {
             assert.ok(
@@ -151,10 +144,6 @@ export function encodeTrie(
                 )} bits but the JUMP_TABLE field is only 7`,
             );
             enc[nodeIndex] |= (jumpTableLength << 7) | jumpOffset;
-            assert.ok(
-                binaryLength(jumpTableLength) <= 6,
-                `Too many bits (${binaryLength(jumpTableLength)}) for branches`,
-            );
             for (let index = 0; index < jumpTableLength; index++) enc.push(0);
             const branchIndex = enc.length - jumpTableLength;
             const branchEnd = branchIndex + jumpTableLength;
@@ -187,12 +176,8 @@ export function encodeTrie(
             ...Array.from({ length: packedKeySlots }, () => 0),
             ...branches.map(() => Number.MAX_SAFE_INTEGER),
         );
-        assert.strictEqual(
-            enc.length,
-            branchIndex + packedKeySlots + branches.length,
-            "Did not reserve enough space",
-        );
         const dictEnd = branchIndex + packedKeySlots + branches.length;
+        assert.strictEqual(enc.length, dictEnd, "Did not reserve enough space");
         for (const [index, [value, child]] of branches.entries()) {
             assert.ok(value < 128, "Branch value too large");
             const packedIndex = branchIndex + (index >> 1);
