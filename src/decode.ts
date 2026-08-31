@@ -23,7 +23,13 @@ const enum CharCodes {
     LOWER_F = 102, // "f"
     LOWER_G = 103, // "g"
     LOWER_L = 108, // "l"
+    LOWER_M = 109, // "m"
+    LOWER_O = 111, // "o"
+    LOWER_P = 112, // "p"
     LOWER_Q = 113, // "q"
+    LOWER_S = 115, // "s"
+    LOWER_T = 116, // "t"
+    LOWER_U = 117, // "u"
     LOWER_X = 120, // "x"
     UPPER_A = 65, // "A"
     UPPER_F = 70, // "F"
@@ -112,7 +118,7 @@ interface DecodeData {
  * Build the lookup structures from a serialized dataset.
  * @param packed Serialized decode data, see `decode-data-format.ts`.
  */
-function buildDecodeData(packed: readonly [string, string]): DecodeData {
+function initDecodeData(packed: readonly [string, string]): DecodeData {
     const [data, values] = packed;
     const nameCount =
         ((data.charCodeAt(0) - HEADER_BIAS) << 6) |
@@ -191,8 +197,10 @@ function buildDecodeData(packed: readonly [string, string]): DecodeData {
         }
 
         /*
-         * (offset << 2) | (len - 1): len is 1..4, offset stays within the
-         * 14 remaining Uint16 bits (the values blob is well under 16K chars).
+         * (offset << 2) | (len - 1): the field fits len 1..4, though the
+         * generator caps values at 2 units (the streaming emit limit);
+         * offset stays within the 14 remaining Uint16 bits (asserted at
+         * generation time).
          */
         slotValue[slot] = (valueOffset << 2) | (valueLength - 1);
         valueOffset += valueLength;
@@ -211,7 +219,7 @@ function buildDecodeData(packed: readonly [string, string]): DecodeData {
 }
 
 /** Decode data for HTML entities. */
-const htmlDecode: DecodeData = /* #__PURE__ */ buildDecodeData(htmlDecodeData);
+const htmlDecode: DecodeData = /* #__PURE__ */ initDecodeData(htmlDecodeData);
 
 /*
  * Every decoder below is specialized over these module-level constants. V8
@@ -319,11 +327,14 @@ function isMidMatchHtml(
  * `(consumed << CONSUMED_SHIFT) | codePoint`. The code point occupies the low
  * 21 bits (max 0x110000, clamped before packing); `consumed` takes the upper
  * 11 bits and is read back with `>>> CONSUMED_SHIFT`, so the sign bit set by a
- * large `consumed` is harmless. A zero return means "no numeric entity".
+ * large `consumed` is harmless. A `consumed` beyond the 11-bit field
+ * (references longer than 2047 characters) is rejected before packing, so
+ * such runs stay literal. A zero return means "no numeric entity".
  */
 const enum NumericPacking {
     CONSUMED_SHIFT = 21,
     CODE_POINT_MASK = 0x1f_ff_ff,
+    CONSUMED_LIMIT = 2048, // 1 << (32 - CONSUMED_SHIFT)
 }
 
 /**
@@ -383,6 +394,9 @@ function parseNumericEntity(
     } else if (isStrict) {
         return 0;
     }
+
+    // A `consumed` that overflows its 11-bit field would corrupt the packing.
+    if (consumed >= NumericPacking.CONSUMED_LIMIT) return 0;
 
     return (consumed << NumericPacking.CONSUMED_SHIFT) | codePoint;
 }
@@ -446,19 +460,48 @@ function findLegacySlot(
  * @param start Index of the name's first character (right after the `&`).
  */
 function matchXmlEntity(input: string, start: number): number {
+    /*
+     * Direct char-code compares: `startsWith` costs a builtin call per
+     * probe, measured ~10% of entity-dense XML decode. Loads stay inside
+     * the cases so the miss path (`default`) pays nothing.
+     */
     switch (input.charCodeAt(start)) {
         case CharCodes.LOWER_L: {
-            return input.startsWith("t;", start + 1) ? (3 << 7) | 0x3c : -1;
+            return input.charCodeAt(start + 1) === CharCodes.LOWER_T &&
+                input.charCodeAt(start + 2) === CharCodes.SEMI
+                ? (3 << 7) | 0x3c
+                : -1;
         }
         case CharCodes.LOWER_G: {
-            return input.startsWith("t;", start + 1) ? (3 << 7) | 0x3e : -1;
+            return input.charCodeAt(start + 1) === CharCodes.LOWER_T &&
+                input.charCodeAt(start + 2) === CharCodes.SEMI
+                ? (3 << 7) | 0x3e
+                : -1;
         }
         case CharCodes.LOWER_A: {
-            if (input.startsWith("mp;", start + 1)) return (4 << 7) | 0x26;
-            return input.startsWith("pos;", start + 1) ? (5 << 7) | 0x27 : -1;
+            const c1 = input.charCodeAt(start + 1);
+            const c2 = input.charCodeAt(start + 2);
+            if (
+                c1 === CharCodes.LOWER_M &&
+                c2 === CharCodes.LOWER_P &&
+                input.charCodeAt(start + 3) === CharCodes.SEMI
+            ) {
+                return (4 << 7) | 0x26;
+            }
+            return c1 === CharCodes.LOWER_P &&
+                c2 === CharCodes.LOWER_O &&
+                input.charCodeAt(start + 3) === CharCodes.LOWER_S &&
+                input.charCodeAt(start + 4) === CharCodes.SEMI
+                ? (5 << 7) | 0x27
+                : -1;
         }
         case CharCodes.LOWER_Q: {
-            return input.startsWith("uot;", start + 1) ? (5 << 7) | 0x22 : -1;
+            return input.charCodeAt(start + 1) === CharCodes.LOWER_U &&
+                input.charCodeAt(start + 2) === CharCodes.LOWER_O &&
+                input.charCodeAt(start + 3) === CharCodes.LOWER_T &&
+                input.charCodeAt(start + 4) === CharCodes.SEMI
+                ? (5 << 7) | 0x22
+                : -1;
         }
         default: {
             return -1;
@@ -569,7 +612,6 @@ function decodeXmlText(input: string): string {
  */
 function decodeHtmlText(input: string, mode: DecodingMode): string {
     const isLegacyAllowed = mode !== DecodingMode.Strict;
-    const isStrictNumbers = mode === DecodingMode.Strict;
     let offset = input.indexOf("&");
     if (offset < 0) return input;
 
@@ -591,7 +633,7 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
             const packed = parseNumericEntity(
                 input,
                 start + 1,
-                isStrictNumbers,
+                !isLegacyAllowed,
             );
             const consumed = packed >>> NumericPacking.CONSUMED_SHIFT;
             if (consumed === 0) {
@@ -614,10 +656,7 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
          * a legacy-marked length falls through to a direct legacy
          * lookup — legacy names need no terminator.
          */
-        const bits =
-            htmlLengthBits[
-                (((c0 * 3) << 3) ^ input.charCodeAt(start + 1)) & 1023
-            ];
+        const bits = htmlLengthBits[pairIndex(c0, input.charCodeAt(start + 1))];
         let probed = bits & 0x7f_ff;
         let legacyPacked = -1;
         while (probed !== 0) {
@@ -664,6 +703,8 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
         }
         if (probed === -1) continue;
 
+        // Where scanning resumes when no match applies below.
+        let rescanFrom = start + 1;
         if ((bits & 0x80_00) !== 0) {
             /*
              * This class contains names longer than 16 characters (24
@@ -699,58 +740,35 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
                     continue;
                 }
             }
-            if (isLegacyAllowed) {
-                const packed = legacyPacked;
-                if (packed >= 0) {
-                    const matchLength = packed & 7;
-                    const next =
-                        start + matchLength < inputLength
-                            ? input.charCodeAt(start + matchLength)
-                            : 0;
-                    if (
-                        mode !== DecodingMode.Attribute ||
-                        !isEntityInAttributeInvalidEnd(next)
-                    ) {
-                        if (last !== offset) {
-                            result += input.slice(last, offset);
-                        }
-                        result += emitHtmlValue(htmlSlotValue[packed >> 3]);
-                        last = start + matchLength;
-                        offset = nextOffset(input, last);
-                        continue;
-                    }
-                }
-            }
-            offset =
-                char === CharCodes.AMP
-                    ? index
-                    : input.indexOf("&", length === 0 ? start : index);
-            continue;
+            /*
+             * Resume at the run's end. When the terminator is itself an
+             * `&` (or the run is empty), the indexOf below finds it at
+             * `index` right away.
+             */
+            rescanFrom = index;
         }
 
-        if (isLegacyAllowed) {
-            const packed = legacyPacked;
-            if (packed >= 0) {
-                const matchLength = packed & 7;
-                const next =
-                    start + matchLength < inputLength
-                        ? input.charCodeAt(start + matchLength)
-                        : 0;
-                if (
-                    mode !== DecodingMode.Attribute ||
-                    !isEntityInAttributeInvalidEnd(next)
-                ) {
-                    if (last !== offset) {
-                        result += input.slice(last, offset);
-                    }
-                    result += emitHtmlValue(htmlSlotValue[packed >> 3]);
-                    last = start + matchLength;
-                    offset = nextOffset(input, last);
-                    continue;
+        // Only ever set when legacy matching is allowed; no mode check here.
+        if (legacyPacked >= 0) {
+            const matchLength = legacyPacked & 7;
+            const next =
+                start + matchLength < inputLength
+                    ? input.charCodeAt(start + matchLength)
+                    : 0;
+            if (
+                mode !== DecodingMode.Attribute ||
+                !isEntityInAttributeInvalidEnd(next)
+            ) {
+                if (last !== offset) {
+                    result += input.slice(last, offset);
                 }
+                result += emitHtmlValue(htmlSlotValue[legacyPacked >> 3]);
+                last = start + matchLength;
+                offset = nextOffset(input, last);
+                continue;
             }
         }
-        offset = input.indexOf("&", start + 1);
+        offset = input.indexOf("&", rescanFrom);
     } while (offset >= 0);
 
     return result + input.slice(last);
@@ -1145,20 +1163,9 @@ export class HtmlEntityDecoder extends EntityDecoderBase {
                 if (input.charCodeAt(offset + length) === CharCodes.SEMI) {
                     const slot = findSlotHtml(input, offset, length);
                     if (slot >= 0) {
-                        const consumed = (this.consumed = length + 2);
-                        const packed = htmlSlotValue[slot];
-                        const off = packed >> 2;
-                        this.emitCodePoint(
-                            htmlValues.charCodeAt(off),
-                            consumed,
-                        );
-                        if ((packed & 3) !== 0) {
-                            this.emitCodePoint(
-                                htmlValues.charCodeAt(off + 1),
-                                consumed,
-                            );
-                        }
-                        return consumed;
+                        this.consumed = length + 2;
+                        this.emitSlot(slot);
+                        return this.consumed;
                     }
                 }
             }

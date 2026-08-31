@@ -9,8 +9,9 @@
  *
  * Layout produced here:
  *
- *   asciiData = header(6) + suffixes + meta(2/name) + choices
- *   values    = concatenated replacement strings
+ *   data   = header(6) + suffixes + meta(2/name) + choices
+ *            (one-byte: all char codes <= 0xFF, asserted below)
+ *   values = concatenated replacement strings
  *
  * The only non-trivial build step is the cuckoo placement: every name's
  * exact key has two candidate buckets, and an augmenting-path matching
@@ -31,13 +32,49 @@ import {
 } from "../src/internal/decode-data-format.js";
 
 /**
+ * Names inserted last into the cuckoo placement, in ascending frequency.
+ * A later insertion wins displacement fights, so the most common entities
+ * end up in their first-choice bucket — the one the lookup probes first.
+ * Placement-quality only; any order is correct.
+ */
+const FREQUENT_NAMES = [
+    "middot",
+    "bull",
+    "ldquo",
+    "rdquo",
+    "lsquo",
+    "rsquo",
+    "hellip",
+    "ndash",
+    "mdash",
+    "trade",
+    "reg",
+    "deg",
+    "laquo",
+    "raquo",
+    "times",
+    "copy",
+    "apos",
+    "quot",
+    "gt",
+    "lt",
+    "nbsp",
+    "amp",
+];
+
+/**
  * Find a cuckoo placement for the given keys in `buckets` two-slot buckets
  * via augmenting paths. Returns the chosen bucket index per key, or null if
  * no placement exists at this size.
  * @param keys Exact keys in name order (duplicates allowed).
  * @param buckets Number of two-slot buckets.
+ * @param insertionOrder Order in which to insert the keys.
  */
-function findPlacement(keys: number[], buckets: number): Uint8Array | null {
+function findPlacement(
+    keys: number[],
+    buckets: number,
+    insertionOrder: readonly number[],
+): Uint8Array | null {
     const candidates = keys.map((key) => {
         const b1 = bucketOne(key, buckets);
         const b2 = bucketTwo(key, buckets);
@@ -61,7 +98,7 @@ function findPlacement(keys: number[], buckets: number): Uint8Array | null {
         return false;
     }
 
-    for (let index = 0; index < keys.length; index++) {
+    for (const index of insertionOrder) {
         visited.fill(0);
         if (!canAugment(index)) return null;
     }
@@ -104,8 +141,20 @@ function buildDecodeData(
             throw new Error(`Name length out of range: ${name}`);
         }
         const value = entities[name];
-        if (value.length === 0 || value.length > 4) {
+        /*
+         * The streaming decoder emits at most two UTF-16 code units per
+         * value (`HtmlEntityDecoder.emitSlot`); WHATWG's largest values are
+         * two units.
+         */
+        if (value.length === 0 || value.length > 2) {
             throw new Error(`Value length out of range: ${name}`);
+        }
+        /*
+         * Legacy lengths occupy bits 16-20 of the class word and 3 bits of
+         * `findLegacySlot`'s packed result; both cap the length at 6.
+         */
+        if (legacySet.has(name) && name.length > 6) {
+            throw new Error(`Legacy name too long: ${name}`);
         }
         let prefixLength = 0;
         const max = Math.min(previous.length, name.length, 31);
@@ -125,19 +174,46 @@ function buildDecodeData(
         previous = name;
     }
 
+    // `slotValue` packs the value offset into 14 bits (`(offset << 2) | len`).
+    if (values.length > 0x3f_ff) {
+        throw new Error("Values blob exceeds the 14-bit offset field");
+    }
+
+    /*
+     * `slotMidOff` is a Uint16Array over the deduplicated middle blob the
+     * runtime rebuilds; keep its upper bound (no dedup) addressable.
+     */
+    const middlesUpperBound = names.reduce(
+        (sum, name) => sum + Math.max(0, name.length - 4),
+        0,
+    );
+    if (middlesUpperBound > 0xff_ff) {
+        throw new Error("Middle-character blob exceeds Uint16 offsets");
+    }
+
     /*
      * Smallest bucket count with a valid placement; ~83% load works for the
      * HTML set, the loop is a safety net for future data changes.
      */
     const keys = names.map((name) => exactKey(name, 0, name.length));
+    // Cold names first, then the frequent ones (most frequent last).
+    const frequencyRank = new Map(
+        FREQUENT_NAMES.map((name, rank) => [name, rank]),
+    );
+    // eslint-disable-next-line unicorn/no-array-sort, unicorn/prefer-iterator-to-array -- `toSorted`/`Iterator#toArray` are absent from the es2022 lib target; sorting this fresh array in place is safe
+    const insertionOrder = [...names.keys()].sort((a, b) => {
+        const rankA = frequencyRank.get(names[a]) ?? -1;
+        const rankB = frequencyRank.get(names[b]) ?? -1;
+        return rankA - rankB || a - b;
+    });
     let buckets = Math.max(4, Math.ceil(names.length / 1.66));
-    let choiceBits = findPlacement(keys, buckets);
+    let choiceBits = findPlacement(keys, buckets, insertionOrder);
     while (choiceBits === null) {
         buckets += Math.max(1, buckets >> 6);
         if (buckets > names.length * 2) {
             throw new Error("Cuckoo placement failed");
         }
-        choiceBits = findPlacement(keys, buckets);
+        choiceBits = findPlacement(keys, buckets, insertionOrder);
     }
 
     let choices = "";
@@ -162,7 +238,15 @@ function buildDecodeData(
         HEADER_BIAS + (buckets & 63),
     );
 
-    return [header + suffixes + meta + choices, values];
+    const data = header + suffixes + meta + choices;
+    // Keep the main string one-byte in V8 (see the format docs).
+    for (let index = 0; index < data.length; index++) {
+        if (data.charCodeAt(index) > 0xff) {
+            throw new Error(`Non-latin-1 char in decode data at ${index}`);
+        }
+    }
+
+    return [data, values];
 }
 
 /**
@@ -180,9 +264,9 @@ function writeDataModule(
 
 /**
  * Serialized decode data; the format is documented in
- * \`src/internal/decode-data-format.ts\`. \`[0]\` is ASCII-only (header,
- * front-coded name suffixes, per-name metadata, cuckoo choice bits); \`[1]\`
- * holds the replacement values.
+ * \`src/internal/decode-data-format.ts\`. \`[0]\` is one-byte data (all char
+ * codes <= 0xFF: header, front-coded name suffixes, per-name metadata,
+ * cuckoo choice bits); \`[1]\` holds the replacement values.
  */
 // biome-ignore format: generated data
 export const ${exportName}: readonly [string, string] = ${JSON.stringify(data)};
