@@ -154,6 +154,12 @@ compresses far better. Offsets to already-encoded (shared) nodes wrap via
 uint16 modulo arithmetic; the decoder masks navigation results with `& 0xffff`
 to match. This limits the trie to 65536 words (asserted by the encoder).
 
+Children are encoded smallest-subtree-first (their pointers still land in
+key-ordered slots): a child's end-relative pointer equals the encoded size of
+its earlier siblings + 1, so this ordering keeps pointer values small and the
+serialized trie more compressible. The decoder is unaffected by encoding
+order.
+
 In both jump table and dictionary modes, recursive / duplicated subtrees are
 deduplicated via node caching so repeated branches point to the same encoded
 node index.

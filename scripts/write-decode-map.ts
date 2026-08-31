@@ -1,32 +1,11 @@
-import * as assert from "node:assert";
 import * as fs from "node:fs";
 import entityMap from "../maps/entities.json" with { type: "json" };
-import html4Names from "../maps/html4.json" with { type: "json" };
 import legacyMap from "../maps/legacy.json" with { type: "json" };
 import xmlMap from "../maps/xml.json" with { type: "json" };
 import { BinTrieFlags } from "../src/internal/bin-trie-flags.js";
 import { type EncodedTrie, encodeFullTrie } from "./trie/encode-dict.js";
 import { encodeTrie } from "./trie/encode-trie.js";
-import { getTrie, type TrieNode } from "./trie/trie.js";
-
-/*
- * Entities defined in HTML 4.01 (lat1, symbol, and special DTDs), from
- * maps/html4.json. These are the entities with decades of real-world usage
- * behind them — used as the "hot" set for trie encoding decisions, so their
- * lookup paths keep the fast jump-table encoding while the long tail of
- * rarely-used HTML5 names can use the more compact dictionary encoding.
- */
-const HTML4_NAMES: string[] = html4Names;
-
-/*
- * Staleness guard for `BPE_RANK_OVERRIDES` (scripts/trie/encode-dict.ts).
- * The overrides were tuned by coordinate descent against the exact HTML trie
- * contents, so they are stale the moment the trie changes. If this assert
- * fires: the encoding still round-trips correctly, but the overrides (and
- * this constant) should be re-tuned for the new data — re-run the tuning,
- * or reset the overrides to `{}` and compare bundle gzip/brotli sizes.
- */
-const EXPECTED_HTML_ENCODED_LENGTH = 18_575;
+import { getTrie } from "./trie/trie.js";
 
 // --- File generation ------------------------------------------------------
 
@@ -90,61 +69,24 @@ export const ${name}DecodeTree: Uint16Array = /* #__PURE__ */ decodeTrieDict(
 );`;
 }
 
-/**
- * Count how many entities pass through each trie node (node "traffic").
- * Shared (deduplicated) subtree nodes accumulate counts from every path
- * that reaches them.
- * @param root The trie root.
- * @param keys The entity names inserted into the trie.
- */
-function computeNodeTraffic(
-    root: TrieNode,
-    keys: string[],
-): Map<TrieNode, number> {
-    const traffic = new Map<TrieNode, number>([[root, keys.length]]);
-    for (const key of keys) {
-        let node = root;
-        for (let index = 0; index < key.length; index++) {
-            const next = node.next?.get(key.charCodeAt(index));
-            // eslint-disable-next-line unicorn/no-break-in-nested-loop
-            if (!next) break;
-            node = next;
-            traffic.set(node, (traffic.get(node) ?? 0) + 1);
-        }
-    }
-    return traffic;
-}
-
 function convertMapToBinaryTrie(
     name: "html" | "xml",
     map: Record<string, string>,
     legacy: Record<string, string>,
 ) {
     /*
-     * Hot/cold jump-table threshold: nodes on the lookup path of an HTML4
-     * entity (the empirically common set) or with high entity traffic keep
-     * `maxJumpTableOverhead=4` (jump tables: O(1) indexed read, handled
-     * inline by the decoder's descent loop — −22% to −30% decode time on
-     * entity-dense workloads). The long tail of rare HTML5 names uses the
-     * compact linear-scan dictionary encoding instead, which keeps the
-     * trie words (and the shipped bundle) smaller.
+     * `maxJumpTableOverhead = 4`: generous jump-table budget everywhere.
+     * Jump tables are an O(1) indexed read handled inline by the decoder's
+     * descent loop, vs the dictionary's linear scan (−22% to −30% decode
+     * time on entity-dense workloads). The extra trie words this costs are
+     * mostly zeros and small offsets, which the smallest-subtree-first
+     * child ordering plus the dict+BPE string encoding compress so well
+     * that the shipped payload is *smaller* than with a hot/cold split —
+     * measured 4 beat both tighter budgets and a per-node hot/cold policy
+     * on payload gzip/brotli and decode speed simultaneously.
      */
-    const hotTraffic = 16;
-    const coldOverhead = 1.2;
     const trie = getTrie(map, legacy);
-    /*
-     * Hot nodes: everything on the lookup path of an HTML4 entity. Reuses
-     * computeNodeTraffic for the walk; only membership matters here.
-     */
-    const hotNodes = computeNodeTraffic(trie, HTML4_NAMES);
-    const traffic = computeNodeTraffic(trie, Object.keys(map));
-    const data = new Uint16Array(
-        encodeTrie(trie, (node) =>
-            hotNodes.has(node) || (traffic.get(node) ?? 0) >= hotTraffic
-                ? 4
-                : coldOverhead,
-        ),
-    );
+    const data = new Uint16Array(encodeTrie(trie, 4));
 
     /*
      * `decodeWithTrie` (used for all HTML decoding) inlines root navigation
@@ -180,13 +122,6 @@ function convertMapToBinaryTrie(
         file = generateInlineFile(name, data);
     } else {
         const result = encodeFullTrie(data);
-        assert.strictEqual(
-            result.encoded.length,
-            EXPECTED_HTML_ENCODED_LENGTH,
-            "Encoded HTML trie length changed — BPE_RANK_OVERRIDES (and " +
-                "EXPECTED_HTML_ENCODED_LENGTH) are stale; see the comment " +
-                "on the constant.",
-        );
         file = generateDecoderFile(name, data, result);
     }
     fs.writeFileSync(

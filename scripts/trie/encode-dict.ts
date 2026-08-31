@@ -321,25 +321,6 @@ function bpeOptimize(
      * bytes — a much better wire-size trade for consumers that compress.
      */
     const BPE_MERGE_CAP = 25;
-    /*
-     * Brotli-aware overrides found by coordinate descent over the merge
-     * sequence. At each listed step we pick the Nth-best candidate by net
-     * raw savings instead of the greedy best, because the resulting merge
-     * sequence yields better full-bundle brotli once the decoder + trie
-     * are bundled. Re-tuned for the end-relative pointer data: worth -33
-     * brotli bytes vs pure greedy at equal gzip.
-     *
-     * These are only valid for the exact trie contents they were tuned on;
-     * `write-decode-map.ts` guards the encoded length so this fires loudly
-     * when the trie changes.
-     */
-    const BPE_RANK_OVERRIDES: Record<number, number> = { 3: 2, 4: 5 };
-    interface Candidate {
-        net: number;
-        a: number;
-        b: number;
-        promote: boolean;
-    }
     for (let mergeCount = 0; mergeCount < BPE_MERGE_CAP; mergeCount++) {
         const counts = countPairs(seq);
         /*
@@ -349,7 +330,13 @@ function bpeOptimize(
         const dict2Length = 2;
         const canPromote = dictSize > promotedNgrams.size;
 
-        const candidates: Candidate[] = [];
+        // Greedy: track the highest-net candidate (first wins ties).
+        let best: { net: number; a: number; b: number; promote: boolean } = {
+            net: 0,
+            a: 0,
+            b: 0,
+            promote: false,
+        };
         for (const [key, count] of counts) {
             // eslint-disable-next-line unicorn/no-break-in-nested-loop
             if (count < 2) continue;
@@ -369,19 +356,11 @@ function bpeOptimize(
                 : // eslint-disable-next-line unicorn/prefer-global-number-constants -- biome's useNumberNamespace enforces `Number.NEGATIVE_INFINITY`
                   Number.NEGATIVE_INFINITY;
             const net = Math.max(dict1Net, dict2Net);
-            if (net > 0) {
-                candidates.push({
-                    net,
-                    a,
-                    b,
-                    promote: dict1Net > dict2Net,
-                });
+            if (net > best.net) {
+                best = { net, a, b, promote: dict1Net > dict2Net };
             }
         }
-        if (candidates.length === 0) break;
-        candidates.sort((x, y) => y.net - x.net);
-        const rank = BPE_RANK_OVERRIDES[mergeCount] ?? 0;
-        const best = candidates[Math.min(rank, candidates.length - 1)];
+        if (best.net <= 0) break;
 
         const newId = atomCount + ngrams.length;
         ngrams.push([best.a, best.b]);
