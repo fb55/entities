@@ -42,4 +42,6 @@ export const enum BinTrieFlags {
     FLAG13 = 0b0010_0000_0000_0000,
     BRANCH_LENGTH = 0b0001_1111_1000_0000,
     JUMP_TABLE = 0b0000_0000_0111_1111,
+    /** Bits 12..0: the inline value of a VALUE_LENGTH = 1 header word. */
+    VALUE_MASK = 0b0001_1111_1111_1111,
 }

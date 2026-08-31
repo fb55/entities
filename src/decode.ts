@@ -146,6 +146,7 @@ export class EntityDecoder {
      * Invariant at the top of the `stateNamedEntity` loop: `excess` equals
      * the number of unrecorded consumed characters + 1.
      */
+    // biome-ignore lint/correctness/noUnusedPrivateClassMembers: False positive (read via destructuring)
     private excess = 1;
     /** The mode in which the decoder is operating. */
     private decodeMode = DecodingMode.Strict;
@@ -369,27 +370,12 @@ export class EntityDecoder {
     }
 
     /**
-     * After failed navigation (leaf node, branch miss, or compact-run
-     * mismatch), decide whether to emit the recorded legacy match or
-     * reject the entity. In attribute mode, reject if no legacy was
+     * Flush locally-tracked walk state back to the fields, then emit the
+     * recorded legacy match or reject (cold path — at most once per
+     * entity). Called after failed navigation (leaf node, branch miss, or
+     * compact-run mismatch). In attribute mode, reject if no legacy was
      * recorded at the current node, if we descended past it, or if the
      * pending input character is an invalid attribute terminator.
-     * @param char Pending input character (may be the mismatching char).
-     * @param valueLength Value length at the current trie node.
-     */
-    private emitLegacyOrReject(char: number, valueLength: number): number {
-        return this.result === 0 ||
-            (this.decodeMode === DecodingMode.Attribute &&
-                (valueLength === 0 ||
-                    this.excess > 1 ||
-                    isEntityInAttributeInvalidEnd(char)))
-            ? 0
-            : this.emitNotTerminatedNamedEntity();
-    }
-
-    /**
-     * Flush locally-tracked walk state back to the fields, then emit the
-     * recorded legacy match or reject (cold path — at most once per entity).
      * @param consumed Locally-tracked consumed count.
      * @param excess Locally-tracked excess count.
      * @param char Pending input character (may be the mismatching char).
@@ -403,7 +389,13 @@ export class EntityDecoder {
     ): number {
         this.consumed = consumed;
         this.excess = excess;
-        return this.emitLegacyOrReject(char, valueLength);
+        return this.result === 0 ||
+            (this.decodeMode === DecodingMode.Attribute &&
+                (valueLength === 0 ||
+                    excess > 1 ||
+                    isEntityInAttributeInvalidEnd(char)))
+            ? 0
+            : this.emitNotTerminatedNamedEntity();
     }
 
     /**
@@ -451,26 +443,27 @@ export class EntityDecoder {
                     0 &&
                 (current & BinTrieFlags.JUMP_TABLE) !== 0
             ) {
+                const char = input.charCodeAt(offset);
                 const jumpOffset = current & BinTrieFlags.JUMP_TABLE;
                 const branchCount = (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
                 if (branchCount === 0) {
                     // Single branch encoded inline in the jump offset bits.
-                    if (input.charCodeAt(offset) !== jumpOffset) {
+                    if (char !== jumpOffset) {
                         return this.flushAndEmitLegacyOrReject(
                             consumed,
                             excess,
-                            input.charCodeAt(offset),
+                            char,
                             0,
                         );
                     }
                     treeIndex += 1;
                 } else {
-                    const slot = input.charCodeAt(offset) - jumpOffset;
+                    const slot = char - jumpOffset;
                     if (slot >>> 0 >= branchCount) {
                         return this.flushAndEmitLegacyOrReject(
                             consumed,
                             excess,
-                            input.charCodeAt(offset),
+                            char,
                             0,
                         );
                     }
@@ -479,7 +472,7 @@ export class EntityDecoder {
                         return this.flushAndEmitLegacyOrReject(
                             consumed,
                             excess,
-                            input.charCodeAt(offset),
+                            char,
                             0,
                         );
                     }
@@ -510,12 +503,12 @@ export class EntityDecoder {
 
                 // If we are starting a run, check the first char.
                 if (runConsumed === 0) {
-                    const firstChar = current & BinTrieFlags.JUMP_TABLE;
-                    if (input.charCodeAt(offset) !== firstChar) {
+                    const char = input.charCodeAt(offset);
+                    if (char !== (current & BinTrieFlags.JUMP_TABLE)) {
                         return this.flushAndEmitLegacyOrReject(
                             consumed,
                             excess,
-                            input.charCodeAt(offset),
+                            char,
                             0,
                         );
                     }
@@ -538,16 +531,15 @@ export class EntityDecoder {
                     const packedWord =
                         decodeTree[treeIndex + 1 + (charIndexInPacked >> 1)];
                     const expectedChar =
-                        (packedWord >>
-                            ((charIndexInPacked & 1) === 0 ? 0 : 8)) &
-                        0xff;
+                        (packedWord >> ((charIndexInPacked & 1) << 3)) & 0xff;
 
-                    if (input.charCodeAt(offset) !== expectedChar) {
+                    const char = input.charCodeAt(offset);
+                    if (char !== expectedChar) {
                         this.runConsumed = 0;
                         return this.flushAndEmitLegacyOrReject(
                             consumed,
                             excess,
-                            input.charCodeAt(offset),
+                            char,
                             0,
                         );
                     }
@@ -677,8 +669,7 @@ export class EntityDecoder {
 
         this.emitCodePoint(
             valueLength === 1
-                ? decodeTree[result] &
-                      ~(BinTrieFlags.VALUE_LENGTH | BinTrieFlags.FLAG13)
+                ? decodeTree[result] & BinTrieFlags.VALUE_MASK
                 : decodeTree[result + 1],
             consumed,
         );
@@ -809,8 +800,7 @@ function readTrieValue(
 ): string {
     if (valueLength === 1) {
         return String.fromCharCode(
-            decodeTree[nodeIndex] &
-                ~(BinTrieFlags.VALUE_LENGTH | BinTrieFlags.FLAG13),
+            decodeTree[nodeIndex] & BinTrieFlags.VALUE_MASK,
         );
     }
     if (valueLength === 2) {
@@ -1148,11 +1138,7 @@ function decodeWithTrie(
                         value =
                             valueLength === 1
                                 ? String.fromCharCode(
-                                      current &
-                                          ~(
-                                              BinTrieFlags.VALUE_LENGTH |
-                                              BinTrieFlags.FLAG13
-                                          ),
+                                      current & BinTrieFlags.VALUE_MASK,
                                   )
                                 : readTrieValue(
                                       decodeTree,

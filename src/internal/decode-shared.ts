@@ -135,11 +135,10 @@ export function decodeTrieDict(
      * Streams 3 & 4 are read in two passes: first collect every ngram's two
      * references and derive its expanded length (each ref resolves to an earlier
      * slot, so lengths are already known), which sizes the shared pool.
-     * `order` records the slot each entry fills, since stream 3 (dict2)
-     * decodes before stream 4 (dict1) but occupies higher slots.
+     * Pool ranges are handed out in decode order, so the second pass fills
+     * the pool contiguously with a single write cursor.
      */
     const references = new Int32Array(ngramCount * 2);
-    const order = new Int32Array(ngramCount);
     let poolSize = 0;
     let ngramIndex = 0;
 
@@ -156,7 +155,7 @@ export function decodeTrieDict(
             const b = readSlotCode();
             references[ngramIndex * 2] = a;
             references[ngramIndex * 2 + 1] = b;
-            order[ngramIndex++] = slot;
+            ngramIndex += 1;
             start[slot] = poolSize;
             const entryLength =
                 (single[a] < 0 ? length[a] : 1) +
@@ -173,8 +172,8 @@ export function decodeTrieDict(
 
     // Second pass: concatenate each ngram's two halves into the pool.
     const pool = new Uint16Array(poolSize);
+    let write = 0;
     for (let index = 0; index < ngramIndex; index++) {
-        let write = start[order[index]];
         for (let half = 0; half < 2; half++) {
             const source = references[index * 2 + half];
             const value = single[source];

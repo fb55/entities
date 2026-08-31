@@ -21,8 +21,7 @@ export function decodeNode(
         const decoded =
             valueLength === 1
                 ? String.fromCharCode(
-                      decodeMap[startIndex] &
-                          ~(BinTrieFlags.VALUE_LENGTH | BinTrieFlags.FLAG13),
+                      decodeMap[startIndex] & BinTrieFlags.VALUE_MASK,
                   )
                 : valueLength === 2
                   ? String.fromCharCode(decodeMap[startIndex + 1])
