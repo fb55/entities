@@ -26,14 +26,16 @@ function roundTrip(data: Uint16Array, dictSize?: number): void {
         dictSize === undefined
             ? encodeFullTrie(data)
             : tryEncodeWithSplit(data, dictSize);
-    expect(result).not.toBeNull();
+    if (result === null) {
+        throw new Error(`No encoding for dictSize ${dictSize}`);
+    }
     const decoded = decodeTrieDict(
-        result!.encoded,
+        result.encoded,
         data.length,
-        result!.atomCount,
-        result!.dict1AtomCount,
-        result!.ngramCount,
-        result!.dictSize,
+        result.atomCount,
+        result.dict1AtomCount,
+        result.ngramCount,
+        result.dictSize,
     );
     expect(decoded).toStrictEqual(data);
 }
@@ -88,17 +90,7 @@ describe("encode-dict ↔ decodeTrieDict round-trip", () => {
         }
         const data = new Uint16Array(values);
         for (let dictSize = 45; dictSize <= 75; dictSize++) {
-            const result = tryEncodeWithSplit(data, dictSize);
-            if (result === null) continue;
-            const decoded = decodeTrieDict(
-                result.encoded,
-                data.length,
-                result.atomCount,
-                result.dict1AtomCount,
-                result.ngramCount,
-                result.dictSize,
-            );
-            expect(decoded).toStrictEqual(data);
+            roundTrip(data, dictSize);
         }
     });
 });

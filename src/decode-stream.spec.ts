@@ -34,15 +34,24 @@ function streamEntity(
     return { output, consumed };
 }
 
+/**
+ * Create an EntityDecoder with a spy callback, already started in `mode`.
+ * @param mode Decoding mode to start with.
+ * @param decodeTree Trie to decode against.
+ */
+function newDecoder(mode: DecodingMode, decodeTree = htmlDecodeTree) {
+    const callback = vi.fn<(cp: number, consumed: number) => void>();
+    const decoder = new EntityDecoder(decodeTree, callback);
+    decoder.startEntity(mode);
+    return { decoder, callback };
+}
+
 describe("EntityDecoder Streaming", () => {
     it("should decode long entities split across chunks (char-by-char)", () => {
-        const callback = vi.fn();
-        const decoder = new EntityDecoder(htmlDecodeTree, callback);
+        const { decoder, callback } = newDecoder(DecodingMode.Strict);
 
         const entity = "&CounterClockwiseContourIntegral;";
         const codepoint = 8755; // ∳
-
-        decoder.startEntity(DecodingMode.Strict);
 
         // Feed char by char starting after '&'
         for (let index = 1; index < entity.length; index++) {
@@ -60,13 +69,10 @@ describe("EntityDecoder Streaming", () => {
     });
 
     it("should decode distinct chunks", () => {
-        const callback = vi.fn();
-        const decoder = new EntityDecoder(htmlDecodeTree, callback);
+        const { decoder, callback } = newDecoder(DecodingMode.Strict);
 
         const part1 = "&CounterClockwise";
         const part2 = "ContourIntegral;";
-
-        decoder.startEntity(DecodingMode.Strict);
 
         expect(decoder.write(part1.substring(1), 0)).toBe(-1);
         expect(decoder.write(part2, 0)).toBe(33);
@@ -75,24 +81,23 @@ describe("EntityDecoder Streaming", () => {
     });
 
     it("should not over-consume a legacy compact-run entity (e.g. `&Egrave`)", () => {
-        const callback = vi.fn();
-        const decoder = new EntityDecoder(htmlDecodeTree, callback);
-
         /*
          * The `&Egrave` string is a legacy (semicolon-optional) entity stored
          * as a compact run. When it is terminated by the next character, only
          * its 7 characters (`&Egrave`) should be consumed -- the following `&`
          * must remain available to start the next entity.
          */
-        decoder.startEntity(DecodingMode.Legacy);
+        const { decoder, callback } = newDecoder(DecodingMode.Legacy);
 
         expect(decoder.write("&Egrave&CHcy", 1)).toBe(7);
         expect(callback).toHaveBeenCalledWith(0xc8, 7); // È
     });
 
     it("should decode xml entities (single chunk)", () => {
-        const callback = vi.fn();
-        const decoder = new EntityDecoder(xmlDecodeTree, callback);
+        const { decoder, callback } = newDecoder(
+            DecodingMode.Strict,
+            xmlDecodeTree,
+        );
 
         const data = "&amp;&gt;&amp&lt;&copy;&#x61;&#x62&#99;&#100&#101";
 
@@ -132,8 +137,10 @@ describe("EntityDecoder Streaming", () => {
     });
 
     it("should decode xml entities (char-by-char)", () => {
-        const callback = vi.fn();
-        const decoder = new EntityDecoder(xmlDecodeTree, callback);
+        const { decoder, callback } = newDecoder(
+            DecodingMode.Strict,
+            xmlDecodeTree,
+        );
 
         const data = "&amp;&gt;&amp&lt;&copy;&#x61;&#x62&#99;&#100&#101";
 
@@ -196,29 +203,20 @@ describe("EntityDecoder Streaming", () => {
         const codepoint = 0xc1; // Á
 
         it("should report 7 consumed when terminated by another char", () => {
-            const callback = vi.fn();
-            const decoder = new EntityDecoder(htmlDecodeTree, callback);
-
-            decoder.startEntity(DecodingMode.Legacy);
+            const { decoder, callback } = newDecoder(DecodingMode.Legacy);
             expect(decoder.write(`${entity} x`, 1)).toBe(entity.length);
             expect(callback).toHaveBeenCalledWith(codepoint, entity.length);
         });
 
         it("should report 7 consumed at the end of input", () => {
-            const callback = vi.fn();
-            const decoder = new EntityDecoder(htmlDecodeTree, callback);
-
-            decoder.startEntity(DecodingMode.Legacy);
+            const { decoder, callback } = newDecoder(DecodingMode.Legacy);
             expect(decoder.write(entity, 1)).toBe(-1);
             expect(decoder.end()).toBe(entity.length);
             expect(callback).toHaveBeenCalledWith(codepoint, entity.length);
         });
 
         it("should report 7 consumed when written char-by-char", () => {
-            const callback = vi.fn();
-            const decoder = new EntityDecoder(htmlDecodeTree, callback);
-
-            decoder.startEntity(DecodingMode.Legacy);
+            const { decoder, callback } = newDecoder(DecodingMode.Legacy);
             for (let index = 1; index < entity.length; index++) {
                 expect(decoder.write(entity[index], 0)).toBe(-1);
             }
@@ -227,19 +225,13 @@ describe("EntityDecoder Streaming", () => {
         });
 
         it("should still include the semicolon when present", () => {
-            const callback = vi.fn();
-            const decoder = new EntityDecoder(htmlDecodeTree, callback);
-
-            decoder.startEntity(DecodingMode.Legacy);
+            const { decoder, callback } = newDecoder(DecodingMode.Legacy);
             expect(decoder.write(`${entity};`, 1)).toBe(entity.length + 1);
             expect(callback).toHaveBeenCalledWith(codepoint, entity.length + 1);
         });
 
         it("should reject in attribute mode when followed by `=`", () => {
-            const callback = vi.fn();
-            const decoder = new EntityDecoder(htmlDecodeTree, callback);
-
-            decoder.startEntity(DecodingMode.Attribute);
+            const { decoder, callback } = newDecoder(DecodingMode.Attribute);
             expect(decoder.write(`${entity}=`, 1)).toBe(0);
             expect(callback).not.toHaveBeenCalled();
         });
@@ -288,10 +280,7 @@ describe("EntityDecoder Streaming", () => {
      */
     describe("legacy matches at chunk boundaries", () => {
         it("should emit a match reached mid-descent across chunks via end()", () => {
-            const callback = vi.fn();
-            const decoder = new EntityDecoder(htmlDecodeTree, callback);
-
-            decoder.startEntity(DecodingMode.Legacy);
+            const { decoder, callback } = newDecoder(DecodingMode.Legacy);
             expect(decoder.write("no", 0)).toBe(-1);
             expect(decoder.write("t", 0)).toBe(-1);
             expect(decoder.end()).toBe(4);
@@ -299,10 +288,7 @@ describe("EntityDecoder Streaming", () => {
         });
 
         it("should emit a compact-run match split across chunks via end()", () => {
-            const callback = vi.fn();
-            const decoder = new EntityDecoder(htmlDecodeTree, callback);
-
-            decoder.startEntity(DecodingMode.Legacy);
+            const { decoder, callback } = newDecoder(DecodingMode.Legacy);
             expect(decoder.write("Aac", 0)).toBe(-1);
             expect(decoder.write("ute", 0)).toBe(-1);
             expect(decoder.end()).toBe(7);
@@ -310,28 +296,22 @@ describe("EntityDecoder Streaming", () => {
         });
 
         it("should not record strict-only matches at a chunk end", () => {
-            const callback = vi.fn();
-            const decoder = new EntityDecoder(htmlDecodeTree, callback);
-
-            decoder.startEntity(DecodingMode.Strict);
+            const { decoder, callback } = newDecoder(DecodingMode.Strict);
             expect(decoder.write("amp", 0)).toBe(-1);
             expect(decoder.end()).toBe(0);
             expect(callback).not.toHaveBeenCalled();
         });
 
         it("should apply attribute terminator rules across a chunk boundary", () => {
-            const callback = vi.fn();
-            const rejecting = new EntityDecoder(htmlDecodeTree, callback);
-            rejecting.startEntity(DecodingMode.Attribute);
-            expect(rejecting.write("Aacute", 0)).toBe(-1);
-            expect(rejecting.write("=", 0)).toBe(0);
-            expect(callback).not.toHaveBeenCalled();
+            const rejecting = newDecoder(DecodingMode.Attribute);
+            expect(rejecting.decoder.write("Aacute", 0)).toBe(-1);
+            expect(rejecting.decoder.write("=", 0)).toBe(0);
+            expect(rejecting.callback).not.toHaveBeenCalled();
 
-            const accepting = new EntityDecoder(htmlDecodeTree, callback);
-            accepting.startEntity(DecodingMode.Attribute);
-            expect(accepting.write("Aacute", 0)).toBe(-1);
-            expect(accepting.write(" ", 0)).toBe(7);
-            expect(callback).toHaveBeenCalledWith(0xc1, 7);
+            const accepting = newDecoder(DecodingMode.Attribute);
+            expect(accepting.decoder.write("Aacute", 0)).toBe(-1);
+            expect(accepting.decoder.write(" ", 0)).toBe(7);
+            expect(accepting.callback).toHaveBeenCalledWith(0xc1, 7);
         });
     });
 });

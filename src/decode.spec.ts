@@ -303,32 +303,17 @@ describe.each(implementations)("Decode test: %s", (_name, {
         }) => expect(decodeHTMLAttribute(input)).toBe(output));
     });
 
-    describe("full entity maps (regression guard for trie generation)", () => {
-        it("should decode every named entity from the WHATWG map", () => {
-            for (const [name, value] of Object.entries(entityMap)) {
-                expect(decodeHTML(`&${name};`)).toBe(value);
-                expect(decodeHTMLStrict(`&${name};`)).toBe(value);
-            }
-        });
-
-        it("should decode every XML entity", () => {
-            for (const [name, value] of Object.entries(xmlMap)) {
-                expect(decodeXML(`&${name};`)).toBe(value);
-            }
-        });
-
-        /*
-         * Covers the streaming `consumed` bookkeeping for entities ending in
-         * compact trie runs: a wrong consumed count makes the streaming
-         * implementations drop or duplicate characters around the entity.
-         */
-        it("should decode every legacy entity without a semicolon", () => {
-            for (const [name, value] of Object.entries(legacyMap)) {
-                expect(decodeHTML(`&${name}`)).toBe(value);
-                expect(decodeHTML(`&${name} after`)).toBe(`${value} after`);
-                expect(decodeHTML(`x&${name}-y`)).toBe(`x${value}-y`);
-            }
-        });
+    /*
+     * Covers the streaming `consumed` bookkeeping for entities ending in
+     * compact trie runs: a wrong consumed count makes the streaming
+     * implementations drop or duplicate characters around the entity.
+     */
+    it("should decode every legacy entity without a semicolon", () => {
+        for (const [name, value] of Object.entries(legacyMap)) {
+            expect(decodeHTML(`&${name}`)).toBe(value);
+            expect(decodeHTML(`&${name} after`)).toBe(`${value} after`);
+            expect(decodeHTML(`x&${name}-y`)).toBe(`x${value}-y`);
+        }
     });
 
     describe("non-entities with legacy-like prefixes stay literal", () => {
@@ -372,6 +357,26 @@ describe.each(implementations)("Decode test: %s", (_name, {
             expect(decodeHTML(input)).toBe(text);
             expect(decodeHTMLAttribute(input)).toBe(input);
         });
+    });
+});
+
+/*
+ * Sync-decoder full-map regression guard for trie generation. The streaming
+ * decoders get the same full-map coverage (plus consumed-count assertions)
+ * from the exhaustive agreement spec in decode-stream.spec.ts.
+ */
+describe("full entity maps (regression guard for trie generation)", () => {
+    it("should decode every named entity from the WHATWG map", () => {
+        for (const [name, value] of Object.entries(entityMap)) {
+            expect(entities.decodeHTML(`&${name};`)).toBe(value);
+            expect(entities.decodeHTMLStrict(`&${name};`)).toBe(value);
+        }
+    });
+
+    it("should decode every XML entity", () => {
+        for (const [name, value] of Object.entries(xmlMap)) {
+            expect(entities.decodeXML(`&${name};`)).toBe(value);
+        }
     });
 });
 
