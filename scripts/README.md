@@ -72,11 +72,13 @@ Witten, Moffat & Bell, *Managing Gigabytes*, 2nd ed., Morgan Kaufmann, 1999
 beats all alternatives here because HTML's case-twin names (`Auml`/`auml`)
 front-code against each other.
 
-The shipped value is `[asciiData, values]`:
+The shipped value is `[data, values]`:
 
-- `asciiData` = `header (6 chars) + suffixes + meta (2 chars per name) +
-  choices`. All chars stay below U+0080, so V8 keeps the string in one-byte
-  representation.
+- `data` = `header (6 chars) + suffixes + meta (2 chars per name) +
+  choices`. All chars stay at or below U+00FF (the generator asserts this),
+  so V8 keeps the string in one-byte representation. Header and meta chars
+  can exceed U+007F — the current header contains U+00A8 — so the string is
+  latin-1, not ASCII.
 - `values` = the concatenated replacement strings (may contain any character;
   kept separate so it does not force the main string into two-byte
   representation).
@@ -149,12 +151,13 @@ the semicolon-optional subset is the spec's historical list.
 
 ## Replacement values
 
-Each slot holds a reference to its replacement string, prebuilt at init, so
-the hot emit is a single array load (measured faster than deriving the
-string from a code-point table per match). Slots whose names map to the same
-replacement — the case-twin entities — share one string object; the cost is
-one pointer array plus a string per *unique* value. The streaming decoder
-reads its UTF-16 code units from the same strings.
+Each slot holds a `(offset << 2) | (length - 1)` reference (`slotValue`, a
+`Uint16Array`) into the shipped `values` string, from which the emit either
+takes a `fromCharCode` (one-unit values, the vast majority) or a two-unit
+`slice`. This replaces an earlier per-slot `string[]` design: half the
+footprint and no ~1.4k value-string heap objects, for a slightly costlier
+emit. Values are at most two UTF-16 code units (the generator asserts this;
+the streaming decoder emits each unit as its own callback).
 
 ## Engineering notes (V8, all measured on this code)
 

@@ -178,7 +178,7 @@ describe.each(implementations)("Decode test: %s", (_name, {
         it("should decode numeric entities with very long digit runs", () => {
             /*
              * `consumed` is packed into the upper 11 bits of the parse result,
-             * so runs up to ~2045 digits decode and advance exactly.
+             * so references up to 2047 characters decode and advance exactly.
              */
             const zeros = "0".repeat(2000);
             expect(decodeHTML(`&#${zeros}65;`)).toBe("A");
@@ -187,16 +187,6 @@ describe.each(implementations)("Decode test: %s", (_name, {
             expect(decodeXML(`&#${zeros}65;`)).toBe("A");
             // Legacy mode, no terminator.
             expect(decodeHTML(`&#${zeros}65`)).toBe("A");
-            /*
-             * Across the packing boundary (`consumed === 2048` overflows the
-             * 11-bit field to 0) the decoder must terminate, never loop — the
-             * sync path treats a zero consumed as "no entity" and advances.
-             */
-            for (let n = 2044; n <= 2050; n++) {
-                expect(typeof decodeHTML(`&#${"0".repeat(n)}65;`)).toBe(
-                    "string",
-                );
-            }
         });
     });
 
@@ -335,6 +325,43 @@ describe.each(implementations)("Decode test: %s", (_name, {
             expect(decodeHTML(input)).toBe(text);
             expect(decodeHTMLAttribute(input)).toBe(input);
         });
+    });
+});
+
+describe("numeric consumed-packing limit (sync decoders)", () => {
+    /*
+     * The sync decoders pack `consumed` into 11 bits; references whose
+     * consumed count exceeds 2047 are rejected and stay literal — a packing
+     * overflow here would emit the value and then re-emit the digits.
+     * `&#<n zeros>65;` consumes n + 5 characters, so n === 2042 is the
+     * longest terminated run that decodes. The streaming decoders have no
+     * such packing and decode runs of any length exactly (covered by the
+     * `describe.each` cases above via `makeStreamingImpl`).
+     */
+    it("should decode up to the limit and leave longer references literal", () => {
+        const fits = `&#${"0".repeat(2042)}65`;
+        expect(entities.decodeHTML(`${fits};`)).toBe("A");
+        expect(entities.decodeHTMLStrict(`${fits};`)).toBe("A");
+        expect(entities.decodeXML(`${fits};`)).toBe("A");
+        expect(entities.decodeHTML(fits)).toBe("A");
+        // Without the semicolon one more digit fits.
+        expect(entities.decodeHTML(`&#${"0".repeat(2043)}65`)).toBe("A");
+        for (let n = 2043; n <= 2050; n++) {
+            const input = `&#${"0".repeat(n)}65;`;
+            expect(entities.decodeHTML(input)).toBe(input);
+            expect(entities.decodeHTMLStrict(input)).toBe(input);
+            expect(entities.decodeXML(input)).toBe(input);
+            if (n > 2043) {
+                expect(entities.decodeHTML(input.slice(0, -1))).toBe(
+                    input.slice(0, -1),
+                );
+            }
+        }
+    });
+
+    it("should decode past the sync limit in the streaming decoder", () => {
+        const streaming = makeStreamingImpl(Number.POSITIVE_INFINITY);
+        expect(streaming.decodeHTML(`&#${"0".repeat(2048)}65;`)).toBe("A");
     });
 });
 
