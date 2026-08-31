@@ -1,4 +1,4 @@
-import { XML_BITSET_VALUE } from "./escape.js";
+import { XML_BITSET_VALUE, xmlEncodeRegex } from "./escape.js";
 import htmlTrieData from "./generated/encode-html.js";
 
 /**
@@ -23,12 +23,15 @@ type EncodeTrieNode =
  * encoding, a direct `asciiEntities[charCode]` array index is much faster
  * than `Map.get(charCode)` because it avoids hashing and bucket lookup.
  *
- * A few ASCII characters also have multi-code-point children in the trie
- * (e.g. `<` + U+20D2 → `&nvlt;`).  The encoder checks the trie for those
- * multi-char matches first, then falls back to this table for the
- * single-char entity.
+ * A few ASCII characters also start multi-code-point entities
+ * (e.g. `<` + U+20D2 → `&nvlt;`).  For those, the table holds the branch
+ * node itself (children plus the single-char value), so the ASCII path
+ * never consults `htmlTrie`.
  */
-const asciiEntities: (string | null)[] = [];
+const asciiEntities: (EncodeTrieNode | null)[] = /* #__PURE__ */ Array.from(
+    { length: 128 },
+    () => null,
+);
 
 const htmlTrie: Map<number, EncodeTrieNode> = (() => {
     /**
@@ -89,11 +92,12 @@ const htmlTrie: Map<number, EncodeTrieNode> = (() => {
                 childKey += readGap() + 1;
                 next.set(childKey, readEntity());
             }
-            trie.set(lastKey, { value: entityValue, next });
+            const branch = { value: entityValue, next };
+            trie.set(lastKey, branch);
             cursor++; // Skip '}'
-            // Also populate the ASCII fast-path table for the single-char value.
-            if (lastKey < 0x80 && entityValue != null) {
-                asciiEntities[lastKey] = entityValue;
+            // ASCII fast path holds the branch node itself (children + value).
+            if (lastKey < 0x80) {
+                asciiEntities[lastKey] = branch;
             }
         } else if (lastKey < 0x80) {
             asciiEntities[lastKey] = entityValue;
@@ -145,6 +149,16 @@ const HTML_BITSET = /* #__PURE__ */ new Uint32Array([
 
 const XML_BITSET = /* #__PURE__ */ new Uint32Array([0, XML_BITSET_VALUE, 0, 0]);
 
+/*
+ * Regex equivalent of `HTML_BITSET` (plus all non-ASCII code units, lone
+ * surrogates included — no `u` flag). Must stay in sync with the bitset:
+ * the scan uses the regex to find candidates and the bitset to re-check
+ * adjacent characters. The XML equivalent is `xmlEncodeRegex`, shared with
+ * `escape.ts`.
+ */
+// eslint-disable-next-line unicorn/prefer-unicode-code-point-escapes -- the `\u{...}` form requires the `u` flag, which we deliberately omit so lone surrogates match by code unit
+const HTML_ENCODE_RE = /[\t\n\f!-/:-@[-`{-}\u0080-\uFFFF]/g;
+
 const numericReference = (cp: number) => `&#${cp};`;
 
 /**
@@ -160,7 +174,7 @@ const numericReference = (cp: number) => `&#${cp};`;
  * @param input Input string to encode.
  */
 export function encodeHTML(input: string): string {
-    return encodeHTMLTrieRe(HTML_BITSET, input);
+    return encodeHTMLTrieRe(HTML_BITSET, HTML_ENCODE_RE, input);
 }
 /**
  * Encodes all non-ASCII characters, as well as characters not valid in HTML
@@ -172,23 +186,99 @@ export function encodeHTML(input: string): string {
  * @param input Input string to encode.
  */
 export function encodeNonAsciiHTML(input: string): string {
-    return encodeHTMLTrieRe(XML_BITSET, input);
+    return encodeHTMLTrieRe(XML_BITSET, xmlEncodeRegex, input);
 }
 
-function encodeHTMLTrieRe(bitset: Uint32Array, input: string): string {
+/**
+ * Whether `code` (a UTF-16 code unit) must be encoded: any non-ASCII unit, or
+ * an ASCII unit flagged in `bitset`.
+ * @param bitset Bitset of ASCII characters to encode.
+ * @param code Code unit to test.
+ */
+function isEncodable(bitset: Uint32Array, code: number): boolean {
+    return code >= 0x80 || ((bitset[code >>> 5] >>> code) & 1) === 1;
+}
+
+/*
+ * The inline scan beats the regex jump only for short gaps (measured
+ * break-even is ~7 characters; below it the per-call regex overhead
+ * dominates, above it the regex skips clean spans faster in native code).
+ * So we scan at most `INLINE_SCAN_WINDOW` characters inline before deferring
+ * to the regex. Any gap long enough to exhaust the window switches to
+ * long-gap mode, which skips the inline scan entirely; we stay in that mode
+ * while total gaps are at least `LONG_GAP_THRESHOLD` characters long and
+ * drop back to the inline scan as soon as a shorter gap appears. Gaps are
+ * always measured from where they start, so every window-exhausting gap
+ * enters long-gap mode and no gap length pays both scans repeatedly.
+ */
+/** @internal Exported for tests; not re-exported from the package entry. */
+export const INLINE_SCAN_WINDOW = 16;
+const LONG_GAP_THRESHOLD = 8;
+
+function encodeHTMLTrieRe(
+    bitset: Uint32Array,
+    re: RegExp,
+    input: string,
+): string {
+    const { length } = input;
     let out: string | undefined;
     let last = 0; // Start of the next untouched slice.
-    const { length } = input;
+    let index = 0;
+    let wasLongGap = false; // The previous gap was long; skip the inline scan.
 
-    for (let index = 0; index < length; index++) {
-        const char = input.charCodeAt(index);
+    while (index < length) {
+        let char = input.charCodeAt(index);
 
         /*
-         * Fast-skip ASCII characters that don't need encoding.
-         * The bitset has one bit per ASCII code point; a set bit means "encode".
+         * Find the next encodable character (one matching `bitset`, or any
+         * non-ASCII unit). Gaps between entities in dense text are only a
+         * few characters, so scan a short window inline first; the regex —
+         * which matches exactly the same characters and skips clean spans
+         * in native code — runs for longer gaps. Gap lengths cluster, so
+         * after a window-exhausting gap the window is skipped until a gap
+         * shorter than LONG_GAP_THRESHOLD reappears. Once located, the
+         * character is captured in `char` and control falls through to the
+         * encode logic below instead of re-testing it on the next loop
+         * iteration.
          */
-        if (char < 0x80 && !((bitset[char >>> 5] >>> char) & 1)) {
-            continue;
+        if (!isEncodable(bitset, char)) {
+            const gapStart = index;
+            let next = index + 1;
+            let wasFound = false;
+            if (!wasLongGap) {
+                const bound = Math.min(index + INLINE_SCAN_WINDOW, length);
+                while (
+                    next < bound &&
+                    !isEncodable(bitset, (char = input.charCodeAt(next)))
+                ) {
+                    next++;
+                }
+                if (next < bound) {
+                    // `char` already holds the encodable unit at `next`.
+                    index = next;
+                    wasFound = true;
+                } else if (next >= length) {
+                    break;
+                }
+            }
+            if (!wasFound) {
+                /*
+                 * Every match is a single code unit, so `test` pins it at
+                 * `lastIndex - 1` without allocating a match object.
+                 */
+                re.lastIndex = next;
+                if (!re.test(input)) break;
+                index = re.lastIndex - 1;
+                /*
+                 * Reaching the regex from the inline scan means the gap
+                 * exhausted the window, so it is long by definition; once
+                 * in long-gap mode, stay until a gap shorter than the
+                 * threshold appears.
+                 */
+                wasLongGap =
+                    !wasLongGap || index - gapStart >= LONG_GAP_THRESHOLD;
+                char = input.charCodeAt(index);
+            }
         }
 
         // Lazy-init: copy the prefix before the first character that needs encoding.
@@ -196,20 +286,21 @@ function encodeHTMLTrieRe(bitset: Uint32Array, input: string): string {
         else if (last !== index) out += input.substring(last, index);
 
         if (char < 0x80) {
-            // ASCII: check for multi-code-point entity first (e.g. < + U+20D2 → &nvlt;).
-            const trieNode = htmlTrie.get(char);
-            if (typeof trieNode === "object" && index + 1 < length) {
-                const value = trieNode.next.get(input.charCodeAt(index + 1));
-                if (value != null) {
-                    out += value;
-                    index++;
-                    last = index + 1;
-                    continue;
+            const node = asciiEntities[char];
+            if (typeof node === "object" && node !== null) {
+                // Multi-code-point entity first (e.g. < + U+20D2 → &nvlt;).
+                if (index + 1 < length) {
+                    const value = node.next.get(input.charCodeAt(index + 1));
+                    if (value != null) {
+                        out += value;
+                        last = index += 2;
+                        continue;
+                    }
                 }
+                out += node.value ?? numericReference(char);
+            } else {
+                out += node ?? numericReference(char);
             }
-            // Fast path: direct array lookup for single-char entity.
-            const entity = asciiEntities[char];
-            out += entity ?? numericReference(char);
         } else {
             // Non-ASCII: full trie lookup with multi-char entity support.
             let node: EncodeTrieNode | undefined | null = htmlTrie.get(char);
@@ -219,8 +310,7 @@ function encodeHTMLTrieRe(bitset: Uint32Array, input: string): string {
                     const value = node.next.get(input.charCodeAt(index + 1));
                     if (value != null) {
                         out += value;
-                        index++;
-                        last = index + 1;
+                        last = index += 2;
                         continue;
                     }
                 }
@@ -237,7 +327,7 @@ function encodeHTMLTrieRe(bitset: Uint32Array, input: string): string {
                 out += node;
             }
         }
-        last = index + 1;
+        last = index += 1;
     }
 
     // If nothing needed encoding, return the original string (avoids allocation).

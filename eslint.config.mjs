@@ -29,6 +29,9 @@ export default defineConfig([
                 },
             ],
             "n/no-unpublished-import": 0,
+            // Conflicts with biome's lint/style/useNumberNamespace, which
+            // prefers `Number.NaN`; eslint-config-biome doesn't cover it yet.
+            "unicorn/prefer-global-number-constants": 0,
         },
     },
     {
