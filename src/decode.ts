@@ -52,6 +52,19 @@ const CONSUMED_OVERFLOW = 0x7_ff;
 let longNumericConsumed = 0;
 
 /**
+ * Extract the consumed count from a `parseNumericEntity` packed result,
+ * recovering the true length from `longNumericConsumed` when the 11-bit
+ * field overflowed. Must run before the next `parseNumericEntity` call,
+ * which may overwrite the side channel — this helper is the only place
+ * that protocol is allowed to live.
+ * @param packed Packed result of `parseNumericEntity`.
+ */
+function unpackConsumed(packed: number): number {
+    const consumed = packed >>> CONSUMED_SHIFT;
+    return consumed === CONSUMED_OVERFLOW ? longNumericConsumed : consumed;
+}
+
+/**
  * Unsigned subtraction trick: (code - lo) >>> 0 wraps negatives to large
  * values, so a single `<=` covers the entire [lo..hi] range check.
  * @param code Code point to check.
@@ -812,9 +825,10 @@ function readTrieValue(
 /**
  * Parse a numeric entity (`&#DDD;` or `&#xHHH;`).
  *
- * Encodes the result as `(consumed << 21) | codepoint` (see
- * `NumericPacking`; overlong entities spill their length into
- * `longNumericConsumed`). Returns 0 when no digits were found.
+ * Encodes the result as `(consumed << CONSUMED_SHIFT) | codepoint` (see
+ * the packing comment at the top of the file; overlong entities spill
+ * their length into `longNumericConsumed`). Returns 0 when no digits were
+ * found.
  *
  * This is the sync counterpart of the streaming
  * `EntityDecoder#stateNumericDecimal` / `#stateNumericHex`; digit and
@@ -873,7 +887,8 @@ function parseNumericEntity(
     /*
      * Pack `consumed` (length) and `cp` (Unicode code point) into one
      * integer to avoid a tuple allocation on the hot path. Callers extract
-     * the two fields via `NumericPacking`.
+     * the consumed field via `unpackConsumed` and the code point with
+     * `CODE_POINT_MASK`.
      *
      * `cp` is clamped to 0x110000 (1 past the Unicode max) before packing
      * so it stays inside the 21-bit field. Without the clamp, an overflow
@@ -900,19 +915,23 @@ function parseNumericEntity(
 }
 
 /**
- * Decode all entities in `input` using the given trie.
+ * Decode all entities in `input` using the HTML trie.
+ *
+ * Hard-wired to `htmlDecodeTree`: the inline root navigation below assumes
+ * the HTML root's jump-table shape, so this must not be generalized to
+ * other tries (the XML trie's dictionary root would silently match no
+ * entities — `decodeXML` has its own hand-coded fast path instead).
  * @param input      The string to decode.
- * @param decodeTree The binary trie (XML or HTML).
  * @param isStrict Only match semicolon-terminated entities.
  * @param isAttribute Whether to apply attribute-specific parsing rules (disallowing certain non-semicolon terminators).
  * @returns The decoded string.
  */
 function decodeWithTrie(
     input: string,
-    decodeTree: Uint16Array,
     isStrict: boolean,
     isAttribute: boolean,
 ): string {
+    const decodeTree = htmlDecodeTree;
     // Fast path: no entities at all — return input without any allocation.
     let offset = input.indexOf("&");
     if (offset < 0) return input;
@@ -944,11 +963,7 @@ function decodeWithTrie(
         let value: string;
         if (firstChar === CharCodes.NUM) {
             const packed = parseNumericEntity(input, entityStart, inputLength);
-            consumed = packed >>> CONSUMED_SHIFT;
-            // Overlong entity: the true length is in the side channel.
-            if (consumed === CONSUMED_OVERFLOW) {
-                consumed = longNumericConsumed;
-            }
+            consumed = unpackConsumed(packed);
             // In strict mode, require semicolon termination.
             if (
                 isStrict &&
@@ -975,12 +990,9 @@ function decodeWithTrie(
              * determineBranch dispatch) and start the trie loop on the
              * second character.
              *
-             * If the tree's root is shaped differently (no jump-table), the
-             * `rootSlotIndex >>> 0 < rootBranchCount` test will fail for
-             * any input and the loop short-circuits via `current = 0`. The
-             * three call sites here all pass `htmlDecodeTree`; if a future
-             * caller passes a non-jump-table tree they should reuse the
-             * original loop-from-root structure.
+             * This is why the function is hard-wired to `htmlDecodeTree`
+             * (see the doc comment): a differently-shaped root would make
+             * the slot test below fail for every input.
              */
             const rootSlotIndex = firstChar - rootJumpOffset;
             let nodeIndex: number;
@@ -1267,7 +1279,6 @@ export function decodeHTML(
 ): string {
     return decodeWithTrie(
         htmlString,
-        htmlDecodeTree,
         mode === DecodingMode.Strict,
         mode === DecodingMode.Attribute,
     );
@@ -1279,7 +1290,7 @@ export function decodeHTML(
  * @returns The decoded string.
  */
 export function decodeHTMLAttribute(htmlAttribute: string): string {
-    return decodeWithTrie(htmlAttribute, htmlDecodeTree, false, true);
+    return decodeWithTrie(htmlAttribute, false, true);
 }
 
 /**
@@ -1288,7 +1299,7 @@ export function decodeHTMLAttribute(htmlAttribute: string): string {
  * @returns The decoded string.
  */
 export function decodeHTMLStrict(htmlString: string): string {
-    return decodeWithTrie(htmlString, htmlDecodeTree, true, false);
+    return decodeWithTrie(htmlString, true, false);
 }
 
 /**
@@ -1320,11 +1331,7 @@ export function decodeXML(xmlString: string): string {
                 start,
                 xmlString.length,
             );
-            consumed = packed >>> CONSUMED_SHIFT;
-            // Overlong entity: the true length is in the side channel.
-            if (consumed === CONSUMED_OVERFLOW) {
-                consumed = longNumericConsumed;
-            }
+            consumed = unpackConsumed(packed);
             // XML is always strict — require semicolon.
             if (
                 consumed === 0 ||

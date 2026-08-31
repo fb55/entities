@@ -105,8 +105,9 @@ the encoder may collapse this path into a “compact run” to save space and
 pointer chasing. This is indicated by bit 13 (run flag) being set while the
 value length field is 0.
 
-- Bits 12..7 store the run length (6 bits, 1–63). The run length counts the
-  number of characters in the collapsed path.
+- Bits 12..7 store the run length (6 bits, 3–63; shorter chains use normal
+  branch encoding). The run length counts the number of characters in the
+  collapsed path.
 - Bits 6..0 store the first character.
 - The remaining (runLength - 1) characters are stored packed two per `uint16`
   word (low byte / high byte) immediately after the header. After the packed
@@ -130,15 +131,28 @@ Branches can be represented in three different ways:
    immediately. (If bits 6..0 are also 0 this would be ambiguous, so a single
    branch with char code 0 falls back to another form.)
 2. Jump table: When branch keys form a relatively dense range, a jump table is
-   used. Bits 6..0 store the offset (minimum key); bits 12..7 store the span
-   length (maxKey - minKey + 1). A table of that many `uint16` slots follows.
-   Each slot stores destinationIndex+1 (so 0 means “no branch”).
+   used. What counts as “dense enough” is a per‑node budget (the encoder's
+   `maxJumpTableOverhead` parameter); the generator gives nodes on hot lookup
+   paths a more generous budget than the long tail, trading size for O(1)
+   dispatch where it matters. Bits 6..0 store the offset (minimum key);
+   bits 12..7 store the span
+   length (maxKey - minKey + 1, at most 63 — the 6‑bit field limit). A table of
+   that many `uint16` slots follows. Each slot stores the child's offset from
+   the END of the table, +1 (so 0 means “no branch”).
 3. Dictionary (sparse): For sparse / far‑apart keys we store:
     - Packed key array: `(branchCount + 1) >> 1` words, each containing two
       8‑bit sorted keys (low byte even index, high byte odd index).
-    - Destination array: `branchCount` words, each a raw destination index. The
-      branch length bits store the number of branches; the offset (bits 6..0) is
-      0 to distinguish from jump table form.
+    - Destination array: `branchCount` words, each storing the child's offset
+      from the END of the branch data. The branch length bits store the number
+      of branches; the offset (bits 6..0) is 0 to distinguish from jump table
+      form.
+
+Pointers are end-relative (rather than absolute or relative to the pointer's
+own position) because the common “child encoded immediately after the branch
+data” case becomes a small constant regardless of slot position, which
+compresses far better. Offsets to already-encoded (shared) nodes wrap via
+uint16 modulo arithmetic; the decoder masks navigation results with `& 0xffff`
+to match. This limits the trie to 65536 words (asserted by the encoder).
 
 In both jump table and dictionary modes, recursive / duplicated subtrees are
 deduplicated via node caching so repeated branches point to the same encoded
