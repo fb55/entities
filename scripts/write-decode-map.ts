@@ -1,257 +1,284 @@
-import * as fs from "node:fs";
+/*
+ * Generates `src/generated/decode-data-html.ts`.
+ *
+ * The shipped decode data is two strings; the format and the rationale are
+ * documented in `src/internal/decode-data-format.ts`. Everything the
+ * runtime needs beyond these strings (hash tables, length classes, the
+ * names blob) is rebuilt from them at module init. XML's five entities are
+ * matched directly in `src/decode.ts` and need no generated data.
+ *
+ * Layout produced here:
+ *
+ *   data   = header(6) + suffixes + meta(2/name) + choices
+ *            (one-byte: all char codes <= 0xFF, asserted below)
+ *   values = concatenated replacement strings
+ *
+ * The only non-trivial build step is the cuckoo placement: every name's
+ * exact key has two candidate buckets, and an augmenting-path matching
+ * assigns each name one of them. The resulting choice ships as one bit per
+ * name so init can place names without any searching.
+ */
+
+import { writeFileSync } from "node:fs";
 import entityMap from "../maps/entities.json" with { type: "json" };
 import legacyMap from "../maps/legacy.json" with { type: "json" };
-import xmlMap from "../maps/xml.json" with { type: "json" };
-import { encodeTrie } from "./trie/encode-trie.js";
-import { getTrie } from "./trie/trie.js";
+import {
+    bucketOne,
+    bucketTwo,
+    CHOICE_BITS_PER_CHAR,
+    exactKey,
+    HEADER_BIAS,
+    META_BIAS,
+} from "../src/internal/decode-data-format.js";
 
 /**
- * Printable ASCII chars safe in JS string literals (0x21–0x7E minus `"`, `$`, `\`).
- * 91 chars. `$` is excluded to prevent `${` sequences that trip linters.
+ * Names inserted last into the cuckoo placement, in ascending frequency.
+ * A later insertion wins displacement fights, so the most common entities
+ * end up in their first-choice bucket — the one the lookup probes first.
+ * Placement-quality only; any order is correct.
  */
-const SAFE: number[] = [];
-for (let codePoint = 0x21; codePoint <= 0x7e; codePoint++) {
-    if (codePoint !== 0x22 && codePoint !== 0x24 && codePoint !== 0x5c) {
-        SAFE.push(codePoint);
-    }
-}
-const BASE = SAFE.length; // 91
-
-/** Number of most-frequent values assigned to 1-char codes. */
-const DICT_SIZE = 61;
+const FREQUENT_NAMES = [
+    "middot",
+    "bull",
+    "ldquo",
+    "rdquo",
+    "lsquo",
+    "rsquo",
+    "hellip",
+    "ndash",
+    "mdash",
+    "trade",
+    "reg",
+    "deg",
+    "laquo",
+    "raquo",
+    "times",
+    "copy",
+    "apos",
+    "quot",
+    "gt",
+    "lt",
+    "nbsp",
+    "amp",
+];
 
 /**
- * Encode trie data using dictionary + delta-encoded value table.
- *
- * Format: [dict1: delta/RLE var-len][dict2: delta/RLE var-len][data]
- *
- * - dict1: base values for the D most-frequent entries, delta+RLE variable-length base-91.
- * - dict2: all remaining unique values, delta+RLE variable-length base-91.
- *   Deltas < 90 → 1 char; 90–8279 → escape + 2 chars; larger → double-escape + 3 chars.
- * - data: each trie value encoded as 1 char (dict1 lookup) or 2 chars (dict2 lookup).
- *
- * This gives ~24% smaller raw and ~16% better gzip than base64.
- * @param data Trie data to encode.
+ * Find a cuckoo placement for the given keys in `buckets` two-slot buckets
+ * via augmenting paths. Returns the chosen bucket index per key, or null if
+ * no placement exists at this size.
+ * @param keys Exact keys in name order (duplicates allowed).
+ * @param buckets Number of two-slot buckets.
+ * @param insertionOrder Order in which to insert the keys.
  */
-function encodeTrieData(data: Uint16Array): {
-    encoded: string;
-    headerLength: number;
-} {
-    // For small tries (e.g. XML), skip the dictionary and use plain var-len base91.
-    if (data.length < 100) {
-        const twoCharCount = 84;
-        const split = twoCharCount * BASE;
-        let result = "";
-        for (const value of data) {
-            if (value < split) {
-                result += String.fromCharCode(
-                    SAFE[Math.floor(value / BASE)],
-                    SAFE[value % BASE],
-                );
-            } else {
-                const adjusted = value - split;
-                result += String.fromCharCode(
-                    SAFE[twoCharCount + Math.floor(adjusted / (BASE * BASE))],
-                    SAFE[Math.floor(adjusted / BASE) % BASE],
-                    SAFE[adjusted % BASE],
-                );
+function findPlacement(
+    keys: number[],
+    buckets: number,
+    insertionOrder: readonly number[],
+): Uint8Array | null {
+    const candidates = keys.map((key) => {
+        const b1 = bucketOne(key, buckets);
+        const b2 = bucketTwo(key, buckets);
+        return [2 * b1, 2 * b1 + 1, 2 * b2, 2 * b2 + 1];
+    });
+    const entityAt = new Int32Array(2 * buckets).fill(-1);
+    const slotOf = new Int32Array(keys.length).fill(-1);
+    const visited = new Uint8Array(2 * buckets);
+
+    function canAugment(index: number): boolean {
+        const slots = candidates[index];
+        for (const slot of slots) {
+            if (visited[slot] !== 0) continue;
+            visited[slot] = 1;
+            if (entityAt[slot] < 0 || canAugment(entityAt[slot])) {
+                entityAt[slot] = index;
+                slotOf[index] = slot;
+                return true;
             }
         }
-        return { encoded: result, headerLength: 0 };
+        return false;
     }
 
-    // Count frequencies
-    const freq = new Map<number, number>();
-    for (const value of data) freq.set(value, (freq.get(value) ?? 0) + 1);
-    // @ts-expect-error `toSorted` requires a lib bump.
-    const sorted: [number, number][] = [...freq].toSorted(
-        (a: [number, number], b: [number, number]) => b[1] - a[1],
+    for (const index of insertionOrder) {
+        visited.fill(0);
+        if (!canAugment(index)) return null;
+    }
+
+    const choices = new Uint8Array(keys.length);
+    for (const [index, key] of keys.entries()) {
+        const secondBucket = bucketTwo(key, buckets);
+        choices[index] = slotOf[index] >> 1 === secondBucket ? 1 : 0;
+    }
+    return choices;
+}
+
+/**
+ * Serialize one decode dataset.
+ * @param entities Name → replacement value map (semicolon-less keys).
+ * @param legacySet Names that also match without a trailing semicolon.
+ */
+function buildDecodeData(
+    entities: Record<string, string>,
+    legacySet: ReadonlySet<string>,
+): [string, string] {
+    /*
+     * Sort by UTF-16 code unit — the default string-sort order the
+     * front-coding and cuckoo placement were tuned against. `Number(a > b) -
+     * Number(a < b)` yields -1/0/1 without a ternary, sidestepping
+     * `prefer-simple-sort-comparator`, whose suggested subtraction is invalid
+     * for strings.
+     */
+    // eslint-disable-next-line unicorn/no-array-sort -- `toSorted` is absent from the es2022 lib target; sorting this fresh `Object.keys` array in place is safe
+    const names = Object.keys(entities).sort(
+        (a, b) => Number(a > b) - Number(a < b),
     );
 
-    /*
-     * Dict2 has (BASE - DICT_SIZE) * BASE 2-char codes available. The decoder
-     * assumes exactly DICT_SIZE entries in dict1. Bail out loudly if the trie
-     * cardinality is outside the encodable range so we never silently emit a
-     * table that decodeTrieDict can't read back.
-     */
-    const dict2Capacity = (BASE - DICT_SIZE) * BASE;
-    if (
-        sorted.length < DICT_SIZE ||
-        sorted.length > DICT_SIZE + dict2Capacity
-    ) {
-        throw new Error(
-            `Trie has ${sorted.length} unique values; encoder requires [${DICT_SIZE}, ${DICT_SIZE + dict2Capacity}].`,
+    let suffixes = "";
+    let meta = "";
+    let values = "";
+    let previous = "";
+    for (const name of names) {
+        if (name.length < 2 || name.length > 31) {
+            throw new Error(`Name length out of range: ${name}`);
+        }
+        const value = entities[name];
+        /*
+         * The streaming decoder emits at most two UTF-16 code units per
+         * value (`HtmlEntityDecoder.emitSlot`); WHATWG's largest values are
+         * two units.
+         */
+        if (value.length === 0 || value.length > 2) {
+            throw new Error(`Value length out of range: ${name}`);
+        }
+        /*
+         * Legacy lengths occupy bits 16-20 of the class word and 3 bits of
+         * `findLegacySlot`'s packed result; both cap the length at 6.
+         */
+        if (legacySet.has(name) && name.length > 6) {
+            throw new Error(`Legacy name too long: ${name}`);
+        }
+        let prefixLength = 0;
+        const max = Math.min(previous.length, name.length, 31);
+        while (
+            prefixLength < max &&
+            previous.charCodeAt(prefixLength) === name.charCodeAt(prefixLength)
+        ) {
+            prefixLength++;
+        }
+        suffixes += name.slice(prefixLength);
+        values += value;
+        meta += String.fromCharCode(
+            META_BIAS + (prefixLength | (legacySet.has(name) ? 0x20 : 0)),
+            META_BIAS +
+                ((name.length - prefixLength) | ((value.length - 1) << 5)),
         );
+        previous = name;
     }
 
-    // Dict1: top D values → 1-char codes, sorted ascending for delta encoding
-    const dict1 = sorted
-        .slice(0, DICT_SIZE)
-        .map(([value]) => value)
-        // eslint-disable-next-line unicorn/no-array-sort -- TS doesn't know toSorted
-        .sort((a: number, b: number) => a - b);
-    const dict1Set = new Set(dict1);
-
-    // Dict2: remaining values, sorted ascending for delta encoding
-    const dict2Sorted = sorted
-        .filter(([value]: [number, number]) => !dict1Set.has(value))
-        .map(([value]: [number, number]) => value)
-        // eslint-disable-next-line unicorn/no-array-sort -- TS doesn't know toSorted
-        .sort((a: number, b: number) => a - b);
+    // `slotValue` packs the value offset into 14 bits (`(offset << 2) | len`).
+    if (values.length > 0x3f_ff) {
+        throw new Error("Values blob exceeds the 14-bit offset field");
+    }
 
     /*
-     * Encode header: dict1 then dict2, each delta variable-length from 0.
-     *
-     * Encoding:
-     *   delta < 89        → 1 char: SAFE[delta]
-     *   SAFE[89]          → run-length marker: next char encodes N-2 (≥1),
-     *                       meaning N consecutive delta-1 values
-     *   SAFE[90]          → escape for large deltas (same as before but threshold 89)
-     *   SAFE[90] SAFE[90] → double escape for very large deltas
+     * `slotMidOff` is a Uint16Array over the deduplicated middle blob the
+     * runtime rebuilds; keep its upper bound (no dedup) addressable.
      */
-    const RLE_MARKER = SAFE[89];
-    const ESCAPE = SAFE[90];
-    let header = "";
-    function deltaEncode(values: number[]) {
-        let previous = 0;
-        let index = 0;
-        while (index < values.length) {
-            const delta = values[index] - previous;
-            if (delta === 1) {
-                // Count consecutive delta=1 values
-                let runLength = 1;
-                while (
-                    index + runLength < values.length &&
-                    values[index + runLength] -
-                        values[index + runLength - 1] ===
-                        1
-                ) {
-                    runLength++;
-                }
-                if (runLength >= 3) {
-                    // Emit RLE-encoded runs (max chunk = BASE+1=92, stored as SAFE[0..90])
-                    let remaining = runLength;
-                    while (remaining >= 3) {
-                        const chunk = Math.min(remaining, BASE + 1);
-                        header += String.fromCharCode(
-                            RLE_MARKER,
-                            SAFE[chunk - 2],
-                        );
-                        remaining -= chunk;
-                    }
-                    // Emit leftover 1-2 values as plain delta=1
-                    for (let r = 0; r < remaining; r++) {
-                        header += String.fromCharCode(SAFE[1]);
-                    }
-                    previous = values[index + runLength - 1];
-                    index += runLength;
-                    continue;
-                }
-            }
-            // Non-run or short run: emit single delta
-            if (delta < 89) {
-                header += String.fromCharCode(SAFE[delta]);
-            } else {
-                const adjusted = delta - 89;
-                header +=
-                    adjusted < 90 * BASE
-                        ? String.fromCharCode(
-                              ESCAPE,
-                              SAFE[Math.floor(adjusted / BASE)],
-                              SAFE[adjusted % BASE],
-                          )
-                        : String.fromCharCode(
-                              ESCAPE,
-                              ESCAPE,
-                              SAFE[Math.floor(adjusted / (BASE * BASE))],
-                              SAFE[Math.floor(adjusted / BASE) % BASE],
-                              SAFE[adjusted % BASE],
-                          );
-            }
-            previous = values[index];
-            index++;
+    const middlesUpperBound = names.reduce(
+        (sum, name) => sum + Math.max(0, name.length - 4),
+        0,
+    );
+    if (middlesUpperBound > 0xff_ff) {
+        throw new Error("Middle-character blob exceeds Uint16 offsets");
+    }
+
+    /*
+     * Smallest bucket count with a valid placement; ~83% load works for the
+     * HTML set, the loop is a safety net for future data changes.
+     */
+    const keys = names.map((name) => exactKey(name, 0, name.length));
+    // Cold names first, then the frequent ones (most frequent last).
+    const frequencyRank = new Map(
+        FREQUENT_NAMES.map((name, rank) => [name, rank]),
+    );
+    // eslint-disable-next-line unicorn/no-array-sort, unicorn/prefer-iterator-to-array -- `toSorted`/`Iterator#toArray` are absent from the es2022 lib target; sorting this fresh array in place is safe
+    const insertionOrder = [...names.keys()].sort((a, b) => {
+        const rankA = frequencyRank.get(names[a]) ?? -1;
+        const rankB = frequencyRank.get(names[b]) ?? -1;
+        return rankA - rankB || a - b;
+    });
+    let buckets = Math.max(4, Math.ceil(names.length / 1.66));
+    let choiceBits = findPlacement(keys, buckets, insertionOrder);
+    while (choiceBits === null) {
+        buckets += Math.max(1, buckets >> 6);
+        if (buckets > names.length * 2) {
+            throw new Error("Cuckoo placement failed");
+        }
+        choiceBits = findPlacement(keys, buckets, insertionOrder);
+    }
+
+    let choices = "";
+    for (let index = 0; index < names.length; index += CHOICE_BITS_PER_CHAR) {
+        let packed = 0;
+        for (
+            let bit = 0;
+            bit < CHOICE_BITS_PER_CHAR && index + bit < names.length;
+            bit++
+        ) {
+            if (choiceBits[index + bit] !== 0) packed |= 1 << bit;
+        }
+        choices += String.fromCharCode(HEADER_BIAS + packed);
+    }
+
+    const header = String.fromCharCode(
+        HEADER_BIAS + (names.length >> 6),
+        HEADER_BIAS + (names.length & 63),
+        HEADER_BIAS + (suffixes.length >> 6),
+        HEADER_BIAS + (suffixes.length & 63),
+        HEADER_BIAS + (buckets >> 6),
+        HEADER_BIAS + (buckets & 63),
+    );
+
+    const data = header + suffixes + meta + choices;
+    // Keep the main string one-byte in V8 (see the format docs).
+    for (let index = 0; index < data.length; index++) {
+        if (data.charCodeAt(index) > 0xff) {
+            throw new Error(`Non-latin-1 char in decode data at ${index}`);
         }
     }
-    deltaEncode(dict1);
-    deltaEncode(dict2Sorted);
 
-    // Build value → code mapping
-    const valueToCode = new Map<number, string>();
-    for (let index = 0; index < DICT_SIZE; index++) {
-        valueToCode.set(dict1[index], String.fromCharCode(SAFE[index]));
-    }
-    let codeIndex = 0;
-    for (const value of dict2Sorted) {
-        valueToCode.set(
-            value,
-            String.fromCharCode(
-                SAFE[DICT_SIZE + Math.floor(codeIndex / BASE)],
-                SAFE[codeIndex % BASE],
-            ),
-        );
-        codeIndex++;
-    }
-
-    // Encode data
-    let encodedData = "";
-    for (const value of data) {
-        const code = valueToCode.get(value);
-        if (code === undefined) {
-            throw new Error(
-                `No encoded code assigned for trie value ${value}.`,
-            );
-        }
-        encodedData += code;
-    }
-
-    return { encoded: header + encodedData, headerLength: header.length };
+    return [data, values];
 }
 
-function formatNumber(value: number): string {
-    return value >= 10_000
-        ? value.toLocaleString("en").replaceAll(",", "_")
-        : String(value);
-}
+/**
+ * Write one generated module.
+ * @param fileName Output file name under src/generated.
+ * @param exportName Exported constant name.
+ * @param data Serialized dataset.
+ */
+function writeDataModule(
+    fileName: string,
+    exportName: string,
+    data: [string, string],
+): void {
+    const out = `// Generated using scripts/write-decode-map.ts
 
-function generateFile(name: string, data: Uint16Array): string {
-    const { encoded, headerLength } = encodeTrieData(data);
-
-    // For small tries, emit an inline literal array (no decoder import needed).
-    if (headerLength === 0) {
-        const values = [...data].map((v) => formatNumber(v)).join(", ");
-        return `// Generated using scripts/write-decode-map.ts
-
-/** Packed ${name.toUpperCase()} decode trie data. */
-export const ${name}DecodeTree: Uint16Array = /* #__PURE__ */ new Uint16Array([
-    ${values},
-]);`;
-    }
-
-    return `// Generated using scripts/write-decode-map.ts
-
-import { decodeTrieDict } from "../internal/decode-shared.js";
-/** Packed ${name.toUpperCase()} decode trie data. */
-export const ${name}DecodeTree: Uint16Array = /* #__PURE__ */ decodeTrieDict(
-    ${JSON.stringify(encoded)},
-    ${formatNumber(data.length)},
-    ${formatNumber(headerLength)},
-);`;
-}
-
-function convertMapToBinaryTrie(
-    name: "html" | "xml",
-    map: Record<string, string>,
-    legacy: Record<string, string>,
-) {
-    const encoded = new Uint16Array(encodeTrie(getTrie(map, legacy), 1.2));
-    const code = `${generateFile(name, encoded)}\n`;
-    fs.writeFileSync(
-        new URL(`../src/generated/decode-data-${name}.ts`, import.meta.url),
-        code,
+/**
+ * Serialized decode data; the format is documented in
+ * \`src/internal/decode-data-format.ts\`. \`[0]\` is one-byte data (all char
+ * codes <= 0xFF: header, front-coded name suffixes, per-name metadata,
+ * cuckoo choice bits); \`[1]\` holds the replacement values.
+ */
+// biome-ignore format: generated data
+export const ${exportName}: readonly [string, string] = ${JSON.stringify(data)};
+`;
+    writeFileSync(
+        new URL(`../src/generated/${fileName}`, import.meta.url),
+        out,
     );
 }
 
-convertMapToBinaryTrie("xml", xmlMap, {});
-convertMapToBinaryTrie("html", entityMap, legacyMap);
+const legacyNames = new Set(Object.keys(legacyMap));
+const htmlData = buildDecodeData(entityMap, legacyNames);
+writeDataModule("decode-data-html.ts", "htmlDecodeData", htmlData);
 
 console.log("Done!");
