@@ -1,5 +1,10 @@
-import { codePointToString, replaceCodePoint } from "./decode-codepoint.js";
+import {
+    codePointToString,
+    replaceCodePoint,
+    replaceCodePointXML,
+} from "./decode-codepoint.js";
 import { htmlDecodeTree } from "./generated/decode-data-html.js";
+import { xmlDecodeTree } from "./generated/decode-data-xml.js";
 import { BinTrieFlags } from "./internal/bin-trie-flags.js";
 
 const enum CharCodes {
@@ -150,7 +155,6 @@ export class EntityDecoder {
 
     constructor(
         /** The tree used to decode entities. */
-        // biome-ignore lint/correctness/noUnusedPrivateClassMembers: False positive
         private readonly decodeTree: Uint16Array,
         /**
          * The function that is called when a codepoint is decoded.
@@ -341,7 +345,12 @@ export class EntityDecoder {
             return 0;
         }
 
-        this.emitCodePoint(replaceCodePoint(this.result), this.consumed);
+        this.emitCodePoint(
+            (this.decodeTree === xmlDecodeTree
+                ? replaceCodePointXML
+                : replaceCodePoint)(this.result),
+            this.consumed,
+        );
 
         if (this.errors) {
             if (lastCp !== CharCodes.SEMI) {
@@ -1268,7 +1277,9 @@ export function decodeXML(xmlString: string): string {
             ) {
                 consumed = 0;
             } else {
-                value = codePointToString(packed & CODE_POINT_MASK);
+                value = String.fromCodePoint(
+                    replaceCodePointXML(packed & CODE_POINT_MASK),
+                );
             }
         } else {
             /* eslint-disable unicorn/no-break-in-nested-loop -- Keep XML name dispatch inline with the decode loop. */
@@ -1345,7 +1356,10 @@ export function decodeXML(xmlString: string): string {
     return result + xmlString.slice(lastIndex);
 }
 
-export { replaceCodePoint } from "./decode-codepoint.js";
+export {
+    replaceCodePoint,
+    replaceCodePointXML,
+} from "./decode-codepoint.js";
 // Re-export for use by eg. htmlparser2
 export { htmlDecodeTree } from "./generated/decode-data-html.js";
 export { xmlDecodeTree } from "./generated/decode-data-xml.js";
