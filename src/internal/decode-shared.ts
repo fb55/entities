@@ -1,8 +1,7 @@
 /*
  * Inverse of the encoder's SAFE alphabet (0x21..0x7E minus 0x22, 0x24, 0x5C),
- * precomputed once at module load. A flat table lookup per input char is
- * measurably cheaper during import than recomputing the three exclusion
- * comparisons inline; entries for excluded chars stay 0 but are never read.
+ * precomputed once at module load. Entries for excluded chars stay 0 but
+ * are never read.
  */
 const BASE91_INVERSE = /* #__PURE__ */ (() => {
     const table = new Uint8Array(127);
@@ -40,10 +39,9 @@ const BASE91_INVERSE = /* #__PURE__ */ (() => {
  * dict1 ngrams. So every ngram entry references slots whose contents are
  * already filled — no forward references to handle.
  *
- * This runs on library import, so it is written for a cold VM: flat typed
- * arrays instead of per-slot number[]s, indexed loops instead of iterators
- * or spreads, and slot contents stored as either a plain value (`single`,
- * covering every atom) or a range in a shared `pool` (ngrams).
+ * This runs on library import. Flat typed arrays store each slot as either
+ * a plain value (`single`, covering every atom) or a range in a shared
+ * `pool` (ngrams).
  * @param input Packed trie string.
  * @param resultLength Expected number of uint16 values in the output.
  * @param atomCount Total number of distinct uint16 values in the trie.
@@ -209,13 +207,3 @@ export function decodeTrieDict(
     }
     return out;
 }
-
-/*
- * Warm-up: decode a minimal trie (one atom with value 5, one data token) at
- * module load. The real call decodes ~18k chars in a cold VM; this dummy
- * call makes V8 baseline-compile `decodeTrieDict` first, which speeds the
- * real decode up by ~15% (measured on fresh-process import). Intentionally
- * not marked #__PURE__ — dropping it would silently undo the effect.
- */
-// eslint-disable-next-line unicorn/no-top-level-side-effects -- deliberate warm-up, see above
-decodeTrieDict("(!", 1, 1, 1, 0, 1);

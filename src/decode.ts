@@ -10,13 +10,7 @@ const enum CharCodes {
     ZERO = 48, // "0"
     NINE = 57, // "9"
     LOWER_A = 97, // "a"
-    LOWER_F = 102, // "f"
     LOWER_X = 120, // "x"
-    LOWER_Z = 122, // "z"
-    UPPER_A = 65, // "A"
-    UPPER_F = 70, // "F"
-    UPPER_X = 88, // "X"
-    UPPER_Z = 90, // "Z"
 }
 
 /** Bit that needs to be set to convert an upper case ASCII character to lower case */
@@ -26,37 +20,33 @@ const TO_LOWER_BIT = 0b10_0000;
  * `parseNumericEntity` packs its two results into one 32-bit integer:
  * `(consumed << CONSUMED_SHIFT) | codePoint`. The 21-bit code point field
  * fits any valid Unicode value (max 0x10FFFF, clamped before packing); the
- * consumed count gets the remaining 11 bits. Extract `consumed` with `>>>`
- * so the topmost bit isn't treated as a sign.
+ * consumed count excludes `&` and gets the remaining 11 bits. Extract it
+ * with `>>>` so the topmost bit isn't treated as a sign.
  *
  * Plain consts rather than a `const enum`: with `isolatedModules`, enum
- * member reads compile to runtime property loads, which showed up in
- * numeric-entity-heavy benchmarks on these per-entity paths.
+ * member reads compile to runtime property loads.
  */
 const CONSUMED_SHIFT = 21;
 const CODE_POINT_MASK = 0x1f_ff_ff;
 /**
- * All-ones consumed field: the entity is at least 2047 characters long
- * and the true count is in `longNumericConsumed`.
+ * Reserved consumed field for counts of at least 2047 characters after `&`.
+ * The true count is in `longNumericConsumed`.
  */
 const CONSUMED_OVERFLOW = 0x7_ff;
 
 /**
- * Side channel for the rare numeric entity whose length doesn't fit the
- * packed 11-bit consumed field (entities of ≥ 2047 characters, i.e. bodies
- * of ~2045+ digits). Set by `parseNumericEntity` whenever the consumed
- * field it returns is `CONSUMED_OVERFLOW`; callers read the true length
- * from here. A module-level slot avoids a tuple allocation on the hot path
- * for an input that in practice only appears in fuzzers and attacks.
+ * Side channel for numeric entities of at least 2048 characters including
+ * `&`. Set by `parseNumericEntity` when its consumed count reaches the
+ * reserved value `CONSUMED_OVERFLOW`; callers read the true count from here.
+ * A module-level slot avoids a tuple allocation on the hot path.
  */
 let longNumericConsumed = 0;
 
 /**
  * Extract the consumed count from a `parseNumericEntity` packed result,
- * recovering the true length from `longNumericConsumed` when the 11-bit
- * field overflowed. Must run before the next `parseNumericEntity` call,
- * which may overwrite the side channel — this helper is the only place
- * that protocol is allowed to live.
+ * recovering the true length from `longNumericConsumed` when the packed
+ * field contains the sentinel. Read it before the next `parseNumericEntity`
+ * call, which may overwrite the side channel. This helper owns that protocol.
  * @param packed Packed result of `parseNumericEntity`.
  */
 function unpackConsumed(packed: number): number {
@@ -120,6 +110,10 @@ export interface EntityErrorProducer {
     absenceOfDigitsInNumericCharacterReference(
         consumedCharacters: number,
     ): void;
+    /**
+     * Validate the accumulated numeric value, before Unicode replacement.
+     * Values beyond the JavaScript number range are positive infinity.
+     */
     validateNumericCharacterReference(code: number): void;
 }
 
@@ -255,8 +249,8 @@ export class EntityDecoder {
      * Parses a hexadecimal numeric entity.
      *
      * Equivalent to the `Hexademical character reference state` in the HTML
-     * spec. Sync counterpart: the hex loop in `parseNumericEntity`; digit
-     * and clamping behavior must stay in sync between the two.
+     * spec. Digit parsing matches the hex loop in `parseNumericEntity`.
+     * The accumulated value is preserved for numeric validation callbacks.
      * @param input The string containing the entity (or a continuation of the entity).
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
@@ -275,13 +269,6 @@ export class EntityDecoder {
                         ? char - CharCodes.ZERO
                         : (char | TO_LOWER_BIT) - CharCodes.LOWER_A + 10;
                 result = result * 16 + digit;
-                /*
-                 * Clamp overflow to 1 past the Unicode max, matching
-                 * `parseNumericEntity`. Keeps the accumulator a small
-                 * integer (long bodies would reach Infinity) so the
-                 * `errors` callbacks always see a finite code point.
-                 */
-                if (result > 0x10_ff_ff) result = 0x11_00_00;
                 consumed += 1;
                 offset += 1;
             } else {
@@ -299,8 +286,8 @@ export class EntityDecoder {
      * Parses a decimal numeric entity.
      *
      * Equivalent to the `Decimal character reference state` in the HTML
-     * spec. Sync counterpart: the decimal loop in `parseNumericEntity`;
-     * digit and clamping behavior must stay in sync between the two.
+     * spec. Digit parsing matches the decimal loop in `parseNumericEntity`.
+     * The accumulated value is preserved for numeric validation callbacks.
      * @param input The string containing the entity (or a continuation of the entity).
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
@@ -318,8 +305,6 @@ export class EntityDecoder {
                 return this.emitNumericEntity(digit + CharCodes.ZERO, 2);
             }
             result = result * 10 + digit;
-            // Clamp overflow, matching `parseNumericEntity` (see stateNumericHex).
-            if (result > 0x10_ff_ff) result = 0x11_00_00;
             consumed += 1;
             offset += 1;
         }
@@ -412,8 +397,8 @@ export class EntityDecoder {
         const isStrict = this.decodeMode === DecodingMode.Strict;
 
         /*
-         * Local copies of the resumable walk state — a store per character
-         * is what made this path slow. They are flushed back to the fields
+         * Local copies of the resumable walk state avoid per-character
+         * field writes. They are flushed back to the fields
          * on every exit (chunk end, and before any emit helper that reads
          * them). `this.result` is only written at the (rare) record points,
          * so it stays a direct field write.
@@ -555,7 +540,7 @@ export class EntityDecoder {
                 continue;
             }
 
-            // The number of bytes of the value, including the current byte.
+            // Header plus out-of-line value words; 0 means no value.
             const valueLength = current >>> 14;
             const char = input.charCodeAt(offset);
 
@@ -582,7 +567,7 @@ export class EntityDecoder {
 
                 /*
                  * `valueLength === 1` packs the codepoint into the header
-                 * word's low 14 bits, where branch metadata also lives. Skip
+                 * word's low 13 bits, where branch metadata also lives. Skip
                  * the branch lookup on leaves so those value bits aren't
                  * reinterpreted as branch offsets.
                  */
@@ -656,7 +641,7 @@ export class EntityDecoder {
     /**
      * Emit a named entity.
      * @param result The index of the entity in the decode tree.
-     * @param valueLength The number of bytes in the entity.
+     * @param valueLength Encoded value length (header plus any value words).
      * @param consumed The number of characters consumed.
      * @returns The number of characters consumed.
      */
@@ -674,7 +659,7 @@ export class EntityDecoder {
             consumed,
         );
         if (valueLength === 3) {
-            // For multi-byte values, we need to emit the second byte.
+            // Emit the second UTF-16 code unit.
             this.emitCodePoint(decodeTree[result + 2], consumed);
         }
 
@@ -821,8 +806,8 @@ function readTrieValue(
  * found.
  *
  * This is the sync counterpart of the streaming
- * `EntityDecoder#stateNumericDecimal` / `#stateNumericHex`; digit and
- * clamping behavior must stay in sync between the two.
+ * `EntityDecoder#stateNumericDecimal` / `#stateNumericHex`. Digit parsing
+ * matches those methods; only this packed result needs a value clamp.
  * @param input       The input string.
  * @param numberStart Index of the `#` character.
  * @param inputLength Cached `input.length`.
@@ -834,7 +819,7 @@ function parseNumericEntity(
 ): number {
     let offset = numberStart + 1; // Skip "#"
     let cp = 0;
-    let digits = 0;
+    let digitStart = offset;
 
     /*
      * Separate decimal and hexadecimal loops: each multiplies by a constant
@@ -845,6 +830,7 @@ function parseNumericEntity(
         (input.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X
     ) {
         offset += 1;
+        digitStart = offset;
         while (offset < inputLength) {
             const char = input.charCodeAt(offset);
             if (isNumber(char)) {
@@ -854,7 +840,6 @@ function parseNumericEntity(
             } else {
                 break;
             }
-            digits += 1;
             offset += 1;
         }
     } else {
@@ -862,12 +847,11 @@ function parseNumericEntity(
             const digit = input.charCodeAt(offset) - CharCodes.ZERO;
             if (digit >>> 0 > 9) break;
             cp = cp * 10 + digit;
-            digits += 1;
             offset += 1;
         }
     }
 
-    if (digits === 0) return 0;
+    if (offset === digitStart) return 0;
 
     // Include the semicolon in consumed when present.
     if (offset < inputLength && input.charCodeAt(offset) === CharCodes.SEMI) {
@@ -875,24 +859,9 @@ function parseNumericEntity(
     }
 
     /*
-     * Pack `consumed` (length) and `cp` (Unicode code point) into one
-     * integer to avoid a tuple allocation on the hot path. Callers extract
-     * the consumed field via `unpackConsumed` and the code point with
-     * `CODE_POINT_MASK`.
-     *
-     * `cp` is clamped to 0x110000 (1 past the Unicode max) before packing
-     * so it stays inside the 21-bit field. Without the clamp, an overflow
-     * like `&#3145728;` would silently truncate to a valid-looking
-     * codepoint instead of mapping to U+FFFD via `replaceCodePoint`. The
-     * streaming parser applies the same clamp per digit (see
-     * `stateNumericDecimal` / `stateNumericHex`).
-     *
-     * `consumed` fits its 11-bit field for any entity shorter than 2047
-     * characters, which covers any practical body. Longer digit runs would
-     * wrap the field (mis-consuming input and leaking digits into the
-     * output), so they are routed through the `longNumericConsumed` side
-     * channel instead: the consumed field is pinned at CONSUMED_OVERFLOW
-     * and callers recover the true length from the module-level slot.
+     * Clamp out-of-range values to 0x110000 so they fit the 21-bit field
+     * and decode to U+FFFD. Lengths at or above CONSUMED_OVERFLOW use the
+     * side channel described with the packing constants.
      */
     if (cp > 0x10_ff_ff) cp = 0x11_00_00;
     let consumed = offset - numberStart;
@@ -971,18 +940,8 @@ function decodeWithTrie(
             value = "";
 
             /*
-             * Inline the first trie iteration: from the root, navigate by
-             * `firstChar` to its child. The HTML root is a multi-branch
-             * jump-table covering [A-Za-z], and `firstChar` is already in
-             * hand from the outer loop, so we can skip the redundant
-             * top-of-loop work for iteration 1 (compact-run check,
-             * valueLength compute, charCodeAt, value handling,
-             * determineBranch dispatch) and start the trie loop on the
-             * second character.
-             *
-             * This is why the function is hard-wired to `htmlDecodeTree`
-             * (see the doc comment): a differently-shaped root would make
-             * the slot test below fail for every input.
+             * The generator guarantees a jump-table root. Consume the first
+             * character directly, then walk from its child.
              */
             const rootSlotIndex = firstChar - rootJumpOffset;
             let nodeIndex: number;
@@ -1011,12 +970,8 @@ function decodeWithTrie(
              */
             trie: while (index < inputLength) {
                 /*
-                 * Descend through pure jump-table nodes (no value, no run)
-                 * inline: 81% of trie nodes are value-less jump-tables, so
-                 * this avoids a `determineBranch` call per level for the
-                 * dominant node shape. A branch miss rejects the entity the
-                 * same way a negative `determineBranch` result does, and
-                 * the recorded legacy match (if any) is handled post-loop.
+                 * Inline value-less jump tables and single branches. A miss
+                 * falls through to the recorded legacy match or rejection.
                  */
                 while (
                     // Value-less, non-run node with a nonzero jump offset.
@@ -1050,12 +1005,7 @@ function decodeWithTrie(
                     if (index >= inputLength) break trie;
                 }
 
-                /*
-                 * Handle compact runs first — a single mask collapses
-                 * the (valueLength == 0, FLAG13 set) test into one compare.
-                 * The run path skips the valueLength compute entirely; the
-                 * inner loop is inlined to avoid 5-argument call overhead.
-                 */
+                // FLAG13 without a value marks a compact run.
                 if (
                     (current &
                         (BinTrieFlags.VALUE_LENGTH | BinTrieFlags.FLAG13)) ===
@@ -1115,7 +1065,7 @@ function decodeWithTrie(
                     continue;
                 }
 
-                // The number of bytes of the value, including the current byte.
+                // Header plus out-of-line value words; 0 means no value.
                 const valueLength = current >>> 14;
                 const char = input.charCodeAt(index);
 
@@ -1128,13 +1078,7 @@ function decodeWithTrie(
                     // If char is `;`, emit immediately.
                     if (char === CharCodes.SEMI) {
                         consumed = index - entityStart + 1;
-                        /*
-                         * Inline-leaf fast path: valueLength 1 means
-                         * the header word carries the entire value in its
-                         * low 13 bits. That covers most named entities
-                         * (e.g., &amp; &lt; &eacute;), so skip the
-                         * readTrieValue call.
-                         */
+                        // Inline leaves carry the value in the low 13 bits.
                         value =
                             valueLength === 1
                                 ? String.fromCharCode(

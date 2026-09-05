@@ -4,7 +4,7 @@
  * The trie is a flat `Uint16Array`. Every node starts with one header word:
  *
  *   15..14 VALUE_LENGTH   Number of words the value occupies, +1.
- *                         0 = no value; 1 = value inline in bits 13..0;
+ *                         0 = no value; 1 = value inline in bits 12..0;
  *                         2/3 = value in the 1/2 words after the header.
  *   13     FLAG13         If VALUE_LENGTH > 0: semicolon required ("strict"
  *                         entity; `;` is never stored as a branch).

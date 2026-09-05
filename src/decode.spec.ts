@@ -168,11 +168,8 @@ describe.each(implementations)("Decode test: %s", (_name, {
 
         it("should map numeric values past U+10FFFF to U+FFFD", () => {
             /*
-             * Sanity: max valid Unicode value passes through, exactly past
-             * max (U+110000) maps to U+FFFD, and a large overflow that —
-             * before the codepoint clamp — would truncate inside the
-             * 21-bit packed-return field and emit a valid-looking
-             * private-use char (U+100000) instead.
+             * The Unicode maximum passes through. Values outside Unicode,
+             * including those exceeding the packed field, map to U+FFFD.
              */
             expect(decodeHTML("&#1114111;")).toBe("\u{10FFFF}");
             expect(decodeHTML("&#1114112;")).toBe("�");
@@ -184,11 +181,9 @@ describe.each(implementations)("Decode test: %s", (_name, {
     describe("overlong numeric entities (packed consumed-field overflow)", () => {
         /*
          * The sync `parseNumericEntity` packs `(consumed << 21) | cp`;
-         * entities of ≥ 2047 characters exceed the 11-bit consumed field
-         * and take the `longNumericConsumed` side channel. Whatever the
-         * body length, the whole entity must be consumed and produce
-         * U+FFFD (matching entities@7.0.1) — a wrapped consumed count
-         * would leak digits into the output.
+         * consumed counts of at least 2047 characters after `&` use the
+         * `longNumericConsumed` side channel. These large values must produce
+         * U+FFFD and consume the whole entity without leaking digits.
          */
         const digitCounts = [2045, 2046, 2047, 2048, 4096];
         const bases: [string, string][] = [
@@ -315,9 +310,8 @@ describe.each(implementations)("Decode test: %s", (_name, {
 
     describe("non-entities with legacy-like prefixes stay literal", () => {
         /*
-         * In entities <= 7.0.1, a failed named-entity match could read the
-         * legacy result from a wrong trie index, emitting an unrelated
-         * character (e.g. `&Gdot ` → `Â`). These inputs must stay literal.
+         * A strict-only name without a semicolon and without a legacy
+         * prefix must stay literal.
          */
         const literalCases = [
             "&Gdot ",
@@ -476,9 +470,7 @@ describe("EntityDecoder", () => {
     });
 
     /*
-     * Focused tests exercising early exit paths inside a compact run in the real trie.
-     * Discovered prefix: "zi" followed by compact run "grarr"; mismatching inside this run should
-     * return 0 with no emission (result still 0).
+     * Streaming consumed counts cover the sync parser's packed-length boundary.
      */
     describe("overlong numeric entities", () => {
         /*
@@ -511,26 +503,9 @@ describe("EntityDecoder", () => {
                 count + 4,
             );
         });
-
-        it("should clamp the accumulator before it reaches the errors callbacks", () => {
-            const errorHandlers = {
-                missingSemicolonAfterCharacterReference: vi.fn(),
-                absenceOfDigitsInNumericCharacterReference: vi.fn(),
-                validateNumericCharacterReference: vi.fn(),
-            };
-            const errorDecoder = new entities.EntityDecoder(
-                entities.htmlDecodeTree,
-                callback,
-                errorHandlers,
-            );
-            errorDecoder.startEntity(entities.DecodingMode.Strict);
-            errorDecoder.write(`&#x${"f".repeat(4096)};`, 1);
-            expect(
-                errorHandlers.validateNumericCharacterReference,
-            ).toHaveBeenCalledExactlyOnceWith(0x11_00_00);
-        });
     });
 
+    // The "zi" prefix leads into the compact run "grarr".
     describe("compact run mismatches", () => {
         it.each([
             ["first run character mismatch", "ziXgrar"],
@@ -566,6 +541,54 @@ describe("EntityDecoder", () => {
                 errorHandlers,
             );
             decoder.startEntity(entities.DecodingMode.Legacy);
+        });
+
+        it.each([
+            ["decimal outside Unicode", "#1114113", 0x11_00_01],
+            ["hex outside Unicode", "#x110001", 0x11_00_01],
+            ["decimal beyond the packed field", "#3145728", 0x30_00_00],
+            ["hex beyond the packed field", "#x300000", 0x30_00_00],
+            [
+                "decimal overflow",
+                `#${"9".repeat(512)}`,
+                Number.POSITIVE_INFINITY,
+            ],
+            ["hex overflow", `#x${"f".repeat(512)}`, Number.POSITIVE_INFINITY],
+        ] as const)("should validate the accumulated value: %s", (_name, body, value) => {
+            for (const terminator of [";", "", " "]) {
+                const input = body + terminator;
+                for (const chunkSize of [input.length, 2, 1]) {
+                    callback.mockClear();
+                    errorHandlers.validateNumericCharacterReference.mockClear();
+                    decoder.startEntity(
+                        terminator === ";"
+                            ? entities.DecodingMode.Strict
+                            : entities.DecodingMode.Legacy,
+                    );
+                    let consumed = -1;
+                    for (
+                        let offset = 0;
+                        offset < input.length && consumed < 0;
+                        offset += chunkSize
+                    ) {
+                        consumed = decoder.write(
+                            input.slice(offset, offset + chunkSize),
+                            0,
+                        );
+                    }
+                    if (consumed < 0) consumed = decoder.end();
+                    const expectedConsumed =
+                        body.length + 1 + Number(terminator === ";");
+                    expect(consumed).toBe(expectedConsumed);
+                    expect(callback).toHaveBeenCalledExactlyOnceWith(
+                        0xff_fd,
+                        expectedConsumed,
+                    );
+                    expect(
+                        errorHandlers.validateNumericCharacterReference,
+                    ).toHaveBeenCalledExactlyOnceWith(value);
+                }
+            }
         });
 
         it("should produce an error for a named entity without a semicolon", () => {

@@ -75,15 +75,8 @@ function convertMapToBinaryTrie(
     legacy: Record<string, string>,
 ) {
     /*
-     * `maxJumpTableOverhead = 4`: generous jump-table budget everywhere.
-     * Jump tables are an O(1) indexed read handled inline by the decoder's
-     * descent loop, vs the dictionary's linear scan (−22% to −30% decode
-     * time on entity-dense workloads). The extra trie words this costs are
-     * mostly zeros and small offsets, which the smallest-subtree-first
-     * child ordering plus the dict+BPE string encoding compress so well
-     * that the shipped payload is *smaller* than with a hot/cold split —
-     * measured 4 beat both tighter budgets and a per-node hot/cold policy
-     * on payload gzip/brotli and decode speed simultaneously.
+     * A uniform jump-table overhead budget of 4 favors O(1) dispatch.
+     * Empty slots and small end-relative pointers compress in the dictionary.
      */
     const trie = getTrie(map, legacy);
     const data = new Uint16Array(encodeTrie(trie, 4));

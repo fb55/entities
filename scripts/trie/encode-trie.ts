@@ -21,12 +21,8 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
     const enc: number[] = [];
 
     /*
-     * Children are encoded smallest-subtree-first (their pointers still
-     * land in key-ordered slots, so the decoder is unaffected): a child's
-     * end-relative pointer is the encoded size of its earlier siblings
-     * + 1, so this ordering keeps pointer values small. Measured on the
-     * HTML trie it removes ~90 distinct pointer values and saves ~70 B
-     * gzip / ~110 B brotli on the dict+BPE payload.
+     * Encode children smallest-subtree-first to keep end-relative pointers
+     * small. Pointer slots remain in key order for decoding.
      */
     const sizeMemo = new Map<TrieNode, number>();
     function subtreeSize(node: TrieNode): number {
@@ -57,25 +53,20 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
         enc.push(0);
 
         if (node.value != null) {
-            let valueLength =
-                node.next !== undefined ||
-                node.value.length > 1 ||
-                binaryLength(node.value.charCodeAt(0)) > 14 ||
-                (node.value.charCodeAt(0) & BinTrieFlags.FLAG13) !== 0
-                    ? node.value.length
-                    : 0;
-            valueLength += 1;
-            assert.ok(
-                binaryLength(valueLength) <= 2,
-                "Too many bits for value length",
-            );
-            // Store value length in the VALUE_LENGTH bits (15..14)
-            enc[nodeIndex] |= valueLength << 14; // (valueLength - 1) encoded via shift; mask defined in BinTrieFlags
+            const codeUnit = node.value.charCodeAt(0);
+            const valueLength =
+                node.next === undefined &&
+                node.value.length === 1 &&
+                codeUnit <= BinTrieFlags.VALUE_MASK
+                    ? 1
+                    : node.value.length + 1;
+            assert.ok(valueLength <= 3, "Too many bits for value length");
+            enc[nodeIndex] |= valueLength << 14;
             if (node.semiRequired) {
                 enc[nodeIndex] |= BinTrieFlags.FLAG13;
             }
             if (valueLength === 1) {
-                enc[nodeIndex] |= node.value.charCodeAt(0);
+                enc[nodeIndex] |= codeUnit;
             } else {
                 for (let index = 0; index < node.value.length; index++) {
                     enc.push(node.value.charCodeAt(index));

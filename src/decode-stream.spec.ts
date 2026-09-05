@@ -238,10 +238,8 @@ describe("EntityDecoder Streaming", () => {
     });
 
     /*
-     * Exhaustive writer↔reader agreement for the streaming descent: it is
-     * the only trie reader without a full-map test otherwise. Every entity
-     * from both maps goes through EntityDecoder whole and char-by-char, and
-     * must match the sync decoders in both output and consumed count.
+     * Every entity from both maps goes through EntityDecoder whole and
+     * char-by-char, matching the sync decoders in output and consumed count.
      */
     describe("exhaustive full-map agreement with the sync decoders", () => {
         const chunkSizes = [

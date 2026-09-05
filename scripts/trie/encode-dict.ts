@@ -56,16 +56,6 @@ type Pair = readonly [number, number];
 // --- Base-91 slot codes ---------------------------------------------------
 
 /**
- * Length in chars of a code referring to slot `s`. With our constraint
- * `dictSize + twoBytes = BASE`, every slot code is 1 or 2 chars.
- * @param slot
- * @param dictSize
- */
-function slotCodeLength(slot: number, dictSize: number): 1 | 2 {
-    return slot < dictSize ? 1 : 2;
-}
-
-/**
  * Emit a code for slot `s` as a 1- or 2-char base-91 string.
  * @param slot
  * @param dictSize
@@ -148,8 +138,8 @@ function deltaRleEncode(values: number[]): string {
 
 // --- BPE: merge token pairs into ngrams -----------------------------------
 
-/** Encodes a pair (a, b) into a single number for use as Map keys. */
-const PAIR_RADIX = 1_000_003;
+/** Packs two uint16 token IDs into a numeric Map key. */
+const PAIR_RADIX = 0x1_00_00;
 
 /**
  * Count pair occurrences in `seq`. For pairs (a, b) with a !== b, overlapping
@@ -283,27 +273,11 @@ function bpeOptimize(
             // eslint-disable-next-line unicorn/no-array-sort -- TS lib doesn't expose toSorted yet
         ).sort((x, y) => use[y] - use[x]);
 
-        codeLength = new Int8Array(totalTokens);
-        for (const [rank, id] of atomsByUse.entries()) {
-            const slot =
-                rank < dict1AtomCount
-                    ? rank
-                    : dictSize + (rank - dict1AtomCount);
-            codeLength[id] = slotCodeLength(slot, dictSize);
+        codeLength = new Int8Array(totalTokens).fill(2);
+        for (let rank = 0; rank < Math.min(dict1AtomCount, atomCount); rank++) {
+            codeLength[atomsByUse[rank]] = 1;
         }
-        /*
-         * Each ngram's slot: 1-char if promoted, otherwise 2-char (dict2).
-         * Within both kinds, slots increase in BPE order.
-         */
-        let nextDict1Slot = dict1AtomCount;
-        let nextDict2Slot = dictSize + (atomCount - dict1AtomCount);
-        for (const k of ngrams.keys()) {
-            const id = atomCount + k;
-            const slot = promotedNgrams.has(id)
-                ? nextDict1Slot++
-                : nextDict2Slot++;
-            codeLength[id] = slotCodeLength(slot, dictSize);
-        }
+        for (const id of promotedNgrams) codeLength[id] = 1;
 
         // The atom that the next promotion would push out of dict1.
         demotedFreq =
@@ -312,13 +286,8 @@ function bpeOptimize(
     refreshPartition();
 
     /*
-     * Stop after `BPE_MERGE_CAP` merges, even if more would shrink raw bytes.
-     * Empirically, shipping all profitable merges (~256 of them) shrinks the
-     * minified bundle further but flattens the body's char-frequency
-     * distribution enough that gzip and brotli on the bundled output _grow_
-     * by 200–350 bytes vs. the baseline. Capping at ~25 keeps minified well
-     * under baseline while letting gzip stay below and brotli within ~30
-     * bytes — a much better wire-size trade for consumers that compress.
+     * Limit dictionary size and preserve repeated patterns for gzip/brotli.
+     * BPE's raw character savings do not account for transport compression.
      */
     const BPE_MERGE_CAP = 25;
     for (let mergeCount = 0; mergeCount < BPE_MERGE_CAP; mergeCount++) {
