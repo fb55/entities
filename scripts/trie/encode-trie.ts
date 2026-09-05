@@ -13,40 +13,60 @@ function binaryLength(integer: number): number {
 /**
  * Encode a trie into compact binary representation.
  * @param trie Trie node map to encode.
- * @param maxJumpTableOverhead Maximum allowed jump-table overhead before using linear encoding.
+ * @param maxJumpTableOverhead Maximum allowed jump-table overhead before
+ *   using linear encoding.
  */
 export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
     const encodeCache = new Map<TrieNode, number>();
     const enc: number[] = [];
 
+    /*
+     * Encode children smallest-subtree-first to keep end-relative pointers
+     * small. Pointer slots remain in key order for decoding.
+     */
+    const sizeMemo = new Map<TrieNode, number>();
+    function subtreeSize(node: TrieNode): number {
+        const cached = sizeMemo.get(node);
+        if (cached !== undefined) return cached;
+        // Seed to guard against cycles (shared suffixes make this a DAG).
+        sizeMemo.set(node, 1);
+        let size = 1;
+        if (node.next) {
+            for (const child of node.next.values()) {
+                size += subtreeSize(child);
+            }
+        }
+        sizeMemo.set(node, size);
+        return size;
+    }
+    const bySubtreeSize = (
+        [, a]: [number, TrieNode],
+        [, b]: [number, TrieNode],
+    ) => subtreeSize(a) - subtreeSize(b);
+
     function encodeNode(node: TrieNode): number {
         const cached = encodeCache.get(node);
         if (cached != null) return cached;
-        const startIndex = enc.length;
-        encodeCache.set(node, startIndex);
+        // The node's header word; everything below appends after it.
         const nodeIndex = enc.length;
+        encodeCache.set(node, nodeIndex);
         enc.push(0);
 
         if (node.value != null) {
-            let valueLength =
-                node.next !== undefined ||
-                node.value.length > 1 ||
-                binaryLength(node.value.charCodeAt(0)) > 14 ||
-                (node.value.charCodeAt(0) & BinTrieFlags.FLAG13) !== 0
-                    ? node.value.length
-                    : 0;
-            valueLength += 1;
-            assert.ok(
-                binaryLength(valueLength) <= 2,
-                "Too many bits for value length",
-            );
-            // Store value length in the VALUE_LENGTH bits (15..14)
-            enc[nodeIndex] |= valueLength << 14; // (valueLength - 1) encoded via shift; mask defined in BinTrieFlags
+            const codeUnit = node.value.charCodeAt(0);
+            const valueLength =
+                node.next === undefined &&
+                node.value.length === 1 &&
+                codeUnit <= BinTrieFlags.VALUE_MASK
+                    ? 1
+                    : node.value.length + 1;
+            assert.ok(valueLength <= 3, "Too many bits for value length");
+            enc[nodeIndex] |= valueLength << 14;
             if (node.semiRequired) {
                 enc[nodeIndex] |= BinTrieFlags.FLAG13;
             }
             if (valueLength === 1) {
-                enc[nodeIndex] |= node.value.charCodeAt(0);
+                enc[nodeIndex] |= codeUnit;
             } else {
                 for (let index = 0; index < node.value.length; index++) {
                     enc.push(node.value.charCodeAt(index));
@@ -79,36 +99,36 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
                 ) {
                     const runLength = runChars.length;
                     if (runLength > 63) {
-                        addBranches(node.next, nodeIndex);
-                        assert.strictEqual(nodeIndex, startIndex);
-                        return startIndex;
+                        addBranches(node, nodeIndex);
+                        return nodeIndex;
                     }
                     const firstChar = runChars[0];
                     assert.ok(firstChar < 0x80, "run first char must be < 128");
-                    const maskedRunLength = runLength & 0x3f;
+                    /*
+                     * FLAG13 with VALUE_LENGTH=0 marks a compact run (the
+                     * same bit means "semicolon required" on value nodes).
+                     * runLength fits the 6-bit BRANCH_LENGTH field — the
+                     * `> 63` case bailed out above.
+                     */
                     enc[nodeIndex] =
-                        BinTrieFlags.FLAG13 | // Compact run flag (same bit position)
-                        (maskedRunLength << 7) |
-                        firstChar;
+                        BinTrieFlags.FLAG13 | (runLength << 7) | firstChar;
                     for (let index = 1; index < runLength; index += 2) {
                         const low = runChars[index];
                         const high = runChars[index + 1];
                         enc.push(low | (high << 8));
                     }
                     encodeNode(current);
-                    assert.strictEqual(nodeIndex, startIndex);
-                    return startIndex;
+                    return nodeIndex;
                 }
             }
-            addBranches(node.next, nodeIndex);
+            addBranches(node, nodeIndex);
         }
 
-        assert.strictEqual(nodeIndex, startIndex, "Has expected location");
-        return startIndex;
+        return nodeIndex;
     }
 
-    function addBranches(next: Map<number, TrieNode>, nodeIndex: number) {
-        const branches = [...next];
+    function addBranches(node: TrieNode, nodeIndex: number) {
+        const branches = [...node.next!];
         if (branches.length === 0) return;
         branches.sort(([a], [b]) => a - b);
         assert.ok(
@@ -127,25 +147,35 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
         const jumpEndValue = branches[branches.length - 1][0];
         const jumpTableLength = jumpEndValue - jumpOffset + 1;
         const jumpTableOverhead = jumpTableLength / branches.length;
-        if (jumpTableOverhead <= maxJumpTableOverhead) {
+        // BRANCH_LENGTH is 6 bits → jumpTableLength must fit in 63 too.
+        if (
+            jumpTableOverhead <= maxJumpTableOverhead &&
+            jumpTableLength <= 63
+        ) {
             assert.ok(
-                binaryLength(jumpOffset) <= 16,
-                `Offset ${jumpOffset} too large at ${binaryLength(jumpOffset)}`,
+                binaryLength(jumpOffset) <= 7,
+                `Jump-table first char ${jumpOffset} needs ${binaryLength(
+                    jumpOffset,
+                )} bits but the JUMP_TABLE field is only 7`,
             );
             enc[nodeIndex] |= (jumpTableLength << 7) | jumpOffset;
-            assert.ok(
-                binaryLength(jumpTableLength) <= 7,
-                `Too many bits (${binaryLength(jumpTableLength)}) for branches`,
-            );
             for (let index = 0; index < jumpTableLength; index++) enc.push(0);
             const branchIndex = enc.length - jumpTableLength;
-            for (const [char, child] of branches) {
+            const branchEnd = branchIndex + jumpTableLength;
+            // eslint-disable-next-line unicorn/no-array-sort -- TS lib doesn't expose toSorted yet
+            for (const [char, child] of [...branches].sort(bySubtreeSize)) {
                 const relativeIndex = char - jumpOffset;
                 const pointerPos = branchIndex + relativeIndex;
                 const childOffset = encodeNode(child);
-                // Store relative offset + 1 (0 = no branch sentinel).
+                /*
+                 * Store the offset relative to the END of the branch array,
+                 * + 1 (0 = no branch sentinel). End-relative beats
+                 * slot-relative for compression: the common "child encoded
+                 * immediately after the table" case becomes the constant 1
+                 * regardless of which slot points at it.
+                 */
                 const stored =
-                    (childOffset - pointerPos + 1 + 0x1_00_00) % 0x1_00_00;
+                    (childOffset - branchEnd + 1 + 0x1_00_00) % 0x1_00_00;
                 assert.notStrictEqual(
                     stored,
                     0,
@@ -162,15 +192,18 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
             ...Array.from({ length: packedKeySlots }, () => 0),
             ...branches.map(() => Number.MAX_SAFE_INTEGER),
         );
-        assert.strictEqual(
-            enc.length,
-            branchIndex + packedKeySlots + branches.length,
-            "Did not reserve enough space",
-        );
-        for (const [index, [value, child]] of branches.entries()) {
+        const dictEnd = branchIndex + packedKeySlots + branches.length;
+        assert.strictEqual(enc.length, dictEnd, "Did not reserve enough space");
+        for (const [index, [value]] of branches.entries()) {
             assert.ok(value < 128, "Branch value too large");
             const packedIndex = branchIndex + (index >> 1);
             enc[packedIndex] |= (index & 1) === 0 ? value : value << 8;
+        }
+        // Encode children smallest-first; pointers go to key-ordered slots.
+        const indexed = branches.map((branch, index) => ({ branch, index }));
+        indexed.sort((x, y) => bySubtreeSize(x.branch, y.branch));
+        for (const { branch, index } of indexed) {
+            const child = branch[1];
             const destinationIndex = branchIndex + packedKeySlots + index;
             assert.strictEqual(
                 enc[destinationIndex],
@@ -178,9 +211,12 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
                 "Should have the placeholder as the destination element",
             );
             const offset = encodeNode(child);
-            // Store relative offset (pointer-position-relative).
-            enc[destinationIndex] =
-                (offset - destinationIndex + 0x1_00_00) % 0x1_00_00;
+            /*
+             * Store the offset relative to the end of the branch data (see
+             * the jump-table case above for why end-relative compresses
+             * better than position-relative).
+             */
+            enc[destinationIndex] = (offset - dictEnd + 0x1_00_00) % 0x1_00_00;
         }
     }
 
@@ -190,6 +226,17 @@ export function encodeTrie(trie: TrieNode, maxJumpTableOverhead = 2): number[] {
             (v) => typeof v === "number" && v >= 0 && binaryLength(v) <= 16,
         ),
         "Too many bits",
+    );
+    /*
+     * Branch pointers are stored end-relative modulo 2^16 and the decoder
+     * reconstructs them with `& 0xffff`. That round-trips only while every
+     * node index fits in a uint16; a larger trie would alias a forward
+     * pointer onto the wrong node without any per-pointer check catching it.
+     */
+    assert.ok(
+        enc.length <= 0x1_00_00,
+        `Trie has ${enc.length} words; end-relative branch pointers are ` +
+            "uint16, so the trie must not exceed 65536 words.",
     );
     return enc;
 }

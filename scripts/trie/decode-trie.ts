@@ -21,8 +21,7 @@ export function decodeNode(
         const decoded =
             valueLength === 1
                 ? String.fromCharCode(
-                      decodeMap[startIndex] &
-                          ~(BinTrieFlags.VALUE_LENGTH | BinTrieFlags.FLAG13),
+                      decodeMap[startIndex] & BinTrieFlags.VALUE_MASK,
                   )
                 : valueLength === 2
                   ? String.fromCharCode(decodeMap[startIndex + 1])
@@ -90,29 +89,32 @@ export function decodeNode(
          * or high (odd i) byte of slot i>>1.
          */
         const packedKeySlots = Math.ceil(branchLength / 2);
+        const branchEnd = branchIndex + packedKeySlots + branchLength;
         for (let keyIndex = 0; keyIndex < branchLength; keyIndex++) {
             const slot = keyIndex >> 1;
             const packed = decodeMap[branchIndex + slot];
             const key = (packed >> ((keyIndex & 1) * 8)) & 0xff;
             const destinationIndex = branchIndex + packedKeySlots + keyIndex;
+            // Pointers are relative to the end of the branch data.
             decodeNode(
                 decodeMap,
                 resultMap,
                 prefix + String.fromCharCode(key),
-                (destinationIndex + decodeMap[destinationIndex]) & 0xff_ff,
+                (branchEnd + decodeMap[destinationIndex]) & 0xff_ff,
             );
         }
     } else {
+        const branchEnd = branchIndex + branchLength;
         for (let index = 0; index < branchLength; index++) {
             const stored = decodeMap[branchIndex + index];
             if (stored !== 0) {
                 const code = jumpOffset + index;
-                const p = branchIndex + index;
+                // Stored offsets are end-relative, +1 (0 = no branch).
                 decodeNode(
                     decodeMap,
                     resultMap,
                     prefix + String.fromCharCode(code),
-                    (p + stored - 1) & 0xff_ff,
+                    (branchEnd + stored - 1) & 0xff_ff,
                 );
             }
         }
