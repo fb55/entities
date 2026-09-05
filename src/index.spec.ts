@@ -87,7 +87,7 @@ const astral = [
 ];
 
 const astralSpecial = [
-    ["80", "\u{20AC}"],
+    ["80", "\u{80}"],
     ["110000", "\u{FFFD}"],
 ];
 
@@ -103,6 +103,9 @@ describe("Astral entities", () => {
 
     it.each(astralSpecial)(String.raw`should decode special \u%s`, (c, value) =>
         expect(entities.decode(`&#x${c};`)).toBe(value));
+
+    it("should still apply the HTML Windows-1252 C1 remap", () =>
+        expect(entities.decodeHTML("&#x80;")).toBe("\u{20AC}"));
 });
 
 describe("Escape", () => {

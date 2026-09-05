@@ -244,6 +244,26 @@ describe.each(implementations)("Decode test: %s", (_name, {
             output,
         }) => expect(decodeHTMLAttribute(input)).toBe(output));
     });
+
+    describe("numeric C1 controls", () => {
+        it("should not remap C1 references in XML", () => {
+            expect(decodeXML("&#x80;")).toBe("\u{80}");
+            expect(decodeXML("&#128;")).toBe("\u{80}");
+            expect(decodeXML("&#x9A;")).toBe("\u{9A}");
+            expect(decodeXML("&#x9a;")).toBe("\u{9A}");
+        });
+
+        it("should remap C1 references in HTML to Windows-1252", () => {
+            expect(decodeHTML("&#x80;")).toBe("\u{20AC}");
+            expect(decodeHTML("&#128;")).toBe("\u{20AC}");
+            expect(decodeHTML("&#x9A;")).toBe("\u{161}");
+        });
+
+        it("should still replace NUL and out-of-range values in XML", () => {
+            expect(decodeXML("&#0;")).toBe("\u{FFFD}");
+            expect(decodeXML("&#x110000;")).toBe("\u{FFFD}");
+        });
+    });
 });
 
 describe("EntityDecoder", () => {

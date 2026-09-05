@@ -11,6 +11,18 @@ const c1: number[] = [
 ];
 
 /**
+ * True for NUL, UTF-16 surrogates, and values past U+10FFFF.
+ * @param codePoint Unicode code point to check.
+ */
+function isInvalidCodePoint(codePoint: number): boolean {
+    return (
+        codePoint === 0 ||
+        (codePoint >= 0xd8_00 && codePoint <= 0xdf_ff) ||
+        codePoint > 0x10_ff_ff
+    );
+}
+
+/**
  * Replace the given code point with U+FFFD if it is NUL (0), a surrogate, or
  * outside the valid Unicode range. Code points in the C1 controls range
  * (128–159) are remapped to their Windows-1252 equivalents, following the
@@ -18,11 +30,7 @@ const c1: number[] = [
  * @param codePoint Unicode code point to convert.
  */
 export function replaceCodePoint(codePoint: number): number {
-    if (
-        codePoint === 0 ||
-        (codePoint >= 0xd8_00 && codePoint <= 0xdf_ff) ||
-        codePoint > 0x10_ff_ff
-    ) {
+    if (isInvalidCodePoint(codePoint)) {
         return 0xff_fd;
     }
 
@@ -31,4 +39,15 @@ export function replaceCodePoint(codePoint: number): number {
     }
 
     return codePoint;
+}
+
+/**
+ * XML numeric character references are the referenced Unicode code point.
+ * Invalid values still become U+FFFD; the HTML Windows-1252 C1 remap is not
+ * applied.
+ * @see https://www.w3.org/TR/xml/#NT-CharRef
+ * @param codePoint Unicode code point to convert.
+ */
+export function replaceCodePointXML(codePoint: number): number {
+    return isInvalidCodePoint(codePoint) ? 0xff_fd : codePoint;
 }
