@@ -7,13 +7,16 @@ encoding; the XML array is emitted directly.
 
 ## Generation and decoding
 
-- `trie.ts` builds the name trie and merges identical subtrees.
-- `encode-trie.ts` writes the binary node format described below.
-- `encode-dict.ts` serializes the HTML array using base-91 slot codes and
+- [trie.ts](trie.ts) builds the name trie and merges identical subtrees.
+- [encode-trie.ts](encode-trie.ts) writes the binary node format described below.
+- [encode-dict.ts](encode-dict.ts) serializes the HTML array using base-91 slot codes and
   byte-pair encoding (BPE).
-- `../write-decode-map.ts` writes both generated modules in `src/generated`.
-- `src/internal/decode-shared.ts` expands the HTML dictionary at import time.
-- `src/decode.ts` traverses the array for HTML decoding and streaming decoding.
+- [write-decode-map.ts](../write-decode-map.ts) writes both generated modules
+  in [src/generated](../../src/generated).
+- [decode-shared.ts](../../src/internal/decode-shared.ts) expands the HTML
+  dictionary at import time.
+- [decode.ts](../../src/decode.ts) traverses the array for HTML decoding and
+  streaming decoding.
   The synchronous XML decoder matches the five XML names directly.
 
 Run `npm run build:trie` to regenerate the modules. Tests check the generated
@@ -33,7 +36,7 @@ code units.
 | 6..0 | Jump-table offset, single-branch character, or first run character |
 
 An inline value uses bits 12..0 in place of branch metadata. The masks are
-also defined in `src/internal/bin-trie-flags.ts`.
+also defined in [bin-trie-flags.ts](../../src/internal/bin-trie-flags.ts).
 
 ### Values and semicolons
 
