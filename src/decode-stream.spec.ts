@@ -1,5 +1,37 @@
 import { describe, expect, it, vi } from "vitest";
-import { DecodingMode, HtmlEntityDecoder, XmlEntityDecoder } from "./decode.js";
+import entityMap from "../maps/entities.json" with { type: "json" };
+import xmlMap from "../maps/xml.json" with { type: "json" };
+import {
+    DecodingMode,
+    decodeHTML,
+    decodeXML,
+    HtmlEntityDecoder,
+    XmlEntityDecoder,
+} from "./decode.js";
+
+/**
+ * Decode `&name;` through a streaming decoder in `chunkSize`-char writes.
+ * @param Decoder The decoder class to use.
+ * @param input Full entity text, starting at the `&`.
+ * @param chunkSize Characters per write call.
+ */
+function streamEntity(
+    Decoder: typeof HtmlEntityDecoder | typeof XmlEntityDecoder,
+    input: string,
+    chunkSize: number,
+): { output: string; consumed: number } {
+    let output = "";
+    const decoder = new Decoder((cp) => {
+        output += String.fromCodePoint(cp);
+    });
+    decoder.startEntity(DecodingMode.Legacy);
+    let consumed = -1;
+    for (let pos = 1; pos < input.length && consumed < 0; pos += chunkSize) {
+        consumed = decoder.write(input.slice(pos, pos + chunkSize), 0);
+    }
+    if (consumed < 0) consumed = decoder.end();
+    return { output, consumed };
+}
 
 describe("Streaming entity decoders", () => {
     it("should decode long entities split across chunks (char-by-char)", () => {
@@ -207,6 +239,39 @@ describe("Streaming entity decoders", () => {
             decoder.startEntity(DecodingMode.Attribute);
             expect(decoder.write(`${entity}=`, 1)).toBe(0);
             expect(callback).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("exhaustive full-map agreement with the sync decoders", () => {
+        const chunkSizes = [
+            ["whole", Number.MAX_SAFE_INTEGER],
+            ["char-by-char", 1],
+        ] as const;
+
+        it.each(
+            chunkSizes,
+        )("should decode every HTML entity (%s)", (_name, chunkSize) => {
+            for (const name of Object.keys(entityMap)) {
+                const input = `&${name};`;
+                const result = streamEntity(
+                    HtmlEntityDecoder,
+                    input,
+                    chunkSize,
+                );
+                expect(result.output).toBe(decodeHTML(input));
+                expect(result.consumed).toBe(input.length);
+            }
+        });
+
+        it.each(
+            chunkSizes,
+        )("should decode every XML entity (%s)", (_name, chunkSize) => {
+            for (const name of Object.keys(xmlMap)) {
+                const input = `&${name};`;
+                const result = streamEntity(XmlEntityDecoder, input, chunkSize);
+                expect(result.output).toBe(decodeXML(input));
+                expect(result.consumed).toBe(input.length);
+            }
         });
     });
 

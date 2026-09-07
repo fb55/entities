@@ -174,19 +174,82 @@ describe.each(implementations)("Decode test: %s", (_name, {
             expect(decodeHTML("&#3145728;")).toBe("�");
             expect(decodeHTML("&#x300000;")).toBe("�");
         });
+    });
 
-        it("should decode numeric entities with very long digit runs", () => {
-            /*
-             * `consumed` is packed into the upper 11 bits of the parse result,
-             * so references up to 2047 characters decode and advance exactly.
-             */
-            const zeros = "0".repeat(2000);
-            expect(decodeHTML(`&#${zeros}65;`)).toBe("A");
-            expect(decodeHTML(`&#x${zeros}41;`)).toBe("A");
-            expect(decodeHTMLStrict(`&#${zeros}65;`)).toBe("A");
-            expect(decodeXML(`&#${zeros}65;`)).toBe("A");
-            // Legacy mode, no terminator.
-            expect(decodeHTML(`&#${zeros}65`)).toBe("A");
+    describe("overlong numeric entities (packed consumed-field overflow)", () => {
+        const digitCounts = [2045, 2046, 2047, 2048, 4096];
+        const bases: [string, string][] = [
+            ["decimal", ""],
+            ["hex", "x"],
+        ];
+
+        describe.each(bases)("%s", (_base, prefix) => {
+            it.each(
+                digitCounts,
+            )("should decode a %i-digit body with semicolon", (count) => {
+                const input = `&#${prefix}${"1".repeat(count)};X`;
+                expect(decodeHTML(input)).toBe("�X");
+                expect(decodeHTMLStrict(input)).toBe("�X");
+                expect(decodeHTMLAttribute(input)).toBe("�X");
+                expect(decodeXML(input)).toBe("�X");
+            });
+
+            it.each(
+                digitCounts,
+            )("should decode a %i-digit body without semicolon", (count) => {
+                const input = `&#${prefix}${"1".repeat(count)}X`;
+                expect(decodeHTML(input)).toBe("�X");
+                expect(decodeHTMLAttribute(input)).toBe("�X");
+                // Strict modes require the semicolon.
+                expect(decodeHTMLStrict(input)).toBe(input);
+                expect(decodeXML(input)).toBe(input);
+            });
+
+            it.each(
+                digitCounts,
+            )("should decode a %i-digit body at the end of input", (count) => {
+                const input = `&#${prefix}${"1".repeat(count)}`;
+                expect(decodeHTML(input)).toBe("�");
+                expect(decodeHTMLStrict(input)).toBe(input);
+            });
+        });
+
+        it.each([
+            2046, 2047, 2048, 4095, 4096, 8192,
+        ])("should consume a zero-padded reference of length %i exactly", (length) => {
+            for (const [prefix, digits] of [
+                ["", "65"],
+                ["x", "41"],
+                ["X", "41"],
+            ]) {
+                const entity = `&#${prefix}${"0".repeat(length - prefix.length - digits.length - 3)}${digits};`;
+                const input = `before${entity}&#66;&amp;after`;
+                expect(decodeHTML(input)).toBe("beforeAB&after");
+                expect(decodeHTMLStrict(input)).toBe("beforeAB&after");
+                expect(decodeHTMLAttribute(input)).toBe("beforeAB&after");
+                expect(decodeXML(input)).toBe("beforeAB&after");
+                const unterminated = entity.slice(0, -1);
+                for (const suffix of ["", "X", "&amp;"]) {
+                    const input = unterminated + suffix;
+                    const tail = suffix === "&amp;" ? "&" : suffix;
+                    expect(decodeHTML(input)).toBe(`A${tail}`);
+                    expect(decodeHTMLAttribute(input)).toBe(`A${tail}`);
+                    expect(decodeHTMLStrict(input)).toBe(unterminated + tail);
+                    expect(decodeXML(input)).toBe(unterminated + tail);
+                }
+            }
+        });
+
+        it("should handle consecutive long references with different lengths", () => {
+            const input = `&#${"0".repeat(4096)}65;&#x${"0".repeat(8192)}1f600;&#x;&#66;`;
+            for (const decode of [
+                decodeHTML,
+                decodeHTMLStrict,
+                decodeHTMLAttribute,
+                decodeXML,
+            ]) {
+                expect(decode(input)).toBe("A😀&#x;B");
+            }
         });
     });
 
@@ -328,43 +391,6 @@ describe.each(implementations)("Decode test: %s", (_name, {
     });
 });
 
-describe("numeric consumed-packing limit (sync decoders)", () => {
-    /*
-     * The sync decoders pack `consumed` into 11 bits; references whose
-     * consumed count exceeds 2047 are rejected and stay literal — a packing
-     * overflow here would emit the value and then re-emit the digits.
-     * `&#<n zeros>65;` consumes n + 5 characters, so n === 2042 is the
-     * longest terminated run that decodes. The streaming decoders have no
-     * such packing and decode runs of any length exactly (covered by the
-     * `describe.each` cases above via `makeStreamingImpl`).
-     */
-    it("should decode up to the limit and leave longer references literal", () => {
-        const fits = `&#${"0".repeat(2042)}65`;
-        expect(entities.decodeHTML(`${fits};`)).toBe("A");
-        expect(entities.decodeHTMLStrict(`${fits};`)).toBe("A");
-        expect(entities.decodeXML(`${fits};`)).toBe("A");
-        expect(entities.decodeHTML(fits)).toBe("A");
-        // Without the semicolon one more digit fits.
-        expect(entities.decodeHTML(`&#${"0".repeat(2043)}65`)).toBe("A");
-        for (let n = 2043; n <= 2050; n++) {
-            const input = `&#${"0".repeat(n)}65;`;
-            expect(entities.decodeHTML(input)).toBe(input);
-            expect(entities.decodeHTMLStrict(input)).toBe(input);
-            expect(entities.decodeXML(input)).toBe(input);
-            if (n > 2043) {
-                expect(entities.decodeHTML(input.slice(0, -1))).toBe(
-                    input.slice(0, -1),
-                );
-            }
-        }
-    });
-
-    it("should decode past the sync limit in the streaming decoder", () => {
-        const streaming = makeStreamingImpl(Number.POSITIVE_INFINITY);
-        expect(streaming.decodeHTML(`&#${"0".repeat(2048)}65;`)).toBe("A");
-    });
-});
-
 describe("HtmlEntityDecoder", () => {
     let callback: ReturnType<
         typeof vi.fn<(cp: number, consumed: number) => void>
@@ -463,6 +489,34 @@ describe("HtmlEntityDecoder", () => {
         expect(callback).not.toHaveBeenCalled();
     });
 
+    describe("overlong numeric entities", () => {
+        const digitCounts = [2045, 2046, 2047, 2048, 4096];
+
+        it.each(
+            digitCounts,
+        )("should report full consumed for %i decimal digits", (count) => {
+            decoder.startEntity(entities.DecodingMode.Strict);
+            expect(decoder.write(`&#${"1".repeat(count)};`, 1)).toBe(count + 3);
+            expect(callback).toHaveBeenCalledExactlyOnceWith(
+                0xff_fd,
+                count + 3,
+            );
+        });
+
+        it.each(
+            digitCounts,
+        )("should report full consumed for %i hex digits", (count) => {
+            decoder.startEntity(entities.DecodingMode.Strict);
+            expect(decoder.write(`&#x${"1".repeat(count)};`, 1)).toBe(
+                count + 4,
+            );
+            expect(callback).toHaveBeenCalledExactlyOnceWith(
+                0xff_fd,
+                count + 4,
+            );
+        });
+    });
+
     /*
      * Mismatches inside a name must reject without emitting. The decoder
      * may buffer (-1) until the run's terminator makes the rejection
@@ -498,6 +552,54 @@ describe("HtmlEntityDecoder", () => {
             callback = vi.fn<(cp: number, consumed: number) => void>();
             decoder = new entities.HtmlEntityDecoder(callback, errorHandlers);
             decoder.startEntity(entities.DecodingMode.Legacy);
+        });
+
+        it.each([
+            ["decimal outside Unicode", "#1114113", 0x11_00_01],
+            ["hex outside Unicode", "#x110001", 0x11_00_01],
+            ["decimal beyond the packed field", "#3145728", 0x30_00_00],
+            ["hex beyond the packed field", "#x300000", 0x30_00_00],
+            [
+                "decimal overflow",
+                `#${"9".repeat(512)}`,
+                Number.POSITIVE_INFINITY,
+            ],
+            ["hex overflow", `#x${"f".repeat(512)}`, Number.POSITIVE_INFINITY],
+        ] as const)("should validate the accumulated value: %s", (_name, body, value) => {
+            for (const terminator of [";", "", " "]) {
+                const input = body + terminator;
+                for (const chunkSize of [input.length, 2, 1]) {
+                    callback.mockClear();
+                    errorHandlers.validateNumericCharacterReference.mockClear();
+                    decoder.startEntity(
+                        terminator === ";"
+                            ? entities.DecodingMode.Strict
+                            : entities.DecodingMode.Legacy,
+                    );
+                    let consumed = -1;
+                    for (
+                        let offset = 0;
+                        offset < input.length && consumed < 0;
+                        offset += chunkSize
+                    ) {
+                        consumed = decoder.write(
+                            input.slice(offset, offset + chunkSize),
+                            0,
+                        );
+                    }
+                    if (consumed < 0) consumed = decoder.end();
+                    const expectedConsumed =
+                        body.length + 1 + Number(terminator === ";");
+                    expect(consumed).toBe(expectedConsumed);
+                    expect(callback).toHaveBeenCalledExactlyOnceWith(
+                        0xff_fd,
+                        expectedConsumed,
+                    );
+                    expect(
+                        errorHandlers.validateNumericCharacterReference,
+                    ).toHaveBeenCalledExactlyOnceWith(value);
+                }
+            }
         });
 
         it("should produce an error for a named entity without a semicolon", () => {

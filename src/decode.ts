@@ -1,4 +1,4 @@
-import { replaceCodePoint } from "./decode-codepoint.js";
+import { codePointToString, replaceCodePoint } from "./decode-codepoint.js";
 import { htmlDecodeData } from "./generated/decode-data-html.js";
 import {
     BUCKET_HASH_1,
@@ -327,14 +327,29 @@ function isMidMatchHtml(
  * `(consumed << CONSUMED_SHIFT) | codePoint`. The code point occupies the low
  * 21 bits (max 0x110000, clamped before packing); `consumed` takes the upper
  * 11 bits and is read back with `>>> CONSUMED_SHIFT`, so the sign bit set by a
- * large `consumed` is harmless. A `consumed` beyond the 11-bit field
- * (references longer than 2047 characters) is rejected before packing, so
- * such runs stay literal. A zero return means "no numeric entity".
+ * large `consumed` is harmless. The maximum consumed field is reserved for
+ * long references, whose full length is stored in `longNumericConsumed`.
+ * A zero return means "no numeric entity".
  */
 const enum NumericPacking {
     CONSUMED_SHIFT = 21,
     CODE_POINT_MASK = 0x1f_ff_ff,
-    CONSUMED_LIMIT = 2048, // 1 << (32 - CONSUMED_SHIFT)
+    CONSUMED_OVERFLOW = 0x7_ff,
+}
+
+/** Full length, including `&`, when the packed consumed field overflows. */
+let longNumericConsumed = 0;
+
+/**
+ * Recover the consumed count before the next numeric parse can overwrite
+ * `longNumericConsumed`. This avoids allocating a tuple for each reference.
+ * @param packed Packed result of `parseNumericEntity`.
+ */
+function unpackConsumed(packed: number): number {
+    const consumed = packed >>> NumericPacking.CONSUMED_SHIFT;
+    return consumed === NumericPacking.CONSUMED_OVERFLOW
+        ? longNumericConsumed
+        : consumed;
 }
 
 /**
@@ -395,23 +410,13 @@ function parseNumericEntity(
         return 0;
     }
 
-    // A `consumed` that overflows its 11-bit field would corrupt the packing.
-    if (consumed >= NumericPacking.CONSUMED_LIMIT) return 0;
+    if (consumed >= NumericPacking.CONSUMED_OVERFLOW) {
+        // eslint-disable-next-line unicorn/no-top-level-assignment-in-function -- deliberate side channel, read immediately by unpackConsumed
+        longNumericConsumed = consumed;
+        consumed = NumericPacking.CONSUMED_OVERFLOW;
+    }
 
     return (consumed << NumericPacking.CONSUMED_SHIFT) | codePoint;
-}
-
-/**
- * The decoded string for a numeric entity's code point, applying the
- * windows-1252 replacement map and validity rules.
- * @param codePoint Parsed code point (possibly clamped to 0x110000).
- */
-function numericValue(codePoint: number): string {
-    // Common case: a BMP code point that needs no replacement.
-    if ((codePoint - 1) >>> 0 < 0x7f || (codePoint - 0xa0) >>> 0 < 0xd7_60) {
-        return String.fromCharCode(codePoint);
-    }
-    return String.fromCodePoint(replaceCodePoint(codePoint));
 }
 
 /**
@@ -574,14 +579,16 @@ function decodeXmlText(input: string): string {
 
         if (c0 === CharCodes.NUM) {
             const packed = parseNumericEntity(input, start + 1, true);
-            const consumed = packed >>> NumericPacking.CONSUMED_SHIFT;
+            const consumed = unpackConsumed(packed);
             if (consumed === 0) {
                 offset = input.indexOf("&", start);
             } else {
                 if (last !== offset) {
                     result += input.slice(last, offset);
                 }
-                result += numericValue(packed & NumericPacking.CODE_POINT_MASK);
+                result += codePointToString(
+                    packed & NumericPacking.CODE_POINT_MASK,
+                );
                 last = offset + consumed;
                 offset = nextOffset(input, last);
             }
@@ -635,14 +642,16 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
                 start + 1,
                 !isLegacyAllowed,
             );
-            const consumed = packed >>> NumericPacking.CONSUMED_SHIFT;
+            const consumed = unpackConsumed(packed);
             if (consumed === 0) {
                 offset = input.indexOf("&", start);
             } else {
                 if (last !== offset) {
                     result += input.slice(last, offset);
                 }
-                result += numericValue(packed & NumericPacking.CODE_POINT_MASK);
+                result += codePointToString(
+                    packed & NumericPacking.CODE_POINT_MASK,
+                );
                 last = offset + consumed;
                 offset = nextOffset(input, last);
             }
@@ -832,6 +841,10 @@ export interface EntityErrorProducer {
     absenceOfDigitsInNumericCharacterReference(
         consumedCharacters: number,
     ): void;
+    /**
+     * Validate the accumulated numeric value, before Unicode replacement.
+     * Values beyond the JavaScript number range are positive infinity.
+     */
     validateNumericCharacterReference(code: number): void;
 }
 
