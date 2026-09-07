@@ -18,12 +18,12 @@ them scans the name character by character; each section below is the
 reference detail for one step.
 
 1. **Class table → candidate _lengths_.** The two characters after the `&`
-   (`u`, `u`) index a plain 1024-entry array, `lengthBits` — a direct array
-   index, *not* a hash. The word found there is a bitset of every name
-   _length_ that any `uu…` entity could have (here, just length 4), plus a
-   flag for names longer than 16 and a second bitset of legacy lengths. A
-   prefix with no entities lands on a zero word and is rejected without
-   reading any further.
+   (`u`, `u`) are hashed by `pairIndex` into a 1024-entry array, `lengthBits`,
+   requiring a single table read with no probing. The word found there lists
+   candidate name _lengths_ for all prefixes sharing that class, plus a flag
+   for names longer than 16 and a second bitset of legacy lengths. A zero
+   word rejects the input without reading any further; hash collisions may
+   add candidates that the next step rejects.
 
 2. **Probe + key table → the matching _slot_.** For each candidate length L,
    shortest first, the decoder checks a single character: is `input[start +
