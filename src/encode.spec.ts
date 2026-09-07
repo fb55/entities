@@ -2,11 +2,22 @@ import { describe, expect, it } from "vitest";
 import { INLINE_SCAN_WINDOW } from "./encode.js";
 import * as entities from "./index.js";
 
+describe("named entity aliases", () => {
+    it.each([
+        ["ℵ", "&alefsym;"],
+        ["≌", "&backcong;"],
+        ["∖", "&Backslash;"],
+    ])("encodes %s using %s", (input, expected) => {
+        expect(entities.encodeHTML(input)).toBe(expected);
+        expect(entities.encodeNonAsciiHTML(input)).toBe(expected);
+    });
+});
+
 describe("Encode->decode test", () => {
     const testcases = [
         {
             input: "asdf & ÿ ü '",
-            xml: "asdf &amp; &#255; &#252; &apos;",
+            xml: "asdf &amp; &#xff; &#xfc; &apos;",
             html: "asdf &amp; &yuml; &uuml; &apos;",
         },
         {
@@ -17,30 +28,35 @@ describe("Encode->decode test", () => {
     ];
 
     it.each(testcases)("should XML encode $input", ({ input, xml }) =>
-        expect(entities.encodeXML(input)).toBe(xml));
-    it.each(testcases)("should default to XML encode $input", ({
-        input,
-        xml,
-    }) => expect(entities.encode(input)).toBe(xml));
+        expect(entities.encodeXML(input)).toBe(xml),
+    );
+    it.each(testcases)(
+        "should default to XML encode $input",
+        ({ input, xml }) => expect(entities.encode(input)).toBe(xml),
+    );
     it.each(testcases)("should XML decode $xml", ({ input, xml }) =>
-        expect(entities.decodeXML(xml)).toBe(input));
+        expect(entities.decodeXML(xml)).toBe(input),
+    );
     it.each(testcases)("should default to XML decode $xml", ({ input, xml }) =>
-        expect(entities.decode(xml)).toBe(input));
-    it.each(testcases)("should default strict to XML decode $xml", ({
-        input,
-        xml,
-    }) =>
-        expect(
-            entities.decode(xml, { mode: entities.DecodingMode.Strict }),
-        ).toBe(input));
+        expect(entities.decode(xml)).toBe(input),
+    );
+    it.each(testcases)(
+        "should default strict to XML decode $xml",
+        ({ input, xml }) =>
+            expect(
+                entities.decode(xml, { mode: entities.DecodingMode.Strict }),
+            ).toBe(input),
+    );
     it.each(testcases)("should HTML encode $input", ({ input, html }) =>
-        expect(entities.encodeHTML(input)).toBe(html));
+        expect(entities.encodeHTML(input)).toBe(html),
+    );
     it.each(testcases)("should HTML decode $html", ({ input, html }) =>
-        expect(entities.decodeHTML(html)).toBe(input));
+        expect(entities.decodeHTML(html)).toBe(input),
+    );
 
     it("should encode emojis", () =>
         expect(entities.encodeHTML("😄🍾🥳💥😇")).toBe(
-            "&#128516;&#127870;&#129395;&#128165;&#128519;",
+            "&#x1f604;&#x1f37e;&#x1f973;&#x1f4a5;&#x1f607;",
         ));
 
     it("should encode data URIs (issue #16)", () => {
@@ -59,10 +75,10 @@ describe("Encode->decode test", () => {
     });
 
     it("should encode trailing parts of entities", () =>
-        expect(entities.encodeHTML("\u{D835}")).toBe("&#55349;"));
+        expect(entities.encodeHTML("\u{D835}")).toBe("&#xd835;"));
 
     it("should encode surrogate pair with first surrogate equivalent of entity, without corresponding entity", () =>
-        expect(entities.encodeHTML("\u{1D4A4}")).toBe("&#119972;"));
+        expect(entities.encodeHTML("\u{1D4A4}")).toBe("&#x1d4a4;"));
 });
 
 describe("multi-code-point entities with ASCII starters", () => {
@@ -82,7 +98,7 @@ describe("multi-code-point entities with ASCII starters", () => {
         expect(entities.encodeHTML(">")).toBe("&gt;"));
 
     it("should encode < followed by unrelated char as &lt; + numeric", () =>
-        expect(entities.encodeHTML("<\u{20D3}")).toBe("&lt;&#8403;"));
+        expect(entities.encodeHTML("<\u{20D3}")).toBe("&lt;&#x20d3;"));
 });
 
 describe("encodeNonAsciiHTML", () => {
@@ -93,12 +109,12 @@ describe("encodeNonAsciiHTML", () => {
 
     it("should encode emojis", () =>
         expect(entities.encodeNonAsciiHTML("😄🍾🥳💥😇")).toBe(
-            "&#128516;&#127870;&#129395;&#128165;&#128519;",
+            "&#x1f604;&#x1f37e;&#x1f973;&#x1f4a5;&#x1f607;",
         ));
 
     it("should encode chars above surrogates", () =>
         expect(entities.encodeNonAsciiHTML("♒️♓️♈️♉️♊️♋️♌️♍️♎️♏️♐️♑️")).toBe(
-            "&#9810;&#65039;&#9811;&#65039;&#9800;&#65039;&#9801;&#65039;&#9802;&#65039;&#9803;&#65039;&#9804;&#65039;&#9805;&#65039;&#9806;&#65039;&#9807;&#65039;&#9808;&#65039;&#9809;&#65039;",
+            "&#x2652;&#xfe0f;&#x2653;&#xfe0f;&#x2648;&#xfe0f;&#x2649;&#xfe0f;&#x264a;&#xfe0f;&#x264b;&#xfe0f;&#x264c;&#xfe0f;&#x264d;&#xfe0f;&#x264e;&#xfe0f;&#x264f;&#xfe0f;&#x2650;&#xfe0f;&#x2651;&#xfe0f;",
         ));
 });
 
@@ -118,14 +134,17 @@ describe("scan-path consistency (regex jump vs inline scan)", () => {
     it.each([
         ["encodeHTML", entities.encodeHTML],
         ["encodeNonAsciiHTML", entities.encodeNonAsciiHTML],
-    ])("%s: regex-jump path matches inline path for all code units", (_, encoder) => {
-        const mismatches: number[] = [];
-        for (let code = 0; code <= 0xff_ff; code++) {
-            const ch = String.fromCharCode(code);
-            const inline = encoder(ch);
-            const viaRegex = encoder(prefix + ch).slice(prefix.length);
-            if (viaRegex !== inline) mismatches.push(code);
-        }
-        expect(mismatches).toStrictEqual([]);
-    });
+    ])(
+        "%s: regex-jump path matches inline path for all code units",
+        (_, encoder) => {
+            const mismatches: number[] = [];
+            for (let code = 0; code <= 0xff_ff; code++) {
+                const ch = String.fromCharCode(code);
+                const inline = encoder(ch);
+                const viaRegex = encoder(prefix + ch).slice(prefix.length);
+                if (viaRegex !== inline) mismatches.push(code);
+            }
+            expect(mismatches).toStrictEqual([]);
+        },
+    );
 });

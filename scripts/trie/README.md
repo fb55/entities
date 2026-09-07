@@ -1,150 +1,125 @@
-# Named entity array-mapped trie generator
+# Named entity trie generator
 
-In `v3.0.0`, `entities` adopted a version of the radix tree from
-[`parse5`](https://github.com/inikulin/parse5). The below is adapted from
-@inikulin's explanation of this structure.
+The generator stores entity names and their decoded values in a flat
+`Uint16Array`. Shared subtrees, compact character runs, and inline values keep
+this representation small. The HTML array is serialized with a dictionary
+encoding; the XML array is emitted directly.
 
-Prior to `parse5@3.0.0`, the library used simple pre-generated
-[trie data structure](https://en.wikipedia.org/wiki/Trie) for
-[named character references](https://html.spec.whatwg.org/multipage/syntax.html#named-character-references)
-in the tokenizer. This approach suffered from huge constant memory consumption:
-the in-memory size of the structure was ~8.5Mb. This new approach reduces the
-size of the character reference data to ~250Kb, at equivalent performance.
+## Generation and decoding
 
-## Radix tree
+- [trie.ts](trie.ts) builds the name trie and merges identical subtrees.
+- [encode-trie.ts](encode-trie.ts) writes the binary node format described below.
+- [encode-dict.ts](encode-dict.ts) serializes the HTML array using base-91 slot codes and
+  byte-pair encoding (BPE).
+- [write-decode-map.ts](../write-decode-map.ts) writes both generated modules
+  in [src/generated](../../src/generated).
+- [decode-shared.ts](../../src/internal/decode-shared.ts) expands the HTML
+  dictionary at import time.
+- [decode.ts](../../src/decode.ts) traverses the array for HTML decoding and
+  streaming decoding.
+  The synchronous XML decoder matches the five XML names directly.
 
-All entities are encoded as a trie, which contains _nodes_. Nodes contain data
-and branches.
+Run `npm run build:trie` to regenerate the modules. Tests check the generated
+maps, runtime decoders, and dictionary round trips.
 
-E.g. for the words `test`, `tester` and `testing`, we'll receive the following
-trie:
+## Node layout
 
-Legend: `[a, ...]` - node, `*` - data.
+Each node starts with a 16-bit header. Values use UTF-16 code units, so an
+astral code point occupies two value words. Entity values occupy at most two
+code units.
 
-```
-              [t]
-               |
-              [e]
-               |
-              [s]
-               |
-              [t]
-               |
-           [e, i, *]
-           /   |
-         [r]  [n]
-          |    |
-         [*]  [g]
-               |
-              [*]
-```
+| Bits | Meaning |
+| --- | --- |
+| 15..14 | Encoded value length |
+| 13 | Semicolon required on a value node; compact run on a node without a value |
+| 12..7 | Branch count, jump-table span, or compact-run length |
+| 6..0 | Jump-table offset, single-branch character, or first run character |
 
-## Mapping the trie to an array
+An inline value uses bits 12..0 in place of branch metadata. The masks are
+also defined in [bin-trie-flags.ts](../../src/internal/bin-trie-flags.ts).
 
-If we had to allocate an object for each node, the trie would consume a lot of
-memory (the aforementioned ~8.5Mb). Therefore, we map our trie to an array, so
-we'll end up with just a single object. Since we don't have indices and code
-points which are more than `MAX_UINT16` (which is `0xFFFF`), we can use a
-`Uint16Array` for this.
+### Values and semicolons
 
-The only exception here are
-[surrogate pairs](https://en.wikipedia.org/wiki/UTF-16#U.2B10000_to_U.2B10FFFF),
-which appear in named character reference results. They can be split across two
-`uint16` code points. The advantage of typed arrays is that they consume less
-memory and are extremely fast to traverse.
+The encoded value length selects one of four layouts:
 
-### Node layout
+- `0`: No value. Branch data or a compact run follows the header.
+- `1`: One code unit, at most `0x1fff`, stored in bits 12..0 of the header.
+  This node has no branches.
+- `2`: One code unit stored in the next word.
+- `3`: Two code units stored in the next two words.
 
-Nodes are stored in a single `Uint16Array`. Every node begins with one 16‑bit
-header word. The current bit layout is:
+Single code units that exceed the inline mask, or whose nodes have branches,
+use encoded length `2`. Bit 12 belongs to the inline value; bit 13 is reserved
+for the semicolon flag.
 
-```
-15..14  value length field (see below; encoded length, not raw character count)
-13      dual‑use flag:
-                    - if valueLength > 0: semicolon-required flag (no explicit ';' branch stored)
-                    - if valueLength == 0: compact run flag (see “Compact runs”)
-12..7   branch length / span (meaning depends on encoding mode; see “Branch data”)
-6..0    jump table offset OR first character (single branch / run) OR part of packed info
-```
-
-#### Value length encoding
-
-Only up to two UTF-16 code units are ever stored out‑of‑line (HTML named
-character reference values are at most two code points / surrogate halves here).
-The 2‑bit value length field is an encoded length using a “+1” scheme:
-
-- 0 – No value is present on this node.
-- 1 – Single code unit value inlined in the lower 14 bits (bits 13..0). Bits 13
-  and 12 are masked out during decode so the inline character must not have its
-  13th bit set (the encoder rejects such code points for inlining).
-- 2 – One code unit value stored in the next array element.
-- 3 – Two code unit value stored in the next two array elements.
-
-If the (raw) value is just one code unit and it cannot be safely inlined (e.g.
-it would collide with flag bits, the node also has branches, or the code unit
-needs more than 14 bits), the encoder stores it out‑of‑line, choosing encoded
-length 2.
-
-#### Semicolon handling
-
-HTML has “strict” entities that require a trailing semicolon and “legacy” ones
-for which it is optional. For strict entities we do not emit an explicit `';'`
-child node; instead we set the semicolon-required flag (bit 13 with
-`valueLength > 0`). During decode the unsuffixed key is replaced with only the
-suffixed variant.
-
-Legacy entities that allow the omission of the semicolon are represented as two
-separate nodes: one without the semicolon and one reached via an explicit `';'`
-branch. These never set the semicolon-required flag.
+All names store their value on the terminal node, with no explicit `;` child.
+Bit 13 is set for names that require a semicolon and clear for legacy names
+that permit its omission. Both accept a following semicolon. Strict decoding
+requires it for every name; attribute decoding additionally checks the
+character following an unterminated legacy match.
 
 ### Compact runs
 
-When a node has no value (`valueLength == 0`) and there is a linear chain of at
-least three single‑child nodes leading to a terminal (value) or branching node,
-the encoder may collapse this path into a “compact run” to save space and
-pointer chasing. This is indicated by bit 13 (run flag) being set while the
-value length field is 0.
+A node without a value can collapse a chain of 3–63 single-child edges into a
+compact run. The target must have a value or multiple branches and must not
+already be encoded, because it follows the run directly.
 
-- Bits 12..7 store the run length (6 bits, 1–63). The run length counts the
-  number of characters in the collapsed path.
-- Bits 6..0 store the first character.
-- The remaining (runLength - 1) characters are stored packed two per `uint16`
-  word (low byte / high byte) immediately after the header. After the packed
-  characters the final node (the child that owned a value or branches) is
-  encoded in normal form.
+- Bit 13 marks the run; bits 12..7 store its character count.
+- Bits 6..0 store its first character.
+- The remaining characters are packed two per word, low byte first.
+- The target node starts after the header and `runLength >> 1` packed words.
 
-If a potential run would end in a node whose value also appears via a legacy
-semicolon branch, the encoder rejects the run to preserve semantics.
+The streaming decoder retains the number of matched run characters across
+writes. Runs longer than 63 characters fall back to normal branch encoding.
 
 ### Branch data
 
-If a node has branch data (number of branches > 0 or jump table offset ≠ 0),
-that branch data immediately follows the node header (or the packed path in the
-case of a standard compact run).
+Branch data follows the header and any out-of-line value words. Entity names
+use ASCII character keys. There are three branch layouts:
 
-Branches can be represented in three different ways:
+1. **Single branch:** For an uncached child, bits 6..0 store its character
+   and bits 12..7 are zero. The child follows directly.
+2. **Jump table:** Bits 6..0 store the first covered character, and bits
+   12..7 store the span (`maxKey - minKey + 1`, at most 63). One word per
+   covered character follows. A zero slot means no branch; other slots store
+   the child's offset from the end of the table, plus one.
+3. **Dictionary:** Bits 6..0 are zero, and bits 12..7 store the branch count.
+   Sorted keys occupy `ceil(branchCount / 2)` words, packed low byte first.
+   Then `branchCount` words store child offsets from the end of the branch
+   data, with no added sentinel offset. The decoder scans the sorted keys.
 
-1. Single branch inlined: If there is exactly one child and that child node has
-   not been encoded elsewhere, the encoder sets the branch length bits to 0 and
-   writes the child character code into bits 6..0. The child node header follows
-   immediately. (If bits 6..0 are also 0 this would be ambiguous, so a single
-   branch with char code 0 falls back to another form.)
-2. Jump table: When branch keys form a relatively dense range, a jump table is
-   used. Bits 6..0 store the offset (minimum key); bits 12..7 store the span
-   length (maxKey - minKey + 1). A table of that many `uint16` slots follows.
-   Each slot stores destinationIndex+1 (so 0 means “no branch”).
-3. Dictionary (sparse): For sparse / far‑apart keys we store:
-    - Packed key array: `(branchCount + 1) >> 1` words, each containing two
-      8‑bit sorted keys (low byte even index, high byte odd index).
-    - Destination array: `branchCount` words, each a raw destination index. The
-      branch length bits store the number of branches; the offset (bits 6..0) is
-      0 to distinguish from jump table form.
+The generator allows a jump table when its span is at most four times its
+branch count. This budget applies uniformly to both maps. The HTML root must
+be a jump table with multiple branches, no value, and no compact run; the
+synchronous decoder relies on that shape, and the generator asserts it.
 
-In both jump table and dictionary modes, recursive / duplicated subtrees are
-deduplicated via node caching so repeated branches point to the same encoded
-node index.
+Children are encoded in increasing estimated subtree size, while pointers
+occupy key-ordered slots. This keeps forward offsets small. Shared children
+reuse their encoded node index. Backward offsets wrap modulo 65536, and
+readers mask reconstructed indices with `& 0xffff`. The encoder limits the
+array to 65536 words so every node index is representable.
 
-The original `parse5` implementation used a radix tree, with dictionary packing
-and a variation of the single‑branch optimisation. The `entities` adaptation
-adds semicolon handling, compact runs, inlining rules and a more compact header
-bit layout while still decoding to the same logical mapping.
+## Dictionary serialization
+
+Distinct array values are atoms. BPE merges frequent token pairs into ngrams,
+with each ngram referencing two atoms or ngrams available at decode time.
+Frequent atoms and promoted ngrams receive one-character codes; other tokens
+receive two-character codes. Atom values are sorted within each dictionary
+and serialized using deltas and run-length encoding.
+
+The serialized streams contain, in order:
+
+1. One-character-code atoms.
+2. Two-character-code atoms.
+3. Two-character-code ngrams.
+4. One-character-code ngrams.
+5. The trie data as slot codes.
+
+Ngram references must point to entries filled by preceding streams or earlier
+entries within their stream. The runtime decoder expands them into a shared
+pool before writing the trie array.
+
+The encoder searches one-character dictionary sizes from 45 through 75 and
+selects the shortest serialized string. BPE is capped at 25 merges to limit
+dictionary size and retain repeated patterns for transport compression. The
+base-91 alphabet is printable ASCII excluding `"`, `$`, and `\`.

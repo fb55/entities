@@ -1,23 +1,33 @@
-const xmlCodeMap = new Map([
-    [34, "&quot;"],
-    [38, "&amp;"],
-    [39, "&apos;"],
-    [60, "&lt;"],
-    [62, "&gt;"],
-]);
+/**
+ * Get the named reference for an XML special character or U+00A0.
+ * @param char Code unit matched by one of the escape regexes.
+ */
+function getEscape(char: number): string {
+    return char === 34
+        ? "&quot;"
+        : char === 38
+          ? "&amp;"
+          : char === 39
+            ? "&apos;"
+            : char === 60
+              ? "&lt;"
+              : char === 62
+                ? "&gt;"
+                : "&nbsp;";
+}
 
 /**
  * Read a code point at a given index.
  * @param input String to read the code point from.
  * @param index Current read position in the input string.
- * @returns The code point at `index`, or `NaN` if `index` is out of range.
+ * @returns The code point at `index`, or `undefined` if `index` is out of range.
  * @deprecated Use `String.prototype.codePointAt` directly instead; this export
  *   will be removed in the next major.
  */
 export const getCodePoint: (input: string, index: number) => number = (
     input: string,
     index: number,
-): number => input.codePointAt(index) ?? Number.NaN;
+): number => input.codePointAt(index)!;
 
 /**
  * Bitset for ASCII characters that need to be escaped in XML.
@@ -52,8 +62,8 @@ function isXmlEscapable(code: number): boolean {
  * Encodes all non-ASCII characters, as well as characters not valid in XML
  * documents using XML entities.
  *
- * If a character has no equivalent entity, a numeric decimal reference
- * (eg. `&#252;`) will be used.
+ * If a character has no equivalent entity, a numeric hexadecimal reference
+ * (eg. `&#xfc;`) will be used.
  * @param input Input string to encode.
  */
 export function encodeXML(input: string): string {
@@ -82,9 +92,8 @@ export function encodeXML(input: string): string {
             }
             if (next >= length) break;
             xmlEncodeRegex.lastIndex = next;
-            const match = xmlEncodeRegex.exec(input);
-            if (match === null) break;
-            ({ index } = match);
+            if (!xmlEncodeRegex.test(input)) break;
+            index = xmlEncodeRegex.lastIndex - 1;
             continue;
         }
 
@@ -93,14 +102,14 @@ export function encodeXML(input: string): string {
 
         if (char < 64) {
             // Known replacement
-            out += xmlCodeMap.get(char)!;
+            out += getEscape(char);
             last = index += 1;
             continue;
         }
 
         // Non-ASCII: encode as numeric entity (handle surrogate pair)
         const cp = input.codePointAt(index)!;
-        out += `&#${cp};`;
+        out += `&#x${cp.toString(16)};`;
         if (cp !== char) index++; // Skip trailing surrogate
         last = index += 1;
     }
@@ -112,7 +121,7 @@ export function encodeXML(input: string): string {
 
 /**
  * Encodes all non-ASCII characters, as well as characters not valid in XML
- * documents using numeric decimal reference (eg. `&#252;`).
+ * documents using numeric hexadecimal reference (eg. `&#xfc;`).
  *
  * Have a look at `escapeUTF8` if you want a more concise output at the expense
  * of reduced transportability.
@@ -122,36 +131,24 @@ export const escape: typeof encodeXML = encodeXML;
 
 /**
  * Escape `data` using `re`, mapping each matched character to its entity.
+ * Every match is one UTF-16 code unit, so its index is `lastIndex - 1`.
  * @param re Global regex matching exactly the characters to escape
  *   (`"`, `&`, `'`, `<`, `>`, `\u00A0` at most).
  * @param data String to escape.
  */
 function escapeWithRegex(re: RegExp, data: string): string {
     re.lastIndex = 0;
-    let match = re.exec(data);
-    if (match === null) return data;
+    if (!re.test(data)) return data;
 
     let out = "";
     let last = 0;
     do {
-        const { index } = match;
+        const index = re.lastIndex - 1;
         if (last !== index) out += data.substring(last, index);
         const char = data.charCodeAt(index);
-        out +=
-            char === 34
-                ? "&quot;"
-                : char === 38
-                  ? "&amp;"
-                  : char === 39
-                    ? "&apos;"
-                    : char === 60
-                      ? "&lt;"
-                      : char === 62
-                        ? "&gt;"
-                        : "&nbsp;";
+        out += getEscape(char);
         last = index + 1;
-        match = re.exec(data);
-    } while (match !== null);
+    } while (re.test(data));
 
     return out + data.substring(last);
 }
