@@ -322,4 +322,21 @@ describe("EntityDecoder Streaming", () => {
             expect(accepting.callback).toHaveBeenCalledWith(0xc1, 7);
         });
     });
+    it("should not remap C1 numeric references when using the XML tree", () => {
+        const callback = vi.fn();
+        const decoder = new EntityDecoder(xmlDecodeTree, callback);
+
+        decoder.startEntity(DecodingMode.Strict);
+        expect(decoder.write("#x80;", 0)).toBe(6);
+        expect(callback).toHaveBeenCalledWith(0x80, 6);
+    });
+
+    it("should remap C1 numeric references when using the HTML tree", () => {
+        const callback = vi.fn();
+        const decoder = new EntityDecoder(htmlDecodeTree, callback);
+
+        decoder.startEntity(DecodingMode.Strict);
+        expect(decoder.write("#x80;", 0)).toBe(6);
+        expect(callback).toHaveBeenCalledWith(0x20_ac, 6);
+    });
 });
