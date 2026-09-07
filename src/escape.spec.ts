@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { getCodePoint } from "./escape.js";
 import * as entities from "./index.js";
 
 describe("escape HTML", () => {
@@ -12,28 +11,6 @@ describe("escape HTML", () => {
         expect(entities.escapeText('<a " text > & value \u{A0}!')).toBe(
             '&lt;a " text &gt; &amp; value &nbsp;!',
         ));
-});
-
-describe("getCodePoint", () => {
-    it("should be exported as a function", () =>
-        expect(typeof getCodePoint).toBe("function"));
-
-    it("should read BMP code points", () => {
-        expect(getCodePoint("abc", 0)).toBe(97);
-        expect(getCodePoint("abc", 2)).toBe(99);
-        expect(getCodePoint("ü", 0)).toBe(0xfc);
-    });
-
-    it("should read astral code points from surrogate pairs", () => {
-        expect(getCodePoint("💯", 0)).toBe(128_175);
-        expect(getCodePoint("a\u{1F4A9}", 1)).toBe(0x1_f4_a9);
-    });
-
-    it("should return undefined for out-of-range indices", () => {
-        expect(getCodePoint("abc", 3)).toBeUndefined();
-        expect(getCodePoint("abc", -1)).toBeUndefined();
-        expect(getCodePoint("", 0)).toBeUndefined();
-    });
 });
 
 describe("encodeXML scan", () => {
@@ -59,16 +36,16 @@ describe("encodeXML scan", () => {
         expect(entities.encodeXML(`${span}&${span}`)).toBe(
             `${span}&amp;${span}`,
         );
-        expect(entities.encodeXML(`${span}ü`)).toBe(`${span}&#xfc;`);
+        expect(entities.encodeXML(`${span}ü`)).toBe(`${span}&#252;`);
     });
 
     it("should encode surrogate pairs, including via the regex fallback", () => {
         // The trailing surrogate is skipped; the code point comes from the pair.
-        expect(entities.encodeXML("x😀x")).toBe("x&#x1f600;x");
-        expect(entities.encodeXML("😀🐊")).toBe("&#x1f600;&#x1f40a;");
+        expect(entities.encodeXML("x😀x")).toBe("x&#128512;x");
+        expect(entities.encodeXML("😀🐊")).toBe("&#128512;&#128010;");
         // Pair located by the regex (after a clean span past the window).
         const span = "a".repeat(40);
-        expect(entities.encodeXML(`${span}😀`)).toBe(`${span}&#x1f600;`);
+        expect(entities.encodeXML(`${span}😀`)).toBe(`${span}&#128512;`);
     });
 
     it("should encode lone surrogates by code unit", () => {
@@ -76,12 +53,12 @@ describe("encodeXML scan", () => {
          * The regex has no `u` flag, so unpaired surrogates match and encode
          * as their bare unit value (codePointAt returns the surrogate itself).
          */
-        expect(entities.encodeXML("a\u{D83D}b")).toBe("a&#xd83d;b");
-        expect(entities.encodeXML("a\u{DE00}b")).toBe("a&#xde00;b");
+        expect(entities.encodeXML("a\u{D83D}b")).toBe("a&#55357;b");
+        expect(entities.encodeXML("a\u{DE00}b")).toBe("a&#56832;b");
         const prefix = "a".repeat(40);
         const loneSurrogate = String.fromCharCode(0xd8_3d);
         expect(entities.encodeXML(`${prefix}${loneSurrogate}`)).toBe(
-            `${prefix}&#xd83d;`,
+            `${prefix}&#55357;`,
         );
     });
 

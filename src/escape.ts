@@ -17,19 +17,6 @@ function getEscape(char: number): string {
 }
 
 /**
- * Read a code point at a given index.
- * @param input String to read the code point from.
- * @param index Current read position in the input string.
- * @returns The code point at `index`, or `undefined` if `index` is out of range.
- * @deprecated Use `String.prototype.codePointAt` directly instead; this export
- *   will be removed in the next major.
- */
-export const getCodePoint: (input: string, index: number) => number = (
-    input: string,
-    index: number,
-): number => input.codePointAt(index)!;
-
-/**
  * Bitset for ASCII characters that need to be escaped in XML.
  */
 export const XML_BITSET_VALUE = 0x50_00_00_c4; // 32..63 -> 34 ("),38 (&),39 ('),60 (<),62 (>)
@@ -62,8 +49,8 @@ function isXmlEscapable(code: number): boolean {
  * Encodes all non-ASCII characters, as well as characters not valid in XML
  * documents using XML entities.
  *
- * If a character has no equivalent entity, a numeric hexadecimal reference
- * (eg. `&#xfc;`) will be used.
+ * If a character has no equivalent entity, a numeric decimal reference
+ * (eg. `&#252;`) will be used.
  * @param input Input string to encode.
  */
 export function encodeXML(input: string): string {
@@ -109,7 +96,7 @@ export function encodeXML(input: string): string {
 
         // Non-ASCII: encode as numeric entity (handle surrogate pair)
         const cp = input.codePointAt(index)!;
-        out += `&#x${cp.toString(16)};`;
+        out += `&#${cp};`;
         if (cp !== char) index++; // Skip trailing surrogate
         last = index += 1;
     }
@@ -121,7 +108,7 @@ export function encodeXML(input: string): string {
 
 /**
  * Encodes all non-ASCII characters, as well as characters not valid in XML
- * documents using numeric hexadecimal reference (eg. `&#xfc;`).
+ * documents using numeric decimal reference (eg. `&#252;`).
  *
  * Have a look at `escapeUTF8` if you want a more concise output at the expense
  * of reduced transportability.
