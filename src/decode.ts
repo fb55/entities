@@ -155,6 +155,7 @@ export class EntityDecoder {
 
     constructor(
         /** The tree used to decode entities. */
+        // biome-ignore lint/correctness/noUnusedPrivateClassMembers: False positive (read via destructuring)
         private readonly decodeTree: Uint16Array,
         /**
          * The function that is called when a codepoint is decoded.
@@ -168,6 +169,17 @@ export class EntityDecoder {
         private readonly emitCodePoint: (cp: number, consumed: number) => void,
         /** An object that is used to produce errors. */
         private readonly errors?: EntityErrorProducer | undefined,
+        /**
+         * Converts numeric reference values to code points. Defaults to XML
+         * replacement for XML tree data, including copies, and HTML otherwise.
+         * Pass a replacement function explicitly for custom trees.
+         */
+        private readonly replaceNumericCodePoint: typeof replaceCodePoint = decodeTree ===
+            xmlDecodeTree ||
+        (decodeTree.length === xmlDecodeTree.length &&
+            decodeTree.every((value, index) => value === xmlDecodeTree[index]))
+            ? replaceCodePointXML
+            : replaceCodePoint,
     ) {}
 
     /**
@@ -346,9 +358,7 @@ export class EntityDecoder {
         }
 
         this.emitCodePoint(
-            (this.decodeTree === xmlDecodeTree
-                ? replaceCodePointXML
-                : replaceCodePoint)(this.result),
+            this.replaceNumericCodePoint(this.result),
             this.consumed,
         );
 

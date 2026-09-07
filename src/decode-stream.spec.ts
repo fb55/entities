@@ -6,6 +6,8 @@ import {
     decodeHTML,
     decodeXML,
     EntityDecoder,
+    replaceCodePoint,
+    replaceCodePointXML,
 } from "./decode.js";
 import { htmlDecodeTree } from "./generated/decode-data-html.js";
 import { xmlDecodeTree } from "./generated/decode-data-xml.js";
@@ -322,13 +324,45 @@ describe("EntityDecoder Streaming", () => {
             expect(accepting.callback).toHaveBeenCalledWith(0xc1, 7);
         });
     });
-    it("should not remap C1 numeric references when using the XML tree", () => {
-        const callback = vi.fn();
-        const decoder = new EntityDecoder(xmlDecodeTree, callback);
+    it.each([
+        ["original", xmlDecodeTree],
+        ["copied", new Uint16Array(xmlDecodeTree)],
+    ] as const)(
+        "should preserve XML numeric references with the %s tree",
+        (_, tree) => {
+            for (const chunkSize of [Number.MAX_SAFE_INTEGER, 1]) {
+                for (const input of ["&#x80;", "&#128;"]) {
+                    expect(streamEntity(tree, input, chunkSize)).toEqual({
+                        output: "\u{80}",
+                        consumed: input.length,
+                    });
+                }
+            }
+        },
+    );
 
-        decoder.startEntity(DecodingMode.Strict);
+    it("should use an explicit numeric replacement function for custom trees", () => {
+        const callback = vi.fn();
+        const decoder = new EntityDecoder(
+            new Uint16Array(),
+            callback,
+            undefined,
+            replaceCodePointXML,
+        );
         expect(decoder.write("#x80;", 0)).toBe(6);
         expect(callback).toHaveBeenCalledWith(0x80, 6);
+    });
+
+    it("should allow HTML numeric replacement with XML named entities", () => {
+        const callback = vi.fn();
+        const decoder = new EntityDecoder(
+            xmlDecodeTree,
+            callback,
+            undefined,
+            replaceCodePoint,
+        );
+        expect(decoder.write("#x80;", 0)).toBe(6);
+        expect(callback).toHaveBeenCalledWith(0x20_ac, 6);
     });
 
     it("should remap C1 numeric references when using the HTML tree", () => {
