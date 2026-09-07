@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { getCodePoint } from "./escape.js";
 import * as entities from "./index.js";
 
 describe("escape HTML", () => {
@@ -12,27 +11,6 @@ describe("escape HTML", () => {
         expect(entities.escapeText('<a " text > & value \u{A0}!')).toBe(
             '&lt;a " text &gt; &amp; value &nbsp;!',
         ));
-});
-
-describe("getCodePoint", () => {
-    it("should be exported as a function", () =>
-        expect(typeof getCodePoint).toBe("function"));
-
-    it("should read BMP code points", () => {
-        expect(getCodePoint("abc", 0)).toBe(97);
-        expect(getCodePoint("abc", 2)).toBe(99);
-        expect(getCodePoint("ü", 0)).toBe(0xfc);
-    });
-
-    it("should read astral code points from surrogate pairs", () => {
-        expect(getCodePoint("💯", 0)).toBe(128_175);
-        expect(getCodePoint("a\u{1F4A9}", 1)).toBe(0x1_f4_a9);
-    });
-
-    it("should return NaN for out-of-range indices", () => {
-        expect(getCodePoint("abc", 3)).toBeNaN();
-        expect(getCodePoint("", 0)).toBeNaN();
-    });
 });
 
 describe("encodeXML scan", () => {
@@ -87,7 +65,7 @@ describe("encodeXML scan", () => {
     it("should not leak regex lastIndex between calls", () => {
         /*
          * `encodeXML` drives the module-level `xmlEncodeRegex` and sets its
-         * `lastIndex` before every `exec`. A stale value from a prior call
+         * `lastIndex` before every regex search. A stale value from a prior call
          * (here a longer input) must not make the next call's regex jump skip
          * past an earlier special. Ordered long-then-short so a leaked index
          * would land beyond the `&` and drop it.
@@ -99,7 +77,7 @@ describe("encodeXML scan", () => {
     });
 });
 
-describe("escape helpers (shared exec loop)", () => {
+describe("escape helpers", () => {
     it("should return the input unchanged when nothing matches", () => {
         /*
          * The match-free early return; the helpers are not otherwise
@@ -120,7 +98,7 @@ describe("escape helpers (shared exec loop)", () => {
     it("should reset regex state between repeated calls", () => {
         /*
          * The shared `/g` regexes are module-level. `escapeWithRegex` runs
-         * `exec` until it returns null (which resets `lastIndex` to 0), so
+         * `test` until it returns false (which resets `lastIndex` to 0), so
          * repeated calls stay correct; this pins that contract by calling each
          * helper twice — a match near the end, then one at the start. (The
          * riskier `encodeXML` path, which sets `lastIndex` manually and can

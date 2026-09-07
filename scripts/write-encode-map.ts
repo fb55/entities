@@ -56,6 +56,7 @@ function getTrie(map: Record<string, string>): Map<number, TrieNode> {
         // Set the value on the final code point.
         const lastCP = decoded.codePointAt(index)!;
         const value = lastMap.get(lastCP) ?? {};
+        // Use the shortest alias, preserving map order for equal-length names.
         if (!value.value || entity.length < value.value.length) {
             value.value = entity;
         }

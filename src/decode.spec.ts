@@ -92,304 +92,373 @@ const implementations: [string, DecoderImpl][] = [
     ["streaming (char-by-char)", makeStreamingImpl(1)],
 ];
 
-describe.each(implementations)("Decode test: %s", (_name, {
-    decodeHTML,
-    decodeHTMLStrict,
-    decodeHTMLAttribute,
-    decodeXML,
-}) => {
-    /*
-     * Cases where the XML and HTML decoders agree. Run through both
-     * `decodeXML` and `decodeHTML` so the two implementations cover the
-     * same inputs. Including `&lt;`, `&gt;`, `&quot;`, `&apos;` gives
-     * direct coverage of the XML entity set.
-     */
-    const sharedTestcases = [
-        { input: "&amp;amp;", output: "&amp;" },
-        { input: "&amp;#38;", output: "&#38;" },
-        { input: "&amp;#x26;", output: "&#x26;" },
-        { input: "&amp;#X26;", output: "&#X26;" },
-        { input: "&#38;#38;", output: "&#38;" },
-        { input: "&#x26;#38;", output: "&#38;" },
-        { input: "&#X26;#38;", output: "&#38;" },
-        { input: "&#x3a;", output: ":" },
-        { input: "&#x3A;", output: ":" },
-        { input: "&#X3a;", output: ":" },
-        { input: "&#X3A;", output: ":" },
-        { input: "&#", output: "&#" },
-        { input: "&>", output: "&>" },
-        { input: "id=770&#anchor", output: "id=770&#anchor" },
-        { input: "&lt;", output: "<" },
-        { input: "&gt;", output: ">" },
-        { input: "&quot;", output: '"' },
-        { input: "&apos;", output: "'" },
-    ];
-
-    it.each(sharedTestcases)("should XML decode $input", ({ input, output }) =>
-        expect(decodeXML(input)).toBe(output));
-    it.each(sharedTestcases)("should HTML decode $input", ({ input, output }) =>
-        expect(decodeHTML(input)).toBe(output));
-
-    it("should HTML decode partial legacy entity", () => {
-        expect(decodeHTMLStrict("&timesbar")).toBe("&timesbar");
-        expect(decodeHTML("&timesbar")).toBe("×bar");
-    });
-
-    it("should HTML decode legacy entities according to spec", () =>
-        expect(decodeHTML("?&image_uri=1&ℑ=2&image=3")).toBe(
-            "?&image_uri=1&ℑ=2&image=3",
-        ));
-
-    it("should back out of legacy entities", () =>
-        expect(decodeHTML("&ampa")).toBe("&a"));
-
-    it("should not parse numeric entities in strict mode", () =>
-        expect(decodeHTMLStrict("&#55")).toBe("&#55"));
-
-    describe("numeric entities without semicolons (legacy mode)", () => {
-        it("should decode decimal entity followed by non-digit", () =>
-            expect(decodeHTML("&#65x")).toBe("Ax"));
-
-        it("should decode hex entity followed by non-hex", () =>
-            expect(decodeHTML("&#x41x")).toBe("Ax"));
-
-        it("should decode decimal entity at end of input", () =>
-            expect(decodeHTML("&#65")).toBe("A"));
-
-        it("should reject decimal entity without semicolon in strict mode", () =>
-            expect(decodeHTMLStrict("&#65x")).toBe("&#65x"));
-
-        it("should reject decimal entity at end of input in strict mode", () =>
-            expect(decodeHTMLStrict("&#65")).toBe("&#65"));
-
-        it("should map numeric values past U+10FFFF to U+FFFD", () => {
-            /*
-             * Sanity: max valid Unicode value passes through, exactly past
-             * max (U+110000) maps to U+FFFD, and a large overflow that —
-             * before the codepoint clamp — would truncate to a valid-looking
-             * private-use char (U+100000) instead.
-             */
-            expect(decodeHTML("&#1114111;")).toBe("\u{10FFFF}");
-            expect(decodeHTML("&#1114112;")).toBe("�");
-            expect(decodeHTML("&#3145728;")).toBe("�");
-            expect(decodeHTML("&#x300000;")).toBe("�");
-        });
-    });
-
-    describe("overlong numeric entities (packed consumed-field overflow)", () => {
-        const digitCounts = [2045, 2046, 2047, 2048, 4096];
-        const bases: [string, string][] = [
-            ["decimal", ""],
-            ["hex", "x"],
+describe.each(implementations)(
+    "Decode test: %s",
+    (_name, {
+        decodeHTML,
+        decodeHTMLStrict,
+        decodeHTMLAttribute,
+        decodeXML,
+    }) => {
+        /*
+         * Cases where the XML and HTML decoders agree. Run through both
+         * `decodeXML` and `decodeHTML` so the two implementations cover the
+         * same inputs. Including `&lt;`, `&gt;`, `&quot;`, `&apos;` gives
+         * direct coverage of the XML entity set.
+         */
+        const sharedTestcases = [
+            { input: "&amp;amp;", output: "&amp;" },
+            { input: "&amp;#38;", output: "&#38;" },
+            { input: "&amp;#x26;", output: "&#x26;" },
+            { input: "&amp;#X26;", output: "&#X26;" },
+            { input: "&#38;#38;", output: "&#38;" },
+            { input: "&#x26;#38;", output: "&#38;" },
+            { input: "&#X26;#38;", output: "&#38;" },
+            { input: "&#x3a;", output: ":" },
+            { input: "&#x3A;", output: ":" },
+            { input: "&#X3a;", output: ":" },
+            { input: "&#X3A;", output: ":" },
+            { input: "&#", output: "&#" },
+            { input: "&>", output: "&>" },
+            { input: "id=770&#anchor", output: "id=770&#anchor" },
+            { input: "&lt;", output: "<" },
+            { input: "&gt;", output: ">" },
+            { input: "&quot;", output: '"' },
+            { input: "&apos;", output: "'" },
         ];
 
-        describe.each(bases)("%s", (_base, prefix) => {
-            it.each(
-                digitCounts,
-            )("should decode a %i-digit body with semicolon", (count) => {
-                const input = `&#${prefix}${"1".repeat(count)};X`;
-                expect(decodeHTML(input)).toBe("�X");
-                expect(decodeHTMLStrict(input)).toBe("�X");
-                expect(decodeHTMLAttribute(input)).toBe("�X");
-                expect(decodeXML(input)).toBe("�X");
-            });
-
-            it.each(
-                digitCounts,
-            )("should decode a %i-digit body without semicolon", (count) => {
-                const input = `&#${prefix}${"1".repeat(count)}X`;
-                expect(decodeHTML(input)).toBe("�X");
-                expect(decodeHTMLAttribute(input)).toBe("�X");
-                // Strict modes require the semicolon.
-                expect(decodeHTMLStrict(input)).toBe(input);
-                expect(decodeXML(input)).toBe(input);
-            });
-
-            it.each(
-                digitCounts,
-            )("should decode a %i-digit body at the end of input", (count) => {
-                const input = `&#${prefix}${"1".repeat(count)}`;
-                expect(decodeHTML(input)).toBe("�");
-                expect(decodeHTMLStrict(input)).toBe(input);
-            });
-        });
+        it.each(sharedTestcases)(
+            "should XML decode $input",
+            ({ input, output }) => expect(decodeXML(input)).toBe(output),
+        );
+        it.each(sharedTestcases)(
+            "should HTML decode $input",
+            ({ input, output }) => expect(decodeHTML(input)).toBe(output),
+        );
 
         it.each([
-            2046, 2047, 2048, 4095, 4096, 8192,
-        ])("should consume a zero-padded reference of length %i exactly", (length) => {
-            for (const [prefix, digits] of [
-                ["", "65"],
-                ["x", "41"],
-                ["X", "41"],
-            ]) {
-                const entity = `&#${prefix}${"0".repeat(length - prefix.length - digits.length - 3)}${digits};`;
-                const input = `before${entity}&#66;&amp;after`;
-                expect(decodeHTML(input)).toBe("beforeAB&after");
-                expect(decodeHTMLStrict(input)).toBe("beforeAB&after");
-                expect(decodeHTMLAttribute(input)).toBe("beforeAB&after");
-                expect(decodeXML(input)).toBe("beforeAB&after");
-                const unterminated = entity.slice(0, -1);
-                for (const suffix of ["", "X", "&amp;"]) {
-                    const input = unterminated + suffix;
-                    const tail = suffix === "&amp;" ? "&" : suffix;
-                    expect(decodeHTML(input)).toBe(`A${tail}`);
-                    expect(decodeHTMLAttribute(input)).toBe(`A${tail}`);
-                    expect(decodeHTMLStrict(input)).toBe(unterminated + tail);
-                    expect(decodeXML(input)).toBe(unterminated + tail);
+            ["&bad;&amp;&wrong;", "&bad;&&wrong;"],
+            ["&&&lt;&&", "&&<&&"],
+            ["&#x;&quot;&#65;tail&", '&#x;"Atail&'],
+            ["&amp&AMP;&apos;", "&amp&AMP;'"],
+            ["&bad;&wrong;&#x;", "&bad;&wrong;&#x;"],
+        ])(
+            "should preserve unrecognized XML references in %j",
+            (input, output) => {
+                expect(decodeXML(input)).toBe(output);
+            },
+        );
+
+        it("should HTML decode partial legacy entity", () => {
+            expect(decodeHTMLStrict("&timesbar")).toBe("&timesbar");
+            expect(decodeHTML("&timesbar")).toBe("×bar");
+        });
+
+        it("should HTML decode legacy entities according to spec", () =>
+            expect(decodeHTML("?&image_uri=1&ℑ=2&image=3")).toBe(
+                "?&image_uri=1&ℑ=2&image=3",
+            ));
+
+        it("should back out of legacy entities", () =>
+            expect(decodeHTML("&ampa")).toBe("&a"));
+
+        it("should not parse numeric entities in strict mode", () =>
+            expect(decodeHTMLStrict("&#55")).toBe("&#55"));
+
+        describe("numeric entities without semicolons (legacy mode)", () => {
+            it("should decode decimal entity followed by non-digit", () =>
+                expect(decodeHTML("&#65x")).toBe("Ax"));
+
+            it("should decode hex entity followed by non-hex", () =>
+                expect(decodeHTML("&#x41x")).toBe("Ax"));
+
+            it("should decode decimal entity at end of input", () =>
+                expect(decodeHTML("&#65")).toBe("A"));
+
+            it("should reject decimal entity without semicolon in strict mode", () =>
+                expect(decodeHTMLStrict("&#65x")).toBe("&#65x"));
+
+            it("should reject decimal entity at end of input in strict mode", () =>
+                expect(decodeHTMLStrict("&#65")).toBe("&#65"));
+
+            it("should map numeric values past U+10FFFF to U+FFFD", () => {
+                /*
+                 * Sanity: max valid Unicode value passes through, exactly past
+                 * max (U+110000) maps to U+FFFD, and a large overflow that —
+                 * before the codepoint clamp — would truncate to a valid-looking
+                 * private-use char (U+100000) instead.
+                 */
+                expect(decodeHTML("&#1114111;")).toBe("\u{10FFFF}");
+                expect(decodeHTML("&#1114112;")).toBe("�");
+                expect(decodeHTML("&#3145728;")).toBe("�");
+                expect(decodeHTML("&#x300000;")).toBe("�");
+            });
+        });
+
+        describe("overlong numeric entities (packed consumed-field overflow)", () => {
+            const digitCounts = [2045, 2046, 2047, 2048, 4096];
+            const bases: [string, string][] = [
+                ["decimal", ""],
+                ["hex", "x"],
+            ];
+
+            describe.each(bases)("%s", (_base, prefix) => {
+                it.each(digitCounts)(
+                    "should decode a %i-digit body with semicolon",
+                    (count) => {
+                        const input = `&#${prefix}${"1".repeat(count)};X`;
+                        expect(decodeHTML(input)).toBe("�X");
+                        expect(decodeHTMLStrict(input)).toBe("�X");
+                        expect(decodeHTMLAttribute(input)).toBe("�X");
+                        expect(decodeXML(input)).toBe("�X");
+                    },
+                );
+
+                it.each(digitCounts)(
+                    "should decode a %i-digit body without semicolon",
+                    (count) => {
+                        const input = `&#${prefix}${"1".repeat(count)}X`;
+                        expect(decodeHTML(input)).toBe("�X");
+                        expect(decodeHTMLAttribute(input)).toBe("�X");
+                        // Strict modes require the semicolon.
+                        expect(decodeHTMLStrict(input)).toBe(input);
+                        expect(decodeXML(input)).toBe(input);
+                    },
+                );
+
+                it.each(digitCounts)(
+                    "should decode a %i-digit body at the end of input",
+                    (count) => {
+                        const input = `&#${prefix}${"1".repeat(count)}`;
+                        expect(decodeHTML(input)).toBe("�");
+                        expect(decodeHTMLStrict(input)).toBe(input);
+                    },
+                );
+            });
+
+            it.each([2046, 2047, 2048, 4095, 4096, 8192])(
+                "should consume a zero-padded reference of length %i exactly",
+                (length) => {
+                    for (const [prefix, digits] of [
+                        ["", "65"],
+                        ["x", "41"],
+                        ["X", "41"],
+                    ]) {
+                        const entity = `&#${prefix}${"0".repeat(length - prefix.length - digits.length - 3)}${digits};`;
+                        const input = `before${entity}&#66;&amp;after`;
+                        expect(decodeHTML(input)).toBe("beforeAB&after");
+                        expect(decodeHTMLStrict(input)).toBe("beforeAB&after");
+                        expect(decodeHTMLAttribute(input)).toBe(
+                            "beforeAB&after",
+                        );
+                        expect(decodeXML(input)).toBe("beforeAB&after");
+                        const unterminated = entity.slice(0, -1);
+                        for (const suffix of ["", "X", "&amp;"]) {
+                            const input = unterminated + suffix;
+                            const tail = suffix === "&amp;" ? "&" : suffix;
+                            expect(decodeHTML(input)).toBe(`A${tail}`);
+                            expect(decodeHTMLAttribute(input)).toBe(`A${tail}`);
+                            expect(decodeHTMLStrict(input)).toBe(
+                                unterminated + tail,
+                            );
+                            expect(decodeXML(input)).toBe(unterminated + tail);
+                        }
+                    }
+                },
+            );
+
+            it("should handle consecutive long references with different lengths", () => {
+                const input = `&#${"0".repeat(4096)}65;&#x${"0".repeat(8192)}1f600;&#x;&#66;`;
+                for (const decode of [
+                    decodeHTML,
+                    decodeHTMLStrict,
+                    decodeHTMLAttribute,
+                    decodeXML,
+                ]) {
+                    expect(decode(input)).toBe("A😀&#x;B");
                 }
-            }
+            });
         });
 
-        it("should handle consecutive long references with different lengths", () => {
-            const input = `&#${"0".repeat(4096)}65;&#x${"0".repeat(8192)}1f600;&#x;&#66;`;
-            for (const decode of [
-                decodeHTML,
-                decodeHTMLStrict,
-                decodeHTMLAttribute,
-                decodeXML,
-            ]) {
-                expect(decode(input)).toBe("A😀&#x;B");
-            }
-        });
-    });
+        it("should parse &nbsp followed by < (#852)", () =>
+            expect(decodeHTML("&nbsp<")).toBe("\u{A0}<"));
 
-    it("should parse &nbsp followed by < (#852)", () =>
-        expect(decodeHTML("&nbsp<")).toBe("\u{A0}<"));
-
-    it("should decode trailing legacy entities", () => {
-        expect(decodeHTML("&timesbar;&timesbar")).toBe("⨱×bar");
-    });
-
-    it("should decode multi-byte entities", () => {
-        expect(decodeHTML("&NotGreaterFullEqual;")).toBe("≧̸");
-    });
-
-    describe("attribute mode", () => {
-        /*
-         * Inputs that should be left verbatim in attribute mode: an
-         * alphanumeric or `=` immediately after a legacy match rejects it,
-         * including when the name continues past the match and only fails
-         * to be a longer entity later (#2208).
-         */
-        const rejectCases = [
-            { input: "&notp" },
-            { input: "&notP" },
-            { input: "&not3" },
-            { input: "&noti" },
-            { input: "&not=" },
-            { input: "&notin\0;" },
-            { input: "&notin<" },
-            // Middle-character mismatch in a longer candidate name
-            { input: "&ltlaXr;" },
-            // Mismatch right after the legacy match
-            { input: "&ltlXarr;" },
-        ];
-
-        it.each(rejectCases)("should not decode $input", ({ input }) =>
-            expect(decodeHTMLAttribute(input)).toBe(input));
-
-        /*
-         * Accept cases:
-         *   - standalone legacy match (end of input)
-         *   - semicolon-terminated entities ignore the following char
-         *   - numeric entities are always accepted
-         *   - a legacy match (e.g. `amp`) followed by a char that isn't an
-         *     invalid attribute terminator — including the tricky shape
-         *     where the trailing char equals the entity's replacement
-         *     character, which must not extend the match.
-         */
-        const acceptCases = [
-            { input: "&not", output: "¬" },
-            { input: "&amp;x", output: "&x" },
-            { input: "&lt;x", output: "<x" },
-            { input: "&amp;=", output: "&=" },
-            { input: "&#65;x", output: "Ax" },
-            { input: "&#x41;x", output: "Ax" },
-            { input: "&#65x", output: "Ax" },
-            { input: "&#x41x", output: "Ax" },
-            { input: "&amp&", output: "&&" },
-            { input: "&amp&x", output: "&&x" },
-            { input: "&lt<", output: "<<" },
-            { input: "&gt>", output: ">>" },
-        ];
-
-        it.each(acceptCases)("should decode $input → $output", ({
-            input,
-            output,
-        }) => expect(decodeHTMLAttribute(input)).toBe(output));
-    });
-
-    describe("full entity maps (regression guard for data generation)", () => {
-        it("should decode every named entity from the WHATWG map", () => {
-            for (const [name, value] of Object.entries(entityMap)) {
-                expect(decodeHTML(`&${name};`)).toBe(value);
-                expect(decodeHTMLStrict(`&${name};`)).toBe(value);
-            }
+        it("should decode trailing legacy entities", () => {
+            expect(decodeHTML("&timesbar;&timesbar")).toBe("⨱×bar");
         });
 
-        it("should decode every XML entity", () => {
-            for (const [name, value] of Object.entries(xmlMap)) {
-                expect(decodeXML(`&${name};`)).toBe(value);
-            }
+        it("should decode multi-byte entities", () => {
+            expect(decodeHTML("&NotGreaterFullEqual;")).toBe("≧̸");
         });
 
-        /*
-         * Covers the `consumed` bookkeeping for legacy matches: a wrong
-         * count makes the streaming implementations drop or duplicate
-         * characters around the entity.
-         */
-        it("should decode every legacy entity without a semicolon", () => {
-            for (const [name, value] of Object.entries(legacyMap)) {
-                expect(decodeHTML(`&${name}`)).toBe(value);
-                expect(decodeHTML(`&${name} after`)).toBe(`${value} after`);
-                expect(decodeHTML(`x&${name}-y`)).toBe(`x${value}-y`);
-            }
+        describe("attribute mode", () => {
+            /*
+             * Inputs that should be left verbatim in attribute mode: an
+             * alphanumeric or `=` immediately after a legacy match rejects it,
+             * including when the name continues past the match and only fails
+             * to be a longer entity later (#2208).
+             */
+            const rejectCases = [
+                { input: "&notp" },
+                { input: "&notP" },
+                { input: "&not3" },
+                { input: "&noti" },
+                { input: "&not=" },
+                { input: "&notin\0;" },
+                { input: "&notin<" },
+                // Middle-character mismatch in a longer candidate name
+                { input: "&ltlaXr;" },
+                // Mismatch right after the legacy match
+                { input: "&ltlXarr;" },
+            ];
+
+            it.each(rejectCases)("should not decode $input", ({ input }) =>
+                expect(decodeHTMLAttribute(input)).toBe(input),
+            );
+
+            /*
+             * Accept cases:
+             *   - standalone legacy match (end of input)
+             *   - semicolon-terminated entities ignore the following char
+             *   - numeric entities are always accepted
+             *   - a legacy match (e.g. `amp`) followed by a char that isn't an
+             *     invalid attribute terminator — including the tricky shape
+             *     where the trailing char equals the entity's replacement
+             *     character, which must not extend the match.
+             */
+            const acceptCases = [
+                { input: "&not", output: "¬" },
+                { input: "&amp;x", output: "&x" },
+                { input: "&lt;x", output: "<x" },
+                { input: "&amp;=", output: "&=" },
+                { input: "&#65;x", output: "Ax" },
+                { input: "&#x41;x", output: "Ax" },
+                { input: "&#65x", output: "Ax" },
+                { input: "&#x41x", output: "Ax" },
+                { input: "&amp&", output: "&&" },
+                { input: "&amp&x", output: "&&x" },
+                { input: "&lt<", output: "<<" },
+                { input: "&gt>", output: ">>" },
+            ];
+
+            it.each(acceptCases)(
+                "should decode $input → $output",
+                ({ input, output }) =>
+                    expect(decodeHTMLAttribute(input)).toBe(output),
+            );
         });
-    });
 
-    describe("non-entities with legacy-like prefixes stay literal", () => {
-        /*
-         * In entities <= 7.0.1, a failed named-entity match could emit an
-         * unrelated character from a misindexed legacy lookup (e.g.
-         * `&Gdot ` → `Â`). These inputs must stay literal.
-         */
-        const literalCases = [
-            "&Gdot ",
-            "&eta=",
-            "&Ocy ",
-            "&YUcy1",
-            "&backepsilonx",
-            "&bepsix",
-        ];
+        describe("full entity maps (regression guard for data generation)", () => {
+            it("should decode every named entity from the WHATWG map", () => {
+                for (const [name, value] of Object.entries(entityMap)) {
+                    expect(decodeHTML(`&${name};`)).toBe(value);
+                    expect(decodeHTMLStrict(`&${name};`)).toBe(value);
+                }
+            });
 
-        it.each(literalCases)("should not decode %j", (input) => {
-            expect(decodeHTML(input)).toBe(input);
-            expect(decodeHTMLStrict(input)).toBe(input);
-            expect(decodeHTMLAttribute(input)).toBe(input);
+            it("should decode every XML entity", () => {
+                for (const [name, value] of Object.entries(xmlMap)) {
+                    expect(decodeXML(`&${name};`)).toBe(value);
+                }
+            });
+
+            /*
+             * Covers the `consumed` bookkeeping for legacy matches: a wrong
+             * count makes the streaming implementations drop or duplicate
+             * characters around the entity.
+             */
+            it("should decode every legacy entity without a semicolon", () => {
+                for (const [name, value] of Object.entries(legacyMap)) {
+                    expect(decodeHTML(`&${name}`)).toBe(value);
+                    expect(decodeHTML(`&${name} after`)).toBe(`${value} after`);
+                    expect(decodeHTML(`x&${name}-y`)).toBe(`x${value}-y`);
+                }
+            });
         });
 
-        /*
-         * Legacy prefixes of longer names decode in text mode but must stay
-         * literal in attribute mode (next char is alphanumeric).
-         */
-        const prefixCases = [
-            { input: "&centerdot ", text: "¢erdot " },
-            { input: "&copysr ", text: "©sr " },
-            { input: "&divideontimes ", text: "÷ontimes " },
-            { input: "&gtcc ", text: ">cc " },
-        ];
+        describe("numeric reference replacement", () => {
+            it("should not remap C1 references in XML", () => {
+                expect(decodeXML("&#x80;")).toBe("\u{80}");
+                expect(decodeXML("&#128;")).toBe("\u{80}");
+                expect(decodeXML("&#x9A;")).toBe("\u{9A}");
+                expect(decodeXML("&#x9a;")).toBe("\u{9A}");
+            });
 
-        it.each(
-            prefixCases,
-        )("should decode $input as legacy prefix only in text mode", ({
-            input,
-            text,
-        }) => {
-            expect(decodeHTML(input)).toBe(text);
-            expect(decodeHTMLAttribute(input)).toBe(input);
+            it("should remap C1 references in HTML to Windows-1252", () => {
+                expect(decodeHTML("&#x80;")).toBe("\u{20AC}");
+                expect(decodeHTML("&#128;")).toBe("\u{20AC}");
+                expect(decodeHTML("&#x9A;")).toBe("\u{161}");
+            });
+
+            it("should decode XML numeric references across BMP and replacement boundaries", () => {
+                const cases = [
+                    [0, 0xff_fd],
+                    [1, 1],
+                    [0x7f, 0x7f],
+                    [0x80, 0x80],
+                    [0x9f, 0x9f],
+                    [0xa0, 0xa0],
+                    [0xd7_ff, 0xd7_ff],
+                    [0xd8_00, 0xff_fd],
+                    [0xdf_ff, 0xff_fd],
+                    [0xe0_00, 0xe0_00],
+                    [0xff_ff, 0xff_ff],
+                    [0x1_00_00, 0x1_00_00],
+                    [0x10_ff_ff, 0x10_ff_ff],
+                    [0x11_00_00, 0xff_fd],
+                ];
+                for (const [codePoint, replacement] of cases) {
+                    const expected = String.fromCodePoint(replacement);
+                    expect(decodeXML(`&#${codePoint};`)).toBe(expected);
+                    expect(decodeXML(`&#x${codePoint.toString(16)};`)).toBe(
+                        expected,
+                    );
+                }
+            });
         });
-    });
-});
+
+        describe("non-entities with legacy-like prefixes stay literal", () => {
+            /*
+             * In entities <= 7.0.1, a failed named-entity match could emit an
+             * unrelated character from a misindexed legacy lookup (e.g.
+             * `&Gdot ` → `Â`). These inputs must stay literal.
+             */
+            const literalCases = [
+                "&Gdot ",
+                "&eta=",
+                "&Ocy ",
+                "&YUcy1",
+                "&backepsilonx",
+                "&bepsix",
+            ];
+
+            it.each(literalCases)("should not decode %j", (input) => {
+                expect(decodeHTML(input)).toBe(input);
+                expect(decodeHTMLStrict(input)).toBe(input);
+                expect(decodeHTMLAttribute(input)).toBe(input);
+            });
+
+            /*
+             * Legacy prefixes of longer names decode in text mode but must stay
+             * literal in attribute mode (next char is alphanumeric).
+             */
+            const prefixCases = [
+                { input: "&centerdot ", text: "¢erdot " },
+                { input: "&copysr ", text: "©sr " },
+                { input: "&divideontimes ", text: "÷ontimes " },
+                { input: "&gtcc ", text: ">cc " },
+            ];
+
+            it.each(prefixCases)(
+                "should decode $input as legacy prefix only in text mode",
+                ({ input, text }) => {
+                    expect(decodeHTML(input)).toBe(text);
+                    expect(decodeHTMLAttribute(input)).toBe(input);
+                },
+            );
+        });
+    },
+);
 
 describe("HtmlEntityDecoder", () => {
     let callback: ReturnType<
@@ -492,29 +561,33 @@ describe("HtmlEntityDecoder", () => {
     describe("overlong numeric entities", () => {
         const digitCounts = [2045, 2046, 2047, 2048, 4096];
 
-        it.each(
-            digitCounts,
-        )("should report full consumed for %i decimal digits", (count) => {
-            decoder.startEntity(entities.DecodingMode.Strict);
-            expect(decoder.write(`&#${"1".repeat(count)};`, 1)).toBe(count + 3);
-            expect(callback).toHaveBeenCalledExactlyOnceWith(
-                0xff_fd,
-                count + 3,
-            );
-        });
+        it.each(digitCounts)(
+            "should report full consumed for %i decimal digits",
+            (count) => {
+                decoder.startEntity(entities.DecodingMode.Strict);
+                expect(decoder.write(`&#${"1".repeat(count)};`, 1)).toBe(
+                    count + 3,
+                );
+                expect(callback).toHaveBeenCalledExactlyOnceWith(
+                    0xff_fd,
+                    count + 3,
+                );
+            },
+        );
 
-        it.each(
-            digitCounts,
-        )("should report full consumed for %i hex digits", (count) => {
-            decoder.startEntity(entities.DecodingMode.Strict);
-            expect(decoder.write(`&#x${"1".repeat(count)};`, 1)).toBe(
-                count + 4,
-            );
-            expect(callback).toHaveBeenCalledExactlyOnceWith(
-                0xff_fd,
-                count + 4,
-            );
-        });
+        it.each(digitCounts)(
+            "should report full consumed for %i hex digits",
+            (count) => {
+                decoder.startEntity(entities.DecodingMode.Strict);
+                expect(decoder.write(`&#x${"1".repeat(count)};`, 1)).toBe(
+                    count + 4,
+                );
+                expect(callback).toHaveBeenCalledExactlyOnceWith(
+                    0xff_fd,
+                    count + 4,
+                );
+            },
+        );
     });
 
     /*
@@ -565,42 +638,45 @@ describe("HtmlEntityDecoder", () => {
                 Number.POSITIVE_INFINITY,
             ],
             ["hex overflow", `#x${"f".repeat(512)}`, Number.POSITIVE_INFINITY],
-        ] as const)("should validate the accumulated value: %s", (_name, body, value) => {
-            for (const terminator of [";", "", " "]) {
-                const input = body + terminator;
-                for (const chunkSize of [input.length, 2, 1]) {
-                    callback.mockClear();
-                    errorHandlers.validateNumericCharacterReference.mockClear();
-                    decoder.startEntity(
-                        terminator === ";"
-                            ? entities.DecodingMode.Strict
-                            : entities.DecodingMode.Legacy,
-                    );
-                    let consumed = -1;
-                    for (
-                        let offset = 0;
-                        offset < input.length && consumed < 0;
-                        offset += chunkSize
-                    ) {
-                        consumed = decoder.write(
-                            input.slice(offset, offset + chunkSize),
-                            0,
+        ] as const)(
+            "should validate the accumulated value: %s",
+            (_name, body, value) => {
+                for (const terminator of [";", "", " "]) {
+                    const input = body + terminator;
+                    for (const chunkSize of [input.length, 2, 1]) {
+                        callback.mockClear();
+                        errorHandlers.validateNumericCharacterReference.mockClear();
+                        decoder.startEntity(
+                            terminator === ";"
+                                ? entities.DecodingMode.Strict
+                                : entities.DecodingMode.Legacy,
                         );
+                        let consumed = -1;
+                        for (
+                            let offset = 0;
+                            offset < input.length && consumed < 0;
+                            offset += chunkSize
+                        ) {
+                            consumed = decoder.write(
+                                input.slice(offset, offset + chunkSize),
+                                0,
+                            );
+                        }
+                        if (consumed < 0) consumed = decoder.end();
+                        const expectedConsumed =
+                            body.length + 1 + Number(terminator === ";");
+                        expect(consumed).toBe(expectedConsumed);
+                        expect(callback).toHaveBeenCalledExactlyOnceWith(
+                            0xff_fd,
+                            expectedConsumed,
+                        );
+                        expect(
+                            errorHandlers.validateNumericCharacterReference,
+                        ).toHaveBeenCalledExactlyOnceWith(value);
                     }
-                    if (consumed < 0) consumed = decoder.end();
-                    const expectedConsumed =
-                        body.length + 1 + Number(terminator === ";");
-                    expect(consumed).toBe(expectedConsumed);
-                    expect(callback).toHaveBeenCalledExactlyOnceWith(
-                        0xff_fd,
-                        expectedConsumed,
-                    );
-                    expect(
-                        errorHandlers.validateNumericCharacterReference,
-                    ).toHaveBeenCalledExactlyOnceWith(value);
                 }
-            }
-        });
+            },
+        );
 
         it("should produce an error for a named entity without a semicolon", () => {
             expect(decoder.write("&amp;", 1)).toBe(5);

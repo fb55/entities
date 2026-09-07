@@ -1,4 +1,8 @@
-import { codePointToString, replaceCodePoint } from "./decode-codepoint.js";
+import {
+    codePointToString,
+    replaceCodePoint,
+    replaceCodePointXML,
+} from "./decode-codepoint.js";
 import { htmlDecodeData } from "./generated/decode-data-html.js";
 import {
     BUCKET_HASH_1,
@@ -586,9 +590,12 @@ function decodeXmlText(input: string): string {
                 if (last !== offset) {
                     result += input.slice(last, offset);
                 }
-                result += codePointToString(
-                    packed & NumericPacking.CODE_POINT_MASK,
-                );
+                const codePoint = packed & NumericPacking.CODE_POINT_MASK;
+                // Nonzero BMP values below the surrogate range need no replacement.
+                result +=
+                    (codePoint - 1) >>> 0 < 0xd7_ff
+                        ? String.fromCharCode(codePoint)
+                        : String.fromCodePoint(replaceCodePointXML(codePoint));
                 last = offset + consumed;
                 offset = nextOffset(input, last);
             }
@@ -873,6 +880,10 @@ abstract class EntityDecoderBase {
     /** The mode in which the decoder is operating. */
     protected decodeMode: DecodingMode = DecodingMode.Strict;
 
+    /** Replacement rules for numeric character references. */
+    protected readonly replaceNumericCodePoint: (codePoint: number) => number =
+        replaceCodePoint;
+
     constructor(
         /**
          * The function that is called when a codepoint is decoded.
@@ -1004,7 +1015,10 @@ abstract class EntityDecoderBase {
             return 0;
         }
 
-        this.emitCodePoint(replaceCodePoint(this.result), this.consumed);
+        this.emitCodePoint(
+            this.replaceNumericCodePoint(this.result),
+            this.consumed,
+        );
 
         if (this.errors) {
             if (lastCp !== CharCodes.SEMI) {
@@ -1304,6 +1318,10 @@ export class HtmlEntityDecoder extends EntityDecoderBase {
  * plus numeric character references.
  */
 export class XmlEntityDecoder extends EntityDecoderBase {
+    protected override readonly replaceNumericCodePoint: (
+        codePoint: number,
+    ) => number = replaceCodePointXML;
+
     protected stateNamedEntity(input: string, offset: number): number {
         const inputLength = input.length;
 
@@ -1352,4 +1370,4 @@ export class XmlEntityDecoder extends EntityDecoderBase {
     }
 }
 
-export { replaceCodePoint } from "./decode-codepoint.js";
+export { replaceCodePoint, replaceCodePointXML } from "./decode-codepoint.js";
