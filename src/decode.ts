@@ -154,8 +154,7 @@ export class EntityDecoder {
     private runConsumed = 0;
 
     constructor(
-        /** The tree used to decode entities. */
-        // biome-ignore lint/correctness/noUnusedPrivateClassMembers: False positive (read via destructuring)
+        /** The predefined HTML or XML decode tree. */
         private readonly decodeTree: Uint16Array,
         /**
          * The function that is called when a codepoint is decoded.
@@ -169,17 +168,6 @@ export class EntityDecoder {
         private readonly emitCodePoint: (cp: number, consumed: number) => void,
         /** An object that is used to produce errors. */
         private readonly errors?: EntityErrorProducer | undefined,
-        /**
-         * Converts numeric reference values to code points. Defaults to XML
-         * replacement for XML tree data, including copies, and HTML otherwise.
-         * Pass a replacement function explicitly for custom trees.
-         */
-        private readonly replaceNumericCodePoint: typeof replaceCodePoint = decodeTree ===
-            xmlDecodeTree ||
-        (decodeTree.length === xmlDecodeTree.length &&
-            decodeTree.every((value, index) => value === xmlDecodeTree[index]))
-            ? replaceCodePointXML
-            : replaceCodePoint,
     ) {}
 
     /**
@@ -358,7 +346,9 @@ export class EntityDecoder {
         }
 
         this.emitCodePoint(
-            this.replaceNumericCodePoint(this.result),
+            (this.decodeTree === xmlDecodeTree
+                ? replaceCodePointXML
+                : replaceCodePoint)(this.result),
             this.consumed,
         );
 
@@ -1287,9 +1277,12 @@ export function decodeXML(xmlString: string): string {
             ) {
                 consumed = 0;
             } else {
-                value = String.fromCodePoint(
-                    replaceCodePointXML(packed & CODE_POINT_MASK),
-                );
+                const codePoint = packed & CODE_POINT_MASK;
+                // Nonzero BMP values below the surrogate range need no replacement.
+                value =
+                    (codePoint - 1) >>> 0 < 0xd7_ff
+                        ? String.fromCharCode(codePoint)
+                        : String.fromCodePoint(replaceCodePointXML(codePoint));
             }
         } else {
             /* eslint-disable unicorn/no-break-in-nested-loop -- Keep XML name dispatch inline with the decode loop. */

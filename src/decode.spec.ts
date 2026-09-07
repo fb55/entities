@@ -332,7 +332,7 @@ describe.each(implementations)(
             }
         });
 
-        describe("numeric C1 controls", () => {
+        describe("numeric reference replacement", () => {
             it("should not remap C1 references in XML", () => {
                 expect(decodeXML("&#x80;")).toBe("\u{80}");
                 expect(decodeXML("&#128;")).toBe("\u{80}");
@@ -346,11 +346,33 @@ describe.each(implementations)(
                 expect(decodeHTML("&#x9A;")).toBe("\u{161}");
             });
 
-            it("should still replace NUL and out-of-range values in XML", () => {
-                expect(decodeXML("&#0;")).toBe("\u{FFFD}");
-                expect(decodeXML("&#x110000;")).toBe("\u{FFFD}");
+            it("should decode XML numeric references across BMP and replacement boundaries", () => {
+                const cases = [
+                    [0, 0xff_fd],
+                    [1, 1],
+                    [0x7f, 0x7f],
+                    [0x80, 0x80],
+                    [0x9f, 0x9f],
+                    [0xa0, 0xa0],
+                    [0xd7_ff, 0xd7_ff],
+                    [0xd8_00, 0xff_fd],
+                    [0xdf_ff, 0xff_fd],
+                    [0xe0_00, 0xe0_00],
+                    [0xff_ff, 0xff_ff],
+                    [0x1_00_00, 0x1_00_00],
+                    [0x10_ff_ff, 0x10_ff_ff],
+                    [0x11_00_00, 0xff_fd],
+                ];
+                for (const [codePoint, replacement] of cases) {
+                    const expected = String.fromCodePoint(replacement);
+                    expect(decodeXML(`&#${codePoint};`)).toBe(expected);
+                    expect(decodeXML(`&#x${codePoint.toString(16)};`)).toBe(
+                        expected,
+                    );
+                }
             });
         });
+
         describe("non-entities with legacy-like prefixes stay literal", () => {
             /*
              * A strict-only name without a semicolon and without a legacy
