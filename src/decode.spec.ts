@@ -134,6 +134,16 @@ describe.each(implementations)("Decode test: %s", (_name, {
     it.each(sharedTestcases)("should HTML decode $input", ({ input, output }) =>
         expect(decodeHTML(input)).toBe(output));
 
+    it.each([
+        ["&bad;&amp;&wrong;", "&bad;&&wrong;"],
+        ["&&&lt;&&", "&&<&&"],
+        ["&#x;&quot;&#65;tail&", '&#x;"Atail&'],
+        ["&amp&AMP;&apos;", "&amp&AMP;'"],
+        ["&bad;&wrong;&#x;", "&bad;&wrong;&#x;"],
+    ])("should preserve unrecognized XML references in %j", (input, output) => {
+        expect(decodeXML(input)).toBe(output);
+    });
+
     it("should HTML decode partial legacy entity", () => {
         expect(decodeHTMLStrict("&timesbar")).toBe("&timesbar");
         expect(decodeHTML("&timesbar")).toBe("×bar");
