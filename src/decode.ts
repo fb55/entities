@@ -1248,7 +1248,6 @@ export function decodeXML(xmlString: string): string {
     let result = "";
 
     do {
-        if (lastIndex < offset) result += xmlString.slice(lastIndex, offset);
         const start = offset + 1;
         let consumed = 0;
         let value = "";
@@ -1272,56 +1271,65 @@ export function decodeXML(xmlString: string): string {
                 value = codePointToString(packed & CODE_POINT_MASK);
             }
         } else {
-            const c2 = xmlString.charCodeAt(start + 1);
-            const c3 = xmlString.charCodeAt(start + 2);
-
-            // &lt;
-            if (c1 === 0x6c && c2 === 0x74 && c3 === CharCodes.SEMI) {
-                consumed = 3;
-                value = "<";
-                // &gt;
-            } else if (c1 === 0x67 && c2 === 0x74 && c3 === CharCodes.SEMI) {
-                consumed = 3;
-                value = ">";
-                // &amp;
-            } else if (
-                c1 === 0x61 &&
-                c2 === 0x6d &&
-                c3 === 0x70 &&
-                xmlString.charCodeAt(start + 3) === CharCodes.SEMI
-            ) {
-                consumed = 4;
-                value = "&";
-                // &quot; / &apos; — both have 'o' at position 3
-            } else if (c3 === 0x6f) {
+            /* eslint-disable unicorn/no-break-in-nested-loop -- Keep XML name dispatch inline with the decode loop. */
+            switch (c1) {
+                // &lt; / &gt;
+                case 0x6c:
+                case 0x67: {
+                    if (
+                        xmlString.charCodeAt(start + 1) === 0x74 &&
+                        xmlString.charCodeAt(start + 2) === CharCodes.SEMI
+                    ) {
+                        consumed = 3;
+                        value = c1 === 0x6c ? "<" : ">";
+                    }
+                    break;
+                }
+                // &amp; / &apos;
+                case 0x61: {
+                    const c2 = xmlString.charCodeAt(start + 1);
+                    if (
+                        c2 === 0x6d &&
+                        xmlString.charCodeAt(start + 2) === 0x70 &&
+                        xmlString.charCodeAt(start + 3) === CharCodes.SEMI
+                    ) {
+                        consumed = 4;
+                        value = "&";
+                    } else if (
+                        c2 === 0x70 &&
+                        xmlString.charCodeAt(start + 2) === 0x6f &&
+                        xmlString.charCodeAt(start + 3) === 0x73 &&
+                        xmlString.charCodeAt(start + 4) === CharCodes.SEMI
+                    ) {
+                        consumed = 5;
+                        value = "'";
+                    }
+                    break;
+                }
                 // &quot;
-                if (
-                    c1 === 0x71 &&
-                    c2 === 0x75 &&
-                    xmlString.charCodeAt(start + 3) === 0x74 &&
-                    xmlString.charCodeAt(start + 4) === CharCodes.SEMI
-                ) {
-                    consumed = 5;
-                    value = '"';
-                    // &apos;
-                } else if (
-                    c1 === 0x61 &&
-                    c2 === 0x70 &&
-                    xmlString.charCodeAt(start + 3) === 0x73 &&
-                    xmlString.charCodeAt(start + 4) === CharCodes.SEMI
-                ) {
-                    consumed = 5;
-                    value = "'";
+                case 0x71: {
+                    if (
+                        xmlString.charCodeAt(start + 1) === 0x75 &&
+                        xmlString.charCodeAt(start + 2) === 0x6f &&
+                        xmlString.charCodeAt(start + 3) === 0x74 &&
+                        xmlString.charCodeAt(start + 4) === CharCodes.SEMI
+                    ) {
+                        consumed = 5;
+                        value = '"';
+                    }
+                    break;
                 }
             }
+            /* eslint-enable unicorn/no-break-in-nested-loop */
         }
 
         if (consumed > 0) {
+            if (lastIndex < offset)
+                result += xmlString.slice(lastIndex, offset);
             result += value;
-            lastIndex = start + consumed;
+            offset = lastIndex = start + consumed;
         } else {
-            result += "&";
-            lastIndex = start;
+            offset = start;
         }
         /*
          * Adjacent entities (`&x;&y;`) are common in entity-dense input;
@@ -1329,9 +1337,9 @@ export function decodeXML(xmlString: string): string {
          * `indexOf` call (and its per-call overhead) for that case.
          */
         offset =
-            xmlString.charCodeAt(lastIndex) === CharCodes.AMP
-                ? lastIndex
-                : xmlString.indexOf("&", lastIndex);
+            xmlString.charCodeAt(offset) === CharCodes.AMP
+                ? offset
+                : xmlString.indexOf("&", offset);
     } while (offset >= 0);
 
     return result + xmlString.slice(lastIndex);

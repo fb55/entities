@@ -61,7 +61,7 @@ describe("Documents", () => {
                         level,
                         mode: entities.EncodingMode.ASCII,
                     }),
-                ).toBe("Great #&apos;s of &#127873;"));
+                ).toBe("Great #&apos;s of &#x1f381;"));
         });
     });
 
@@ -96,10 +96,10 @@ describe("Astral entities", () => {
         expect(entities.decode(`&#x${c};`)).toBe(value));
 
     it.each(astral)("should encode &#x%s;", (c, value) =>
-        expect(entities.encode(value)).toBe(`&#${Number.parseInt(c, 16)};`));
+        expect(entities.encode(value)).toBe(`&#x${c};`));
 
     it.each(astral)("should escape &#x%s;", (c, value) =>
-        expect(entities.escape(value)).toBe(`&#${Number.parseInt(c, 16)};`));
+        expect(entities.escape(value)).toBe(`&#x${c};`));
 
     it.each(astralSpecial)(String.raw`should decode special \u%s`, (c, value) =>
         expect(entities.decode(`&#x${c};`)).toBe(value));

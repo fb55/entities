@@ -159,7 +159,7 @@ const XML_BITSET = /* #__PURE__ */ new Uint32Array([0, XML_BITSET_VALUE, 0, 0]);
 // eslint-disable-next-line unicorn/prefer-unicode-code-point-escapes -- the `\u{...}` form requires the `u` flag, which we deliberately omit so lone surrogates match by code unit
 const HTML_ENCODE_RE = /[\t\n\f!-/:-@[-`{-}\u0080-\uFFFF]/g;
 
-const numericReference = (cp: number) => `&#${cp};`;
+const numericReference = (cp: number) => `&#x${cp.toString(16)};`;
 
 /**
  * Encodes all characters in the input using HTML entities. This includes
@@ -169,8 +169,8 @@ const numericReference = (cp: number) => `&#${cp};`;
  * function, which will only encode characters that are not valid in HTML
  * documents, as well as non-ASCII characters.
  *
- * If a character has no equivalent entity, a numeric decimal reference
- * (eg. `&#252;`) will be used.
+ * If a character has no equivalent entity, a numeric hexadecimal reference
+ * (eg. `&#xfc;`) will be used.
  * @param input Input string to encode.
  */
 export function encodeHTML(input: string): string {
@@ -181,8 +181,8 @@ export function encodeHTML(input: string): string {
  * documents using HTML entities. This function will not encode characters that
  * are valid in HTML documents, such as `#`.
  *
- * If a character has no equivalent entity, a numeric decimal reference
- * (eg. `&#252;`) will be used.
+ * If a character has no equivalent entity, a numeric hexadecimal reference
+ * (eg. `&#xfc;`) will be used.
  * @param input Input string to encode.
  */
 export function encodeNonAsciiHTML(input: string): string {
@@ -318,7 +318,7 @@ function encodeHTMLTrieRe(
             }
 
             if (node == null) {
-                // No named entity exists; emit a decimal numeric reference.
+                // No named entity exists; emit a hexadecimal numeric reference.
                 const cp = input.codePointAt(index)!;
                 out += numericReference(cp);
                 // Astral code points consume two UTF-16 code units.

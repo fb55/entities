@@ -29,9 +29,10 @@ describe("getCodePoint", () => {
         expect(getCodePoint("a\u{1F4A9}", 1)).toBe(0x1_f4_a9);
     });
 
-    it("should return NaN for out-of-range indices", () => {
-        expect(getCodePoint("abc", 3)).toBeNaN();
-        expect(getCodePoint("", 0)).toBeNaN();
+    it("should return undefined for out-of-range indices", () => {
+        expect(getCodePoint("abc", 3)).toBeUndefined();
+        expect(getCodePoint("abc", -1)).toBeUndefined();
+        expect(getCodePoint("", 0)).toBeUndefined();
     });
 });
 
@@ -58,16 +59,16 @@ describe("encodeXML scan", () => {
         expect(entities.encodeXML(`${span}&${span}`)).toBe(
             `${span}&amp;${span}`,
         );
-        expect(entities.encodeXML(`${span}ü`)).toBe(`${span}&#252;`);
+        expect(entities.encodeXML(`${span}ü`)).toBe(`${span}&#xfc;`);
     });
 
     it("should encode surrogate pairs, including via the regex fallback", () => {
         // The trailing surrogate is skipped; the code point comes from the pair.
-        expect(entities.encodeXML("x😀x")).toBe("x&#128512;x");
-        expect(entities.encodeXML("😀🐊")).toBe("&#128512;&#128010;");
+        expect(entities.encodeXML("x😀x")).toBe("x&#x1f600;x");
+        expect(entities.encodeXML("😀🐊")).toBe("&#x1f600;&#x1f40a;");
         // Pair located by the regex (after a clean span past the window).
         const span = "a".repeat(40);
-        expect(entities.encodeXML(`${span}😀`)).toBe(`${span}&#128512;`);
+        expect(entities.encodeXML(`${span}😀`)).toBe(`${span}&#x1f600;`);
     });
 
     it("should encode lone surrogates by code unit", () => {
@@ -75,19 +76,19 @@ describe("encodeXML scan", () => {
          * The regex has no `u` flag, so unpaired surrogates match and encode
          * as their bare unit value (codePointAt returns the surrogate itself).
          */
-        expect(entities.encodeXML("a\u{D83D}b")).toBe("a&#55357;b");
-        expect(entities.encodeXML("a\u{DE00}b")).toBe("a&#56832;b");
+        expect(entities.encodeXML("a\u{D83D}b")).toBe("a&#xd83d;b");
+        expect(entities.encodeXML("a\u{DE00}b")).toBe("a&#xde00;b");
         const prefix = "a".repeat(40);
         const loneSurrogate = String.fromCharCode(0xd8_3d);
         expect(entities.encodeXML(`${prefix}${loneSurrogate}`)).toBe(
-            `${prefix}&#55357;`,
+            `${prefix}&#xd83d;`,
         );
     });
 
     it("should not leak regex lastIndex between calls", () => {
         /*
          * `encodeXML` drives the module-level `xmlEncodeRegex` and sets its
-         * `lastIndex` before every `exec`. A stale value from a prior call
+         * `lastIndex` before every regex search. A stale value from a prior call
          * (here a longer input) must not make the next call's regex jump skip
          * past an earlier special. Ordered long-then-short so a leaked index
          * would land beyond the `&` and drop it.
@@ -99,7 +100,7 @@ describe("encodeXML scan", () => {
     });
 });
 
-describe("escape helpers (shared exec loop)", () => {
+describe("escape helpers", () => {
     it("should return the input unchanged when nothing matches", () => {
         /*
          * The match-free early return; the helpers are not otherwise
@@ -120,7 +121,7 @@ describe("escape helpers (shared exec loop)", () => {
     it("should reset regex state between repeated calls", () => {
         /*
          * The shared `/g` regexes are module-level. `escapeWithRegex` runs
-         * `exec` until it returns null (which resets `lastIndex` to 0), so
+         * `test` until it returns false (which resets `lastIndex` to 0), so
          * repeated calls stay correct; this pins that contract by calling each
          * helper twice — a match near the end, then one at the start. (The
          * riskier `encodeXML` path, which sets `lastIndex` manually and can
