@@ -247,27 +247,37 @@ describe("EntityDecoder Streaming", () => {
             ["char-by-char", 1],
         ] as const;
 
-        it.each(
-            chunkSizes,
-        )("should decode every HTML entity (%s)", (_name, chunkSize) => {
-            for (const name of Object.keys(entityMap)) {
-                const input = `&${name};`;
-                const result = streamEntity(htmlDecodeTree, input, chunkSize);
-                expect(result.output).toBe(decodeHTML(input));
-                expect(result.consumed).toBe(input.length);
-            }
-        });
+        it.each(chunkSizes)(
+            "should decode every HTML entity (%s)",
+            (_name, chunkSize) => {
+                for (const name of Object.keys(entityMap)) {
+                    const input = `&${name};`;
+                    const result = streamEntity(
+                        htmlDecodeTree,
+                        input,
+                        chunkSize,
+                    );
+                    expect(result.output).toBe(decodeHTML(input));
+                    expect(result.consumed).toBe(input.length);
+                }
+            },
+        );
 
-        it.each(
-            chunkSizes,
-        )("should decode every XML entity (%s)", (_name, chunkSize) => {
-            for (const name of Object.keys(xmlMap)) {
-                const input = `&${name};`;
-                const result = streamEntity(xmlDecodeTree, input, chunkSize);
-                expect(result.output).toBe(decodeXML(input));
-                expect(result.consumed).toBe(input.length);
-            }
-        });
+        it.each(chunkSizes)(
+            "should decode every XML entity (%s)",
+            (_name, chunkSize) => {
+                for (const name of Object.keys(xmlMap)) {
+                    const input = `&${name};`;
+                    const result = streamEntity(
+                        xmlDecodeTree,
+                        input,
+                        chunkSize,
+                    );
+                    expect(result.output).toBe(decodeXML(input));
+                    expect(result.consumed).toBe(input.length);
+                }
+            },
+        );
     });
 
     /*

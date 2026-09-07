@@ -93,16 +93,20 @@ const astralSpecial = [
 
 describe("Astral entities", () => {
     it.each(astral)("should decode &#x%s;", (c, value) =>
-        expect(entities.decode(`&#x${c};`)).toBe(value));
+        expect(entities.decode(`&#x${c};`)).toBe(value),
+    );
 
     it.each(astral)("should encode &#x%s;", (c, value) =>
-        expect(entities.encode(value)).toBe(`&#x${c};`));
+        expect(entities.encode(value)).toBe(`&#x${c};`),
+    );
 
     it.each(astral)("should escape &#x%s;", (c, value) =>
-        expect(entities.escape(value)).toBe(`&#x${c};`));
+        expect(entities.escape(value)).toBe(`&#x${c};`),
+    );
 
     it.each(astralSpecial)(String.raw`should decode special \u%s`, (c, value) =>
-        expect(entities.decode(`&#x${c};`)).toBe(value));
+        expect(entities.decode(`&#x${c};`)).toBe(value),
+    );
 });
 
 describe("Escape", () => {

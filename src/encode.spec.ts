@@ -28,26 +28,31 @@ describe("Encode->decode test", () => {
     ];
 
     it.each(testcases)("should XML encode $input", ({ input, xml }) =>
-        expect(entities.encodeXML(input)).toBe(xml));
-    it.each(testcases)("should default to XML encode $input", ({
-        input,
-        xml,
-    }) => expect(entities.encode(input)).toBe(xml));
+        expect(entities.encodeXML(input)).toBe(xml),
+    );
+    it.each(testcases)(
+        "should default to XML encode $input",
+        ({ input, xml }) => expect(entities.encode(input)).toBe(xml),
+    );
     it.each(testcases)("should XML decode $xml", ({ input, xml }) =>
-        expect(entities.decodeXML(xml)).toBe(input));
+        expect(entities.decodeXML(xml)).toBe(input),
+    );
     it.each(testcases)("should default to XML decode $xml", ({ input, xml }) =>
-        expect(entities.decode(xml)).toBe(input));
-    it.each(testcases)("should default strict to XML decode $xml", ({
-        input,
-        xml,
-    }) =>
-        expect(
-            entities.decode(xml, { mode: entities.DecodingMode.Strict }),
-        ).toBe(input));
+        expect(entities.decode(xml)).toBe(input),
+    );
+    it.each(testcases)(
+        "should default strict to XML decode $xml",
+        ({ input, xml }) =>
+            expect(
+                entities.decode(xml, { mode: entities.DecodingMode.Strict }),
+            ).toBe(input),
+    );
     it.each(testcases)("should HTML encode $input", ({ input, html }) =>
-        expect(entities.encodeHTML(input)).toBe(html));
+        expect(entities.encodeHTML(input)).toBe(html),
+    );
     it.each(testcases)("should HTML decode $html", ({ input, html }) =>
-        expect(entities.decodeHTML(html)).toBe(input));
+        expect(entities.decodeHTML(html)).toBe(input),
+    );
 
     it("should encode emojis", () =>
         expect(entities.encodeHTML("😄🍾🥳💥😇")).toBe(
@@ -129,14 +134,17 @@ describe("scan-path consistency (regex jump vs inline scan)", () => {
     it.each([
         ["encodeHTML", entities.encodeHTML],
         ["encodeNonAsciiHTML", entities.encodeNonAsciiHTML],
-    ])("%s: regex-jump path matches inline path for all code units", (_, encoder) => {
-        const mismatches: number[] = [];
-        for (let code = 0; code <= 0xff_ff; code++) {
-            const ch = String.fromCharCode(code);
-            const inline = encoder(ch);
-            const viaRegex = encoder(prefix + ch).slice(prefix.length);
-            if (viaRegex !== inline) mismatches.push(code);
-        }
-        expect(mismatches).toStrictEqual([]);
-    });
+    ])(
+        "%s: regex-jump path matches inline path for all code units",
+        (_, encoder) => {
+            const mismatches: number[] = [];
+            for (let code = 0; code <= 0xff_ff; code++) {
+                const ch = String.fromCharCode(code);
+                const inline = encoder(ch);
+                const viaRegex = encoder(prefix + ch).slice(prefix.length);
+                if (viaRegex !== inline) mismatches.push(code);
+            }
+            expect(mismatches).toStrictEqual([]);
+        },
+    );
 });
