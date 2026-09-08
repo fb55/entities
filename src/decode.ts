@@ -8,11 +8,8 @@ import {
     BUCKET_HASH_1,
     BUCKET_HASH_2,
     CHAR_REMAP,
-    CHOICE_BITS_PER_CHAR,
-    HEADER_BIAS,
-    HEADER_LENGTH,
-    META_BIAS,
-    PAIR_TABLE_SIZE,
+    type DecodeData,
+    initDecodeData,
     pairIndex,
 } from "./internal/decode-data-format.js";
 
@@ -83,143 +80,6 @@ export enum DecodingMode {
     Strict = 1,
     /** Entities in attributes have limitations on ending characters. */
     Attribute = 2,
-}
-
-/**
- * Decode data for the HTML entity set, built from the serialized form at
- * module init. The format and the algorithms operating on it are documented
- * in `src/internal/decode-data-format.ts`. XML's five entities are matched
- * directly (`matchXmlEntity`) and ship no data.
- */
-interface DecodeData {
-    /** Exact 32-bit keys; two-slot buckets, slot index = 2*bucket (+1). */
-    keys: Int32Array;
-    /** Bucket count for the cuckoo table. */
-    buckets: number;
-    /** Per-slot offset of the name's middle chars in `middles`. */
-    slotMidOff: Uint16Array;
-    /**
-     * Per-slot value location in `values`, packed as `(offset << 2) | (len -
-     * 1)`. Replaces a per-slot `string[]`: half the footprint and no
-     * per-value heap objects, for a slightly costlier emit (see
-     * `emitHtmlValue`).
-     */
-    slotValue: Uint16Array;
-    /** Concatenated replacement values; indexed via `slotValue`. */
-    values: string;
-    /** Per-slot legacy (semicolon-optional) flag, one bit per slot. */
-    legacyBits: Uint8Array;
-    /**
-     * Per (c0,c1) class: candidate name lengths. Bits 0-14 = exact lengths
-     * 2..16, bit 15 = lengths above 16 exist, bits 16-20 = legacy lengths.
-     */
-    lengthBits: Uint32Array;
-    /** Deduplicated middle characters (name positions 2..length-3). */
-    middles: string;
-}
-
-/**
- * Build the lookup structures from a serialized dataset.
- * @param packed Serialized decode data, see `decode-data-format.ts`.
- */
-function initDecodeData(packed: readonly [string, string]): DecodeData {
-    const [data, values] = packed;
-    const nameCount =
-        ((data.charCodeAt(0) - HEADER_BIAS) << 6) |
-        (data.charCodeAt(1) - HEADER_BIAS);
-    const suffixesLength =
-        ((data.charCodeAt(2) - HEADER_BIAS) << 6) |
-        (data.charCodeAt(3) - HEADER_BIAS);
-    const buckets =
-        ((data.charCodeAt(4) - HEADER_BIAS) << 6) |
-        (data.charCodeAt(5) - HEADER_BIAS);
-    const metaStart = HEADER_LENGTH + suffixesLength;
-    const choicesStart = metaStart + 2 * nameCount;
-
-    const slotCount = 2 * buckets;
-    const keys = new Int32Array(slotCount);
-    const slotMidOff = new Uint16Array(slotCount);
-    const slotValue = new Uint16Array(slotCount);
-    const legacyBits = new Uint8Array((slotCount + 7) >> 3);
-    const lengthBits = new Uint32Array(PAIR_TABLE_SIZE);
-    const middleOffsets = new Map<string, number>();
-    let middles = "";
-    let name = "";
-    let suffixOffset = HEADER_LENGTH;
-    let valueOffset = 0;
-
-    for (let index = 0; index < nameCount; index++) {
-        const meta0 = data.charCodeAt(metaStart + 2 * index) - META_BIAS;
-        const meta1 = data.charCodeAt(metaStart + 2 * index + 1) - META_BIAS;
-        const prefixLength = meta0 & 31;
-        const length = prefixLength + (meta1 & 31);
-        const valueLength = (meta1 >> 5) + 1;
-        name =
-            name.slice(0, prefixLength) +
-            data.slice(suffixOffset, suffixOffset + length - prefixLength);
-        suffixOffset += length - prefixLength;
-
-        /*
-         * The key computation must match `findSlotHtml`; the exhaustive
-         * lookup test in decode.spec.ts pins the two together.
-         */
-        // Bitwise OR keeps every step in int32; no further coercion needed.
-        const key =
-            (name.charCodeAt(0) << 25) |
-            (name.charCodeAt(1) << 18) |
-            (name.charCodeAt(length - 2) << 11) |
-            (CHAR_REMAP[name.charCodeAt(length - 1)] << 5) |
-            length;
-        const choice =
-            (data.charCodeAt(
-                choicesStart + Math.floor(index / CHOICE_BITS_PER_CHAR),
-            ) -
-                HEADER_BIAS) &
-            (1 << (index % CHOICE_BITS_PER_CHAR));
-        const hash = choice === 0 ? BUCKET_HASH_1 : BUCKET_HASH_2;
-        let slot = 2 * (((Math.imul(key, hash) >>> 16) * buckets) >>> 16);
-        if (keys[slot] !== 0) slot += 1;
-        keys[slot] = key;
-
-        if (length > 4) {
-            const middle = name.slice(2, length - 2);
-            const existing = middleOffsets.get(middle);
-            if (existing === undefined) {
-                middleOffsets.set(middle, middles.length);
-                slotMidOff[slot] = middles.length;
-                middles += middle;
-            } else {
-                slotMidOff[slot] = existing;
-            }
-        }
-
-        const pair = pairIndex(name.charCodeAt(0), name.charCodeAt(1));
-        lengthBits[pair] |= length <= 16 ? 1 << (length - 2) : 0x80_00;
-        if ((meta0 & 0x20) !== 0) {
-            legacyBits[slot >> 3] |= 1 << (slot & 7);
-            lengthBits[pair] |= 1 << (length - 2 + 16);
-        }
-
-        /*
-         * (offset << 2) | (len - 1): the field fits len 1..4, though the
-         * generator caps values at 2 units (the streaming emit limit);
-         * offset stays within the 14 remaining Uint16 bits (asserted at
-         * generation time).
-         */
-        slotValue[slot] = (valueOffset << 2) | (valueLength - 1);
-        valueOffset += valueLength;
-    }
-
-    return {
-        keys,
-        buckets,
-        slotMidOff,
-        slotValue,
-        values,
-        legacyBits,
-        lengthBits,
-        middles,
-    };
 }
 
 /** Decode data for HTML entities. */
