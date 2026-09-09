@@ -1,0 +1,20 @@
+src/decode.ts
+  s_d5b9cd3ccc3b9d::t_2133de57a0f639 633,635-646,651,653-657,662-669,672,675-676,679-680,683-689,692-693,696-708,710-722
+  s_d5b9cd3ccc3b9d::t_5498ba79d1580a 634,647-650,652,658-661,670-671,673-674,677-678,681-682,690-691,694-695,709
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "2255082db504fae3325ea01dc67aed1046fd7bb1",
+  "prompts": {},
+  "sessions": {
+    "s_d5b9cd3ccc3b9d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07af8-e3e6-7d13-935c-1069f2f34010",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    }
+  }
+}
