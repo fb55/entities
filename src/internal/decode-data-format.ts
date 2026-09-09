@@ -172,8 +172,7 @@ export function initDecodeData(packed: readonly [string, string]): DecodeData {
             ) -
                 HEADER_BIAS) &
             (1 << (index % CHOICE_BITS_PER_CHAR));
-        const hash = choice === 0 ? BUCKET_HASH_1 : BUCKET_HASH_2;
-        let slot = 2 * (((Math.imul(key, hash) >>> 16) * buckets) >>> 16);
+        let slot = 2 * (choice === 0 ? bucketOne : bucketTwo)(key, buckets);
         if (keys[slot] !== 0) slot += 1;
         keys[slot] = key;
 
