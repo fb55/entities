@@ -421,65 +421,6 @@ function nextOffset(input: string, last: number): number {
 }
 
 /**
- * Synchronous XML decoder. Strict semantics throughout: every entity
- * requires its terminator.
- * @param input String to decode.
- */
-function decodeXmlText(input: string): string {
-    let offset = input.indexOf("&");
-    if (offset < 0) return input;
-
-    let result = "";
-    let last = 0;
-
-    do {
-        const start = offset + 1;
-        const c0 = input.charCodeAt(start);
-
-        if (c0 === CharCodes.AMP) {
-            offset = start;
-            continue;
-        }
-
-        if (c0 === CharCodes.NUM) {
-            const packed = parseNumericEntity(input, start + 1, true);
-            const consumed = unpackConsumed(packed);
-            if (consumed === 0) {
-                offset = input.indexOf("&", start);
-            } else {
-                if (last !== offset) {
-                    result += input.slice(last, offset);
-                }
-                const codePoint = packed & NumericPacking.CODE_POINT_MASK;
-                // Nonzero BMP values below the surrogate range need no replacement.
-                result +=
-                    (codePoint - 1) >>> 0 < 0xd7_ff
-                        ? String.fromCharCode(codePoint)
-                        : String.fromCodePoint(replaceCodePointXML(codePoint));
-                last = offset + consumed;
-                offset = nextOffset(input, last);
-            }
-            continue;
-        }
-
-        const packed = matchXmlEntity(input, start);
-        if (packed >= 0) {
-            if (last !== offset) {
-                result += input.slice(last, offset);
-            }
-            result += String.fromCharCode(packed & 127);
-            last = start + (packed >> 7);
-            offset = nextOffset(input, last);
-            continue;
-        }
-
-        offset = input.indexOf("&", start + 1);
-    } while (offset >= 0);
-
-    return result + input.slice(last);
-}
-
-/**
  * Synchronous HTML decoder, shared by all three decoding modes.
  * @param input String to decode.
  * @param mode Decoding mode for named entities.
@@ -689,7 +630,96 @@ export function decodeHTMLStrict(htmlString: string): string {
  * @returns The decoded string.
  */
 export function decodeXML(xmlString: string): string {
-    return decodeXmlText(xmlString);
+    let offset = xmlString.indexOf("&");
+    if (offset < 0) return xmlString;
+    let lastIndex = 0;
+    let result = "";
+    do {
+        const start = offset + 1;
+        let consumed = 0;
+        let value = "";
+        const c1 = xmlString.charCodeAt(start);
+        if (c1 === CharCodes.NUM) {
+            const packed = parseNumericEntity(xmlString, start + 1, true);
+            consumed = unpackConsumed(packed);
+            if (consumed !== 0) {
+                const codePoint = packed & NumericPacking.CODE_POINT_MASK;
+                value =
+                    (codePoint - 1) >>> 0 < 0xd7_ff
+                        ? String.fromCharCode(codePoint)
+                        : String.fromCodePoint(replaceCodePointXML(codePoint));
+            }
+        } else {
+            /* eslint-disable unicorn/no-break-in-nested-loop -- Keep XML name dispatch inline with the decode loop. */
+            switch (c1) {
+                // &lt; / &gt;
+                case 0x6c:
+                case 0x67: {
+                    if (
+                        xmlString.charCodeAt(start + 1) === 0x74 &&
+                        xmlString.charCodeAt(start + 2) === CharCodes.SEMI
+                    ) {
+                        consumed = 4;
+                        value = c1 === 0x6c ? "<" : ">";
+                    }
+                    break;
+                }
+                // &amp; / &apos;
+                case 0x61: {
+                    const c2 = xmlString.charCodeAt(start + 1);
+                    if (
+                        c2 === 0x6d &&
+                        xmlString.charCodeAt(start + 2) === 0x70 &&
+                        xmlString.charCodeAt(start + 3) === CharCodes.SEMI
+                    ) {
+                        consumed = 5;
+                        value = "&";
+                    } else if (
+                        c2 === 0x70 &&
+                        xmlString.charCodeAt(start + 2) === 0x6f &&
+                        xmlString.charCodeAt(start + 3) === 0x73 &&
+                        xmlString.charCodeAt(start + 4) === CharCodes.SEMI
+                    ) {
+                        consumed = 6;
+                        value = "'";
+                    }
+                    break;
+                }
+                // &quot;
+                case 0x71: {
+                    if (
+                        xmlString.charCodeAt(start + 1) === 0x75 &&
+                        xmlString.charCodeAt(start + 2) === 0x6f &&
+                        xmlString.charCodeAt(start + 3) === 0x74 &&
+                        xmlString.charCodeAt(start + 4) === CharCodes.SEMI
+                    ) {
+                        consumed = 6;
+                        value = '"';
+                    }
+                    break;
+                }
+            }
+            /* eslint-enable unicorn/no-break-in-nested-loop */
+        }
+        if (consumed > 0) {
+            if (lastIndex < offset)
+                result += xmlString.slice(lastIndex, offset);
+            result += value;
+            offset = lastIndex = offset + consumed;
+        } else {
+            offset = start;
+        }
+        /*
+         * Adjacent entities (`&x;&y;`) are common in entity-dense input;
+         * checking the single character at `lastIndex` first skips the
+         * `indexOf` call (and its per-call overhead) for that case.
+         */
+        offset =
+            xmlString.charCodeAt(offset) === CharCodes.AMP
+                ? offset
+                : xmlString.indexOf("&", offset);
+    } while (offset >= 0);
+    return result + xmlString.slice(lastIndex);
 }
 
 const enum EntityDecoderState {
