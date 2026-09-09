@@ -92,9 +92,7 @@ const htmlSlotMidOff = /* #__PURE__ */ ((): Uint16Array =>
     htmlDecode.slotMidOff)();
 const htmlLengthBits = /* #__PURE__ */ ((): Uint32Array =>
     htmlDecode.lengthBits)();
-const htmlMiddles = /* #__PURE__ */ ((): string => htmlDecode.middles)();
-const htmlLongMiddles = /* #__PURE__ */ ((): Uint32Array =>
-    htmlDecode.longMiddles)();
+const htmlMiddles = /* #__PURE__ */ ((): Uint32Array => htmlDecode.middles)();
 const htmlLegacyBits = /* #__PURE__ */ ((): Uint8Array =>
     htmlDecode.legacyBits)();
 /** Hoisted for the specialized HTML cores; see `emitHtmlValue`. */
@@ -103,14 +101,14 @@ const htmlSlotValue = /* #__PURE__ */ ((): Uint16Array =>
 const htmlValues = /* #__PURE__ */ ((): string => htmlDecode.values)();
 
 /**
- * The replacement string for a packed `slotValue` entry. The 1-char case
- * (the vast majority) avoids `slice`'s substring allocation.
+ * The replacement string for a packed `slotValue` entry. Most values need
+ * just one UTF-16 code unit.
  * @param packed `(offset << 2) | (length - 1)` from `htmlSlotValue`.
  */
 function emitHtmlValue(packed: number): string {
     const off = packed >> 2;
     return (packed & 3) === 0
-        ? String.fromCharCode(htmlValues.charCodeAt(off))
+        ? htmlValues.charAt(off)
         : htmlValues.slice(off, off + (packed & 3) + 1);
 }
 
@@ -170,53 +168,21 @@ function isMidMatchHtml(
     start: number,
     length: number,
 ): boolean {
-    if (length > 16) return isLongMidMatchHtml(slot, text, start, length);
-    let middleIndex = htmlSlotMidOff[slot];
-    let textIndex = start + 2;
-    const end = start + length - 2;
-    while (
-        textIndex < end &&
-        htmlMiddles.charCodeAt(middleIndex) === text.charCodeAt(textIndex)
-    ) {
-        textIndex++;
-        middleIndex++;
-    }
-    return textIndex === end;
-}
-
-/**
- * Compare long-name middles four ASCII characters at a time.
- * @param slot Matching key slot.
- * @param text Input containing the candidate name.
- * @param start Start of the name.
- * @param length Length of the name.
- */
-function isLongMidMatchHtml(
-    slot: number,
-    text: string,
-    start: number,
-    length: number,
-): boolean {
     let wordIndex = htmlSlotMidOff[slot];
     let index = start + 2;
     const end = start + length - 2;
-    while (index + 3 < end) {
-        const word = htmlLongMiddles[wordIndex++];
+    while (index + 1 < end) {
         if (
-            text.charCodeAt(index) !== (word & 255) ||
-            text.charCodeAt(index + 1) !== ((word >>> 8) & 255) ||
-            text.charCodeAt(index + 2) !== ((word >>> 16) & 255) ||
-            text.charCodeAt(index + 3) !== word >>> 24
+            (text.charCodeAt(index) | (text.charCodeAt(index + 1) << 16)) !==
+            htmlMiddles[wordIndex++]
         )
             return false;
-        index += 4;
+        index += 2;
     }
-    let word = htmlLongMiddles[wordIndex];
-    while (index < end) {
-        if (text.charCodeAt(index++) !== (word & 255)) return false;
-        word >>>= 8;
-    }
-    return true;
+    return (
+        index === end ||
+        text.charCodeAt(index) === (htmlMiddles[wordIndex] & 0xff_ff)
+    );
 }
 
 /**
@@ -285,9 +251,10 @@ function parseNumericEntity(
         // Hexadecimal entity.
         index += 1;
         digitsStart = index;
-        for (;;) {
-            const digit = numericDigits[input.charCodeAt(index)];
-            // The positive range check also rejects non-ASCII and end-of-input.
+        while (index < inputLength) {
+            const char = input.charCodeAt(index);
+            if (char >= 128) break;
+            const digit = numericDigits[char];
             if (digit <= 15) {
                 codePoint = codePoint * 16 + digit;
                 index++;
@@ -297,8 +264,10 @@ function parseNumericEntity(
         }
     } else {
         digitsStart = index;
-        for (;;) {
-            const digit = numericDigits[input.charCodeAt(index)];
+        while (index < inputLength) {
+            const char = input.charCodeAt(index);
+            if (char >= 128) break;
+            const digit = numericDigits[char];
             if (digit <= 9) {
                 codePoint = codePoint * 10 + digit;
                 index++;
@@ -379,7 +348,11 @@ function findLongClassMatch(
         if (slot >= 0) return (slot << 6) | (length + 1);
     }
     if (mode !== DecodingMode.Strict) {
-        const packed = findLegacySlot(input, start, 31);
+        const packed = findLegacySlot(
+            input,
+            start,
+            Math.min(31, input.length - start),
+        );
         if (packed >= 0) {
             const length = packed & 7;
             if (
@@ -453,35 +426,6 @@ function matchXmlEntity(input: string, start: number): number {
 }
 
 /**
- * The code point for one of XML's five predefined entity names (without the
- * semicolon), or -1. Used by the streaming decoder, where the name may have
- * been buffered across chunk boundaries.
- * @param name Candidate entity name.
- */
-function xmlCodePoint(name: string): number {
-    switch (name) {
-        case "amp": {
-            return 0x26;
-        }
-        case "apos": {
-            return 0x27;
-        }
-        case "gt": {
-            return 0x3e;
-        }
-        case "lt": {
-            return 0x3c;
-        }
-        case "quot": {
-            return 0x22;
-        }
-        default: {
-            return -1;
-        }
-    }
-}
-
-/**
  * The next `&` to resume from after emitting a replacement, given the index
  * just past it. A leaf the decoders call after every emit: the common
  * adjacent-entity case (`&amp;&lt;`) skips the `indexOf` C++ call.
@@ -489,6 +433,7 @@ function xmlCodePoint(name: string): number {
  * @param last Index just past the entity that was emitted.
  */
 function nextOffset(input: string, last: number): number {
+    if (last >= input.length) return -1;
     return input.charCodeAt(last) === CharCodes.AMP
         ? last
         : input.indexOf("&", last);
@@ -508,6 +453,7 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
     let last = 0;
     do {
         const start = offset + 1;
+        if (start + 1 >= inputLength) break;
         const c0 = input.charCodeAt(start);
         if (c0 === CharCodes.AMP) {
             // Adjacent "&&": re-enter directly, skipping indexOf.
@@ -556,66 +502,53 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
             continue;
         }
         let probed = bits & 0x7f_ff;
-        let legacyPacked = -1;
+        /*
+         * Slot in bits 6+, semicolon in bit 5, consumed name span in bits 0-4.
+         * This path only handles names up to 16 characters, plus their ';'.
+         */
+        let matched = -1;
         while (probed !== 0) {
-            /*
-             * Shortest candidate first: only one length can carry the
-             * terminating ';' (a ';' inside a longer candidate fails its
-             * middle comparison), so the order is correctness-neutral —
-             * and the most common entities are short.
-             */
             const low = probed & -probed;
             probed ^= low;
             const length = 33 - Math.clz32(low);
-            if (input.charCodeAt(start + length) === CharCodes.SEMI) {
-                const slot = findSlotHtml(input, start, length);
-                if (slot >= 0) {
-                    if (last !== offset) {
-                        result += input.slice(last, offset);
-                    }
-                    result += emitHtmlValue(htmlSlotValue[slot]);
-                    last = start + length + 1;
-                    offset = nextOffset(input, last);
-                    probed = -1;
-                    // eslint-disable-next-line unicorn/no-break-in-nested-loop -- hot path: this exits the probe loop on a match; extracting it into a function would add a per-entity call
-                    break;
-                }
-            } else if (
-                isLegacyAllowed &&
-                ((bits >>> (length + 14)) & 1) !== 0
-            ) {
-                /*
-                 * No ';' here, but this length is a legacy candidate.
-                 * Record it and keep going: a longer exact match must
-                 * win, and ascending order makes the last recorded
-                 * candidate the longest legacy match.
-                 */
-                const slot = findSlotHtml(input, start, length);
-                if (
-                    slot >= 0 &&
-                    (htmlLegacyBits[slot >> 3] & (1 << (slot & 7))) !== 0
-                ) {
-                    legacyPacked = (slot << 3) | length;
-                }
+            const end = start + length;
+            // Longer probes cannot match either; lengths are ascending.
+            // eslint-disable-next-line unicorn/no-break-in-nested-loop -- keep the bounded probe loop inline
+            if (end > inputLength) break;
+            const isTerminated =
+                end < inputLength && input.charCodeAt(end) === CharCodes.SEMI;
+            if (
+                !(
+                    isTerminated ||
+                    (isLegacyAllowed && ((bits >>> (length + 14)) & 1) !== 0)
+                )
+            )
+                // eslint-disable-next-line unicorn/no-break-in-nested-loop -- skip impossible candidates in the inline probe loop
+                continue;
+            // Share the lookup call site, including after legacy-only inputs.
+            const slot = findSlotHtml(input, start, length);
+            // eslint-disable-next-line unicorn/no-break-in-nested-loop -- skip failed candidates in the inline probe loop
+            if (slot < 0) continue;
+            if (isTerminated) {
+                matched = (slot << 6) | 32 | (length + 1);
+                // eslint-disable-next-line unicorn/no-break-in-nested-loop -- an exact match ends the probe loop
+                break;
+            }
+            if ((htmlLegacyBits[slot >> 3] & (1 << (slot & 7))) !== 0) {
+                matched = (slot << 6) | length;
             }
         }
-        if (probed === -1) continue;
-        // Only ever set when legacy matching is allowed; no mode check here.
-        if (legacyPacked >= 0) {
-            const matchLength = legacyPacked & 7;
-            const next =
-                start + matchLength < inputLength
-                    ? input.charCodeAt(start + matchLength)
-                    : 0;
+        if (matched >= 0) {
+            const length = matched & 31;
             if (
+                (matched & 32) !== 0 ||
                 mode !== DecodingMode.Attribute ||
-                !isEntityInAttributeInvalidEnd(next)
+                start + length >= inputLength ||
+                !isEntityInAttributeInvalidEnd(input.charCodeAt(start + length))
             ) {
-                if (last !== offset) {
-                    result += input.slice(last, offset);
-                }
-                result += emitHtmlValue(htmlSlotValue[legacyPacked >> 3]);
-                last = start + matchLength;
+                if (last !== offset) result += input.slice(last, offset);
+                result += emitHtmlValue(htmlSlotValue[matched >> 6]);
+                last = start + length;
                 offset = nextOffset(input, last);
                 continue;
             }
@@ -670,6 +603,7 @@ export function decodeXML(xmlString: string): string {
     let result = "";
     do {
         const start = offset + 1;
+        if (start + 1 >= xmlString.length) break;
         let consumed = 0;
         let value = "";
         const c1 = xmlString.charCodeAt(start);
@@ -690,6 +624,7 @@ export function decodeXML(xmlString: string): string {
                 case 0x6c:
                 case 0x67: {
                     if (
+                        start + 2 < xmlString.length &&
                         xmlString.charCodeAt(start + 1) === 0x74 &&
                         xmlString.charCodeAt(start + 2) === CharCodes.SEMI
                     ) {
@@ -702,6 +637,7 @@ export function decodeXML(xmlString: string): string {
                 case 0x61: {
                     const c2 = xmlString.charCodeAt(start + 1);
                     if (
+                        start + 3 < xmlString.length &&
                         c2 === 0x6d &&
                         xmlString.charCodeAt(start + 2) === 0x70 &&
                         xmlString.charCodeAt(start + 3) === CharCodes.SEMI
@@ -709,6 +645,7 @@ export function decodeXML(xmlString: string): string {
                         consumed = 5;
                         value = "&";
                     } else if (
+                        start + 4 < xmlString.length &&
                         c2 === 0x70 &&
                         xmlString.charCodeAt(start + 2) === 0x6f &&
                         xmlString.charCodeAt(start + 3) === 0x73 &&
@@ -722,6 +659,7 @@ export function decodeXML(xmlString: string): string {
                 // &quot;
                 case 0x71: {
                     if (
+                        start + 4 < xmlString.length &&
                         xmlString.charCodeAt(start + 1) === 0x75 &&
                         xmlString.charCodeAt(start + 2) === 0x6f &&
                         xmlString.charCodeAt(start + 3) === 0x74 &&
@@ -749,6 +687,7 @@ export function decodeXML(xmlString: string): string {
          * `indexOf` call (and its per-call overhead) for that case.
          */
         offset =
+            offset < xmlString.length &&
             xmlString.charCodeAt(offset) === CharCodes.AMP
                 ? offset
                 : xmlString.indexOf("&", offset);
@@ -797,10 +736,8 @@ abstract class EntityDecoderBase {
     protected state: number = EntityDecoderState.EntityStart;
     /** Characters that were consumed while parsing an entity. */
     protected consumed = 1;
-    /** For numeric entities: the accumulated code point. */
+    /** Accumulated numeric code point, or a packed partial XML name. */
     protected result = 0;
-    /** Buffered name characters of a partial named entity. */
-    protected pending = "";
     /** The mode in which the decoder is operating. */
     protected decodeMode: DecodingMode = DecodingMode.Strict;
 
@@ -960,7 +897,6 @@ abstract class EntityDecoderBase {
         this.state = EntityDecoderState.EntityStart;
         this.result = 0;
         this.consumed = 1;
-        this.pending = "";
     }
 
     /**
@@ -1057,11 +993,14 @@ abstract class EntityDecoderBase {
  *
  * When the entity fits inside the current chunk (the common case), the
  * lookup runs directly on the chunk via the same length-probe scheme as the
- * synchronous decoder; only chunk-boundary runs are buffered in `pending`.
+ * synchronous decoder; chunk-boundary runs use a reusable character buffer.
  */
 export class HtmlEntityDecoder extends EntityDecoderBase {
     /** Total name characters seen for the current named entity. */
     private runLength = 0;
+
+    /** Reused for partial names; the 32nd character rules out an exact match. */
+    private readonly nameBuffer = new Uint16Array(32);
 
     /**
      * Emit the replacement for a matched slot. Values are at most two
@@ -1162,67 +1101,47 @@ export class HtmlEntityDecoder extends EntityDecoderBase {
 
         // A 32nd name character rules out every exact HTML match.
         let index = offset;
+        let { runLength } = this;
         let terminator = -1;
-        const scanEnd = Math.min(inputLength, offset + 32 - this.runLength);
+        const scanEnd = Math.min(inputLength, offset + 32 - runLength);
         while (index < scanEnd) {
             const char = input.charCodeAt(index);
             if (!isAlphaNumeric(char)) {
                 terminator = char;
                 break;
             }
+            this.nameBuffer[runLength++] = char;
             index++;
         }
-        const part = index - offset;
-        const runLength = this.runLength + part;
         if (terminator < 0 && runLength < 32) {
-            // The name may continue in the next chunk.
-            this.pending += input.slice(offset, index);
             this.runLength = runLength;
             return -1;
         }
-
         if (terminator === CharCodes.SEMI && (runLength - 2) >>> 0 <= 29) {
-            const slot =
-                this.runLength === 0
-                    ? findSlotHtml(input, offset, runLength)
-                    : findSlotHtml(
-                          this.pending + input.slice(offset, index),
-                          0,
-                          runLength,
-                      );
+            const slot = findBufferedHtmlSlot(this.nameBuffer, runLength);
             if (slot >= 0) {
                 this.consumed = runLength + 2;
                 this.emitSlot(slot);
                 return this.consumed;
             }
         }
-
         if (this.decodeMode !== DecodingMode.Strict && runLength >= 2) {
-            const name =
-                this.runLength === 0
-                    ? input
-                    : this.pending + input.slice(offset, index);
-            const nameStart = this.runLength === 0 ? offset : 0;
-            const packed = findLegacySlot(name, nameStart, runLength);
+            const packed = findBufferedLegacySlot(this.nameBuffer, runLength);
             if (packed >= 0) {
-                const matchLength = packed & 7;
+                const length = packed & 7;
                 const next =
-                    matchLength < runLength
-                        ? name.charCodeAt(nameStart + matchLength)
-                        : terminator;
+                    length < runLength ? this.nameBuffer[length] : terminator;
                 if (
                     this.decodeMode === DecodingMode.Attribute &&
                     isEntityInAttributeInvalidEnd(next)
-                ) {
+                )
                     return 0;
-                }
-                this.consumed = matchLength + 1;
+                this.consumed = length + 1;
                 this.emitSlot(packed >> 3);
                 this.errors?.missingSemicolonAfterCharacterReference();
                 return this.consumed;
             }
         }
-
         return 0;
     }
 
@@ -1231,11 +1150,7 @@ export class HtmlEntityDecoder extends EntityDecoderBase {
         if (this.decodeMode === DecodingMode.Strict || this.runLength < 2) {
             return 0;
         }
-        const packed = findLegacySlot(
-            this.pending,
-            0,
-            Math.min(this.pending.length, this.runLength),
-        );
+        const packed = findBufferedLegacySlot(this.nameBuffer, this.runLength);
         if (packed < 0) return 0;
         if (
             this.decodeMode === DecodingMode.Attribute &&
@@ -1251,6 +1166,109 @@ export class HtmlEntityDecoder extends EntityDecoderBase {
 }
 
 /**
+ * Find a buffered name. Its characters were already checked as ASCII
+ * alphanumerics while scanning, so no outer-character range check is needed.
+ * @param buffer Reusable character buffer.
+ * @param length Number of characters to match.
+ */
+function findBufferedHtmlSlot(buffer: Uint16Array, length: number): number {
+    const key =
+        (buffer[0] << 25) |
+        (buffer[1] << 18) |
+        (buffer[length - 2] << 11) |
+        (CHAR_REMAP[buffer[length - 1]] << 5) |
+        length;
+    let slot =
+        2 * (((Math.imul(key, BUCKET_HASH_1) >>> 16) * htmlBuckets) >>> 16);
+    for (let attempt = 0; ; attempt++) {
+        if (
+            htmlKeys[slot] === key &&
+            (length <= 4 || isBufferedMiddle(slot, buffer, length))
+        )
+            return slot;
+        if (
+            htmlKeys[slot + 1] === key &&
+            (length <= 4 || isBufferedMiddle(slot + 1, buffer, length))
+        )
+            return slot + 1;
+        if (attempt === 1) return -1;
+        slot =
+            2 * (((Math.imul(key, BUCKET_HASH_2) >>> 16) * htmlBuckets) >>> 16);
+    }
+}
+
+function isBufferedMiddle(
+    slot: number,
+    buffer: Uint16Array,
+    length: number,
+): boolean {
+    let wordIndex = htmlSlotMidOff[slot];
+    let index = 2;
+    const end = length - 2;
+    while (index + 1 < end) {
+        if (
+            (buffer[index] | (buffer[index + 1] << 16)) !==
+            htmlMiddles[wordIndex++]
+        )
+            return false;
+        index += 2;
+    }
+    return (
+        index === end || buffer[index] === (htmlMiddles[wordIndex] & 0xff_ff)
+    );
+}
+
+/**
+ * Find the longest legacy name in the buffer, packed as `(slot << 3) | length`.
+ * @param buffer Reusable character buffer.
+ * @param length Number of buffered characters.
+ */
+function findBufferedLegacySlot(buffer: Uint16Array, length: number): number {
+    let legacy = (htmlLengthBits[pairIndex(buffer[0], buffer[1])] >>> 16) & 31;
+    while (legacy !== 0) {
+        const top = 31 - Math.clz32(legacy);
+        legacy ^= 1 << top;
+        if (top + 2 > length) continue;
+        const slot = findBufferedHtmlSlot(buffer, top + 2);
+        if (slot >= 0 && (htmlLegacyBits[slot >> 3] & (1 << (slot & 7))) !== 0)
+            return (slot << 3) | (top + 2);
+    }
+    return -1;
+}
+
+/**
+ * Match an XML name packed in seven-bit groups, or return -1.
+ * @param name Packed name accumulated across chunks.
+ */
+function xmlCodePoint(name: number): number {
+    switch (name) {
+        case 0x18_76_f0: {
+            // "amp"
+            return 0x26;
+        }
+        case 0xc_3c_37_f3: {
+            // "apos"
+            return 0x27;
+        }
+        case 0x33_f4: {
+            // "gt"
+            return 0x3e;
+        }
+        case 0x36_74: {
+            // "lt"
+            return 0x3c;
+        }
+        case 0xe_3d_77_f4: {
+            // "quot"
+            return 0x22;
+        }
+        default: {
+            return -1;
+        }
+    }
+}
+
+/**
  * Streaming decoder for XML entities: the five predefined named entities
  * plus numeric character references.
  */
@@ -1261,8 +1279,7 @@ export class XmlEntityDecoder extends EntityDecoderBase {
 
     protected stateNamedEntity(input: string, offset: number): number {
         const inputLength = input.length;
-
-        if (this.pending.length === 0 && offset + 5 <= inputLength) {
+        if (this.consumed === 1 && offset + 5 <= inputLength) {
             // Fast path: all five patterns are decided within five chars.
             const packed = matchXmlEntity(input, offset);
             if (packed < 0) return 0;
@@ -1271,26 +1288,24 @@ export class XmlEntityDecoder extends EntityDecoderBase {
             return consumed;
         }
 
-        // A fifth name character rules out every XML match.
-        let index = offset;
-        const nameEnd = offset + 5 - this.pending.length;
-        const scanEnd = Math.min(inputLength, nameEnd);
-        while (index < scanEnd) {
+        // XML names need at most four seven-bit characters, fitting in 28 bits.
+        let { result, consumed } = this;
+        for (let index = offset; index < inputLength; index++) {
             const char = input.charCodeAt(index);
-            if (!isAlphaNumeric(char)) {
-                if (char !== CharCodes.SEMI) return 0;
-                const name = this.pending + input.slice(offset, index);
-                const cp = xmlCodePoint(name);
-                if (cp < 0) return 0;
-                this.consumed = name.length + 2;
-                this.emitCodePoint(cp, this.consumed);
+            if (char === CharCodes.SEMI) {
+                const codePoint = xmlCodePoint(result);
+                if (codePoint < 0) return 0;
+                this.consumed = consumed + 1;
+                this.emitCodePoint(codePoint, this.consumed);
                 return this.consumed;
             }
-            index++;
+            if (consumed >= 5 || (char - CharCodes.LOWER_A) >>> 0 > 25)
+                return 0;
+            result = (result << 7) | char;
+            consumed++;
         }
-
-        if (index === nameEnd) return 0;
-        this.pending += input.slice(offset, index);
+        this.result = result;
+        this.consumed = consumed;
         return -1;
     }
 

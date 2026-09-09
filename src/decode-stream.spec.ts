@@ -303,6 +303,36 @@ describe("Streaming entity decoders", () => {
     });
 
     describe("exhaustive full-map agreement with the sync decoders", () => {
+        it.each([
+            ["HTML", HtmlEntityDecoder, entityMap],
+            ["XML", XmlEntityDecoder, xmlMap],
+        ] as const)(
+            "should reuse a %s decoder across every name split",
+            (_name, Decoder, map) => {
+                let output = "";
+                const decoder = new Decoder((cp) => {
+                    output += String.fromCodePoint(cp);
+                });
+                for (const [name, value] of Object.entries(map)) {
+                    for (let split = 1; split <= name.length; split++) {
+                        output = "";
+                        decoder.startEntity(DecodingMode.Strict);
+                        expect(
+                            decoder.write(`pad${name.slice(0, split)}`, 3),
+                        ).toBe(-1);
+                        expect(decoder.write(`${name.slice(split)};`, 0)).toBe(
+                            name.length + 2,
+                        );
+                        expect(output).toBe(value);
+                    }
+                    output = "";
+                    decoder.startEntity(DecodingMode.Strict);
+                    expect(decoder.write("#65;", 0)).toBe(5);
+                    expect(output).toBe("A");
+                }
+            },
+        );
+
         const chunkSizes = [
             ["whole", Number.MAX_SAFE_INTEGER],
             ["char-by-char", 1],

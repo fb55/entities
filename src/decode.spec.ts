@@ -362,9 +362,48 @@ describe.each(implementations)(
                 }
             });
 
-            it("should reject non-ASCII lookalikes inside long entity names", () => {
+            it("should preserve legacy matching for every name prefix at EOF", () => {
+                const prefixes = new Set<string>();
                 for (const name of Object.keys(entityMap)) {
-                    if (name.length <= 16) continue;
+                    for (let end = 0; end <= name.length; end++) {
+                        prefixes.add(name.slice(0, end));
+                    }
+                }
+                // eslint-disable-next-line unicorn/no-array-sort -- toSorted is outside the configured TypeScript library
+                const legacyNames = Object.entries(legacyMap).sort(
+                    ([left], [right]) => right.length - left.length,
+                );
+                for (const prefix of prefixes) {
+                    const input = `head&${prefix}`;
+                    const [matchedName, matchedValue] = legacyNames.find(
+                        ([name]) => prefix.startsWith(name),
+                    ) ?? ["", ""];
+                    expect(decodeHTML(input)).toBe(
+                        matchedName
+                            ? `head${matchedValue}${prefix.slice(matchedName.length)}`
+                            : input,
+                    );
+                    expect(decodeHTMLStrict(input)).toBe(input);
+                    expect(decodeHTMLAttribute(input)).toBe(
+                        matchedName && matchedName === prefix
+                            ? `head${matchedValue}`
+                            : input,
+                    );
+                }
+            });
+
+            it.each(["&#65尾", "&#x41尾"])(
+                "should preserve a non-ASCII numeric terminator in %j",
+                (input) => {
+                    expect(decodeHTML(input)).toBe("A尾");
+                    expect(decodeHTMLAttribute(input)).toBe("A尾");
+                    expect(decodeHTMLStrict(input)).toBe(input);
+                    expect(decodeXML(input)).toBe(input);
+                },
+            );
+
+            it("should reject non-ASCII lookalikes inside entity names", () => {
+                for (const name of Object.keys(entityMap)) {
                     for (let index = 0; index < name.length; index++) {
                         const input = `&${name.slice(0, index)}${String.fromCharCode(
                             name.charCodeAt(index) + 0x1_00,

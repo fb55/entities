@@ -102,10 +102,7 @@ export interface DecodeData {
     keys: Int32Array;
     /** Bucket count for the cuckoo table. */
     buckets: number;
-    /**
-     * Per-slot middle offset: a character offset in `middles` for names up to
-     * 16 characters, or a word offset in `longMiddles` for longer names.
-     */
+    /** Per-slot word offset in `middles`. */
     slotMidOff: Uint16Array;
     /**
      * Per-slot value location in `values`, packed as `(offset << 2) | (len -
@@ -123,10 +120,8 @@ export interface DecodeData {
      * 2..16, bit 15 = lengths above 16 exist, bits 16-20 = legacy lengths.
      */
     lengthBits: Uint32Array;
-    /** Deduplicated middle characters for names up to 16 characters long. */
-    middles: string;
-    /** Long-name middles, word-aligned and packed four ASCII characters per word. */
-    longMiddles: Uint32Array;
+    /** Deduplicated middles, packed as pairs of UTF-16 code units per word. */
+    middles: Uint32Array;
 }
 
 /**
@@ -154,8 +149,7 @@ export function initDecodeData(packed: readonly [string, string]): DecodeData {
     const legacyBits = new Uint8Array((slotCount + 7) >> 3);
     const lengthBits = new Uint32Array(PAIR_TABLE_SIZE);
     const middleOffsets = new Map<string, number>();
-    let middles = "";
-    const longMiddles: number[] = [];
+    const middles: number[] = [];
     let name = "";
     let suffixOffset = HEADER_LENGTH;
     let valueOffset = 0;
@@ -186,25 +180,17 @@ export function initDecodeData(packed: readonly [string, string]): DecodeData {
             const middle = name.slice(2, length - 2);
             const existing = middleOffsets.get(middle);
             if (existing === undefined) {
-                if (length > 16) {
-                    middleOffsets.set(middle, longMiddles.length);
-                    slotMidOff[slot] = longMiddles.length;
-                    for (
-                        let middleIndex = 0;
-                        middleIndex < middle.length;
-                        middleIndex += 4
-                    ) {
-                        longMiddles.push(
-                            middle.charCodeAt(middleIndex) |
-                                (middle.charCodeAt(middleIndex + 1) << 8) |
-                                (middle.charCodeAt(middleIndex + 2) << 16) |
-                                (middle.charCodeAt(middleIndex + 3) << 24),
-                        );
-                    }
-                } else {
-                    middleOffsets.set(middle, middles.length);
-                    slotMidOff[slot] = middles.length;
-                    middles += middle;
+                middleOffsets.set(middle, middles.length);
+                slotMidOff[slot] = middles.length;
+                for (
+                    let middleIndex = 0;
+                    middleIndex < middle.length;
+                    middleIndex += 2
+                ) {
+                    middles.push(
+                        middle.charCodeAt(middleIndex) |
+                            (middle.charCodeAt(middleIndex + 1) << 16),
+                    );
                 }
             } else {
                 slotMidOff[slot] = existing;
@@ -236,7 +222,6 @@ export function initDecodeData(packed: readonly [string, string]): DecodeData {
         values,
         legacyBits,
         lengthBits,
-        middles,
-        longMiddles: new Uint32Array(longMiddles),
+        middles: new Uint32Array(middles),
     };
 }

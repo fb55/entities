@@ -105,11 +105,20 @@ lookups simply verify middles per candidate. Inputs are not pre-filtered to
 alphanumerics, so characters ≥ 0x80 — which would alias mod 128 inside the
 7-bit fields — are rejected before the key is formed.
 
-Middles of names up to 16 characters share a deduplicated string. Longer
-names use a separate `Uint32Array`, with four ASCII characters packed into
-each word and each middle starting on a word boundary. Verification compares
-each input code unit with its corresponding byte, so non-ASCII characters
-cannot match merely because their low bytes agree.
+All middles share a deduplicated `Uint32Array`, with two UTF-16 code units
+packed into each word and each middle starting on a word boundary. Lookup
+compares pairs of input code units, then checks an odd trailing character
+separately. Keeping all 16 bits of each input character prevents non-ASCII
+lookalikes from matching. The pool occupies 9,896 bytes; it replaces a
+3,505-character Latin-1 string and a 1,244-byte long-name pool, trading about
+5.1 kB of runtime storage for fewer comparisons and one shared matcher.
+
+The current data uses 4,096 two-slot buckets. This costs 45,743 more bytes
+of key, slot-metadata and legacy-flag arrays than the earlier 1,281-bucket
+layout, while reducing second-bucket placements from 784 to 124. It also
+puts more common names in the first slot checked. Doubling to 8,192 buckets
+did not provide a consistent further throughput gain in the measured
+size/density workloads.
 
 Keys live in a table of `B` buckets × 2 slots. Each key has two candidate
 buckets derived from two multiplicative hashes; build time decides which one
@@ -149,6 +158,14 @@ length probes and a character-by-character scan before verification. A failed
 exact lookup falls back to the longest permitted legacy match. Bounding the
 window keeps repeated invalid references from causing quadratic scanning.
 
+Across chunk boundaries, HTML uses a reusable 32-character `Uint16Array` and
+verifies it directly against the same key and middle tables. This avoids
+building and then reading a concatenated name string. A 32nd name character
+rules out every exact match, while legacy matching still checks the buffered
+prefix. Resetting the buffered length lets subsequent entities reuse the
+64-byte storage without clearing it. XML's five names need at most four
+lowercase ASCII letters, so its partial name fits in a 28-bit integer.
+
 In the short-name path, legacy names need no terminator: a failed `;` probe at a
 legacy-marked length *is* the legacy condition, so the loop performs the
 lookup right there and records the candidate in a local. It is only emitted
@@ -165,7 +182,7 @@ the semicolon-optional subset is the spec's historical list.
 
 Each slot holds a `(offset << 2) | (length - 1)` reference (`slotValue`, a
 `Uint16Array`) into the shipped `values` string, from which the emit either
-takes a `fromCharCode` (one-unit values, the vast majority) or a two-unit
+takes a `charAt` (one-unit values, the vast majority) or a two-unit
 `slice`. This replaces an earlier per-slot `string[]` design: half the
 footprint and no ~1.4k value-string heap objects, for a slightly costlier
 emit. Values are at most two UTF-16 code units (the generator asserts this;
@@ -186,3 +203,12 @@ the streaming decoder emits each unit as its own callback).
 - The probe loops are extremely sensitive to function body size; moving cold
   work (legacy resolution, long-name scans) out of the hot path matters as
   much as the work itself.
+- Keep string and digit-table reads in bounds, including at EOF. An
+  out-of-bounds `charCodeAt` returns `NaN`, and a typed-array read returns
+  `undefined`; both are valid JavaScript but can deoptimize later calls in
+  V8. Benchmarks must warm incomplete names and numeric references as well
+  as valid terminated references, or they can miss this slowdown.
+- Exact and legacy short-name matches share lookup and emission call sites.
+  Separate sites can trigger another optimization pass when legacy inputs
+  first exercise them, slowing later ordinary inputs. The shared path also
+  removes duplicate lookup and output code.

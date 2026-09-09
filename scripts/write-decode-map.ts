@@ -180,8 +180,8 @@ function buildDecodeData(
     }
 
     /*
-     * `slotMidOff` addresses either the short-name string or the long-name
-     * word array. The undeduplicated character count bounds both pools.
+     * `slotMidOff` addresses the word-pair pool. The undeduplicated
+     * character count bounds its number of words, including odd tails.
      */
     const middlesUpperBound = names.reduce(
         (sum, name) => sum + Math.max(0, name.length - 4),
@@ -192,8 +192,8 @@ function buildDecodeData(
     }
 
     /*
-     * Smallest bucket count with a valid placement; ~83% load works for the
-     * HTML set, the loop is a safety net for future data changes.
+     * Benchmarks favor 4,096 buckets: fewer second-bucket probes and more
+     * first-slot hits for common names. The loop still handles future data.
      */
     const keys = names.map((name) => exactKey(name, 0, name.length));
     // Cold names first, then the frequent ones (most frequent last).
@@ -206,7 +206,7 @@ function buildDecodeData(
         const rankB = frequencyRank.get(names[b]) ?? -1;
         return rankA - rankB || a - b;
     });
-    let buckets = Math.max(4, Math.ceil(names.length / 1.66));
+    let buckets = Math.max(4096, Math.ceil(names.length / 1.66));
     let choiceBits = findPlacement(keys, buckets, insertionOrder);
     while (choiceBits === null) {
         buckets += Math.max(1, buckets >> 6);
