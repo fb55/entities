@@ -4,7 +4,7 @@ Decoding turns `&amp;`-style character references back into text. Until v9
 this library walked a binary trie packed into a `Uint16Array`; it now uses a
 flat hash table over the full entity names. The shipped data is a pair of
 strings for the HTML entity set; all lookup structures are rebuilt from them
-at module init in well under a millisecond. XML's five predefined entities
+at module initialization. XML's five predefined entities
 are matched directly in `src/decode.ts` and ship no data at all.
 
 The constants and helper functions shared between the generator
@@ -13,9 +13,8 @@ The constants and helper functions shared between the generator
 
 ## How one lookup works
 
-Decoding `&uuml;` (→ `ü`) passes through three structures in turn. None of
-them scans the name character by character; each section below is the
-reference detail for one step.
+Decoding a short name such as `&uuml;` (→ `ü`) passes through three
+structures in turn. Long-name classes use the alternative described below.
 
 1. **Class table → candidate _lengths_.** The two characters after the `&`
    (`u`, `u`) are hashed by `pairIndex` into a 1024-entry array, `lengthBits`,
@@ -106,6 +105,12 @@ lookups simply verify middles per candidate. Inputs are not pre-filtered to
 alphanumerics, so characters ≥ 0x80 — which would alias mod 128 inside the
 7-bit fields — are rejected before the key is formed.
 
+Middles of names up to 16 characters share a deduplicated string. Longer
+names use a separate `Uint32Array`, with four ASCII characters packed into
+each word and each middle starting on a word boundary. Verification compares
+each input code unit with its corresponding byte, so non-ASCII characters
+cannot match merely because their low bytes agree.
+
 Keys live in a table of `B` buckets × 2 slots. Each key has two candidate
 buckets derived from two multiplicative hashes; build time decides which one
 each name uses and ships that single bit (the "choices" section). This is
@@ -129,15 +134,22 @@ measured CHD variant lost to this design despite its smaller table.
 
 ## The probe front end
 
-The decoder never scans entity names character by character. For each `&`,
-the first two characters select a 10-bit class whose packed word lists every
-possible name *length* for that prefix (plus legacy lengths and a long-name
-flag). The decoder probes `input[start + len] === ';'` for each candidate —
-usually one, shortest first — and on a probe hit performs the table lookup,
-which verifies the entire span. Classes with no candidates reject a junk run
-without reading it.
+For each `&`, the first two characters select a 10-bit class whose packed
+word lists possible short-name lengths, legacy lengths, and a long-name
+flag. For classes containing only short names, the decoder probes
+`input[start + len] === ';'` for each candidate, shortest first. A probe hit
+triggers the table lookup, which verifies the entire span. Classes with no
+candidates reject a junk run without reading it.
 
-Legacy (semicolon-less) names need no terminator: a failed `;` probe at a
+Classes containing names longer than 16 characters take a separate path in
+synchronous decoding, and in streaming when 32 characters are available.
+The decoder searches a window of at most 32 characters for `;`, then
+verifies that candidate directly. This avoids both the shorter
+length probes and a character-by-character scan before verification. A failed
+exact lookup falls back to the longest permitted legacy match. Bounding the
+window keeps repeated invalid references from causing quadratic scanning.
+
+In the short-name path, legacy names need no terminator: a failed `;` probe at a
 legacy-marked length *is* the legacy condition, so the loop performs the
 lookup right there and records the candidate in a local. It is only emitted
 after the loop, because HTML matches references greedily and a terminated

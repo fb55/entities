@@ -180,8 +180,8 @@ function buildDecodeData(
     }
 
     /*
-     * `slotMidOff` is a Uint16Array over the deduplicated middle blob the
-     * runtime rebuilds; keep its upper bound (no dedup) addressable.
+     * `slotMidOff` addresses either the short-name string or the long-name
+     * word array. The undeduplicated character count bounds both pools.
      */
     const middlesUpperBound = names.reduce(
         (sum, name) => sum + Math.max(0, name.length - 4),

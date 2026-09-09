@@ -362,6 +362,18 @@ describe.each(implementations)(
                 }
             });
 
+            it("should reject non-ASCII lookalikes inside long entity names", () => {
+                for (const name of Object.keys(entityMap)) {
+                    if (name.length <= 16) continue;
+                    for (let index = 2; index < name.length - 2; index++) {
+                        const input = `&${name.slice(0, index)}${String.fromCharCode(
+                            name.charCodeAt(index) + 0x1_00,
+                        )}${name.slice(index + 1)};`;
+                        expect(decodeHTMLStrict(input)).toBe(input);
+                    }
+                }
+            });
+
             /*
              * Covers the `consumed` bookkeeping for legacy matches: a wrong
              * count makes the streaming implementations drop or duplicate
@@ -377,6 +389,16 @@ describe.each(implementations)(
         });
 
         describe("numeric reference replacement", () => {
+            it.each([
+                "&#\u{130};",
+                "&#x\u{141};",
+                "&#1\u{130};",
+                "&#x1\u{141};",
+            ])("should reject non-ASCII digits in %j", (input) => {
+                expect(decodeHTMLStrict(input)).toBe(input);
+                expect(decodeXML(input)).toBe(input);
+            });
+
             it("should not remap C1 references in XML", () => {
                 expect(decodeXML("&#x80;")).toBe("\u{80}");
                 expect(decodeXML("&#128;")).toBe("\u{80}");

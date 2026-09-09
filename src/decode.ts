@@ -48,10 +48,6 @@ function isNumber(code: number): boolean {
     return (code - CharCodes.ZERO) >>> 0 <= 9;
 }
 
-function isHexadecimalCharacter(code: number): boolean {
-    return ((code | TO_LOWER_BIT) - CharCodes.LOWER_A) >>> 0 <= 5; // F - a
-}
-
 function isAlphaNumeric(code: number): boolean {
     return (
         isNumber(code) ||
@@ -97,6 +93,8 @@ const htmlSlotMidOff = /* #__PURE__ */ ((): Uint16Array =>
 const htmlLengthBits = /* #__PURE__ */ ((): Uint32Array =>
     htmlDecode.lengthBits)();
 const htmlMiddles = /* #__PURE__ */ ((): string => htmlDecode.middles)();
+const htmlLongMiddles = /* #__PURE__ */ ((): Uint32Array =>
+    htmlDecode.longMiddles)();
 const htmlLegacyBits = /* #__PURE__ */ ((): Uint8Array =>
     htmlDecode.legacyBits)();
 /** Hoisted for the specialized HTML cores; see `emitHtmlValue`. */
@@ -141,13 +139,13 @@ function findSlotHtml(text: string, start: number, length: number): number {
     for (let attempt = 0; ; attempt++) {
         if (
             htmlKeys[slot] === key &&
-            isMidMatchHtml(slot, text, start, length)
+            (length <= 4 || isMidMatchHtml(slot, text, start, length))
         ) {
             return slot;
         }
         if (
             htmlKeys[slot + 1] === key &&
-            isMidMatchHtml(slot + 1, text, start, length)
+            (length <= 4 || isMidMatchHtml(slot + 1, text, start, length))
         ) {
             return slot + 1;
         }
@@ -160,7 +158,7 @@ function findSlotHtml(text: string, start: number, length: number): number {
 /**
  * Compare the middle characters (positions 2..length-3) of the candidate at
  * `slot` against the input. The key already proves the outer characters and
- * the length.
+ * the length. Names of length at most four are accepted by the caller.
  * @param slot Slot of the candidate.
  * @param text Input text.
  * @param start Start of the span in `text`.
@@ -172,7 +170,7 @@ function isMidMatchHtml(
     start: number,
     length: number,
 ): boolean {
-    if (length <= 4) return true;
+    if (length > 16) return isLongMidMatchHtml(slot, text, start, length);
     let middleIndex = htmlSlotMidOff[slot];
     let textIndex = start + 2;
     const end = start + length - 2;
@@ -184,6 +182,41 @@ function isMidMatchHtml(
         middleIndex++;
     }
     return textIndex === end;
+}
+
+/**
+ * Compare long-name middles four ASCII characters at a time.
+ * @param slot Matching key slot.
+ * @param text Input containing the candidate name.
+ * @param start Start of the name.
+ * @param length Length of the name.
+ */
+function isLongMidMatchHtml(
+    slot: number,
+    text: string,
+    start: number,
+    length: number,
+): boolean {
+    let wordIndex = htmlSlotMidOff[slot];
+    let index = start + 2;
+    const end = start + length - 2;
+    while (index + 3 < end) {
+        const word = htmlLongMiddles[wordIndex++];
+        if (
+            text.charCodeAt(index) !== (word & 255) ||
+            text.charCodeAt(index + 1) !== ((word >>> 8) & 255) ||
+            text.charCodeAt(index + 2) !== ((word >>> 16) & 255) ||
+            text.charCodeAt(index + 3) !== word >>> 24
+        )
+            return false;
+        index += 4;
+    }
+    let word = htmlLongMiddles[wordIndex];
+    while (index < end) {
+        if (text.charCodeAt(index++) !== (word & 255)) return false;
+        word >>>= 8;
+    }
+    return true;
 }
 
 /**
@@ -216,6 +249,19 @@ function unpackConsumed(packed: number): number {
         : consumed;
 }
 
+/** ASCII digit values; 0xff marks characters outside the hexadecimal range. */
+const numericDigits: Uint8Array = /* #__PURE__ */ ((): Uint8Array => {
+    const digits = new Uint8Array(128).fill(0xff);
+    for (let digit = 0; digit < 10; digit++) {
+        digits[CharCodes.ZERO + digit] = digit;
+    }
+    for (let digit = 0; digit < 6; digit++) {
+        digits[CharCodes.UPPER_A + digit] = digit + 10;
+        digits[CharCodes.LOWER_A + digit] = digit + 10;
+    }
+    return digits;
+})();
+
 /**
  * Parse a numeric entity starting right after the `#`. In legacy mode the
  * terminating semicolon is optional. Returns the number of characters
@@ -235,51 +281,46 @@ function parseNumericEntity(
     let index = offset;
     let codePoint = 0;
     let digitsStart: number;
-
     if ((input.charCodeAt(index) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
         // Hexadecimal entity.
         index += 1;
         digitsStart = index;
-        while (index < inputLength) {
-            const char = input.charCodeAt(index);
-            if (isNumber(char)) {
-                codePoint = codePoint * 16 + (char - CharCodes.ZERO);
-            } else if (isHexadecimalCharacter(char)) {
-                codePoint =
-                    codePoint * 16 +
-                    ((char | TO_LOWER_BIT) - CharCodes.LOWER_A + 10);
+        for (;;) {
+            const digit = numericDigits[input.charCodeAt(index)];
+            // The positive range check also rejects non-ASCII and end-of-input.
+            if (digit <= 15) {
+                codePoint = codePoint * 16 + digit;
+                index++;
             } else {
                 break;
             }
-            index += 1;
         }
     } else {
         digitsStart = index;
-        while (index < inputLength) {
-            const char = input.charCodeAt(index);
-            if (!isNumber(char)) break;
-            codePoint = codePoint * 10 + (char - CharCodes.ZERO);
-            index += 1;
+        for (;;) {
+            const digit = numericDigits[input.charCodeAt(index)];
+            if (digit <= 9) {
+                codePoint = codePoint * 10 + digit;
+                index++;
+            } else {
+                break;
+            }
         }
     }
     if (index === digitsStart) return 0;
-
     // Clamp once after the loop instead of per digit.
     if (codePoint > 0x10_ff_ff) codePoint = 0x11_00_00;
-
     let consumed = index - offset + 2; // Includes "#" and the "&" position.
     if (index < inputLength && input.charCodeAt(index) === CharCodes.SEMI) {
         consumed += 1;
     } else if (isStrict) {
         return 0;
     }
-
     if (consumed >= NumericPacking.CONSUMED_OVERFLOW) {
         // eslint-disable-next-line unicorn/no-top-level-assignment-in-function -- deliberate side channel, read immediately by unpackConsumed
         longNumericConsumed = consumed;
         consumed = NumericPacking.CONSUMED_OVERFLOW;
     }
-
     return (consumed << NumericPacking.CONSUMED_SHIFT) | codePoint;
 }
 
@@ -314,6 +355,39 @@ function findLegacySlot(
             (htmlLegacyBits[slot >> 3] & (1 << (slot & 7))) !== 0
         ) {
             return (slot << 3) | (top + 2);
+        }
+    }
+    return -1;
+}
+
+/**
+ * Match a class containing long names without probing all its shorter lengths.
+ * The 32-character window bounds the scan even for invalid or unterminated runs.
+ * Returns `(slot << 6) | consumed`, excluding the `&`, or -1 on a miss.
+ * @param input Input containing the candidate name.
+ * @param start Start of the name.
+ * @param mode Decoding mode, including the rules for legacy matches.
+ */
+function findLongClassMatch(
+    input: string,
+    start: number,
+    mode: DecodingMode,
+): number {
+    const length = input.slice(start, start + 32).indexOf(";");
+    if ((length - 2) >>> 0 <= 29) {
+        const slot = findSlotHtml(input, start, length);
+        if (slot >= 0) return (slot << 6) | (length + 1);
+    }
+    if (mode !== DecodingMode.Strict) {
+        const packed = findLegacySlot(input, start, 31);
+        if (packed >= 0) {
+            const length = packed & 7;
+            if (
+                mode !== DecodingMode.Attribute ||
+                start + length >= input.length ||
+                !isEntityInAttributeInvalidEnd(input.charCodeAt(start + length))
+            )
+                return ((packed >> 3) << 6) | length;
         }
     }
     return -1;
@@ -429,21 +503,17 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
     const isLegacyAllowed = mode !== DecodingMode.Strict;
     let offset = input.indexOf("&");
     if (offset < 0) return input;
-
     const inputLength = input.length;
     let result = "";
     let last = 0;
-
     do {
         const start = offset + 1;
         const c0 = input.charCodeAt(start);
-
         if (c0 === CharCodes.AMP) {
             // Adjacent "&&": re-enter directly, skipping indexOf.
             offset = start;
             continue;
         }
-
         if (c0 === CharCodes.NUM) {
             const packed = parseNumericEntity(
                 input,
@@ -465,7 +535,6 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
             }
             continue;
         }
-
         /*
          * Named entity. The (c0,c1) class lists every length a matching
          * name can have; probe `;` at each. A probe hit is fully
@@ -474,6 +543,18 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
          * lookup — legacy names need no terminator.
          */
         const bits = htmlLengthBits[pairIndex(c0, input.charCodeAt(start + 1))];
+        if ((bits & 0x80_00) !== 0) {
+            const packed = findLongClassMatch(input, start, mode);
+            if (packed >= 0) {
+                if (last !== offset) result += input.slice(last, offset);
+                result += emitHtmlValue(htmlSlotValue[packed >> 6]);
+                last = start + (packed & 63);
+                offset = nextOffset(input, last);
+            } else {
+                offset = input.indexOf("&", start);
+            }
+            continue;
+        }
         let probed = bits & 0x7f_ff;
         let legacyPacked = -1;
         while (probed !== 0) {
@@ -519,52 +600,6 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
             }
         }
         if (probed === -1) continue;
-
-        // Where scanning resumes when no match applies below.
-        let rescanFrom = start + 1;
-        if ((bits & 0x80_00) !== 0) {
-            /*
-             * This class contains names longer than 16 characters (24
-             * classes in the HTML set). Find the run's end, then try
-             * the long exact match; shorter lengths were probed above.
-             */
-            let index = start;
-            const scanEnd = Math.min(inputLength, start + 32);
-            while (index < scanEnd && isAlphaNumeric(input.charCodeAt(index))) {
-                index++;
-            }
-            /*
-             * The run's terminator (or 0 at end of input). Equivalent to the
-             * last `char` the scan loop read: where they could differ (a full
-             * 32-char run, or input end) the length/index guards below make
-             * the value unobservable.
-             */
-            const char = index < inputLength ? input.charCodeAt(index) : 0;
-            const length = index - start;
-            if (
-                char === CharCodes.SEMI &&
-                index < inputLength &&
-                (length - 17) >>> 0 <= 14
-            ) {
-                const slot = findSlotHtml(input, start, length);
-                if (slot >= 0) {
-                    if (last !== offset) {
-                        result += input.slice(last, offset);
-                    }
-                    result += emitHtmlValue(htmlSlotValue[slot]);
-                    last = index + 1;
-                    offset = nextOffset(input, last);
-                    continue;
-                }
-            }
-            /*
-             * Resume at the run's end. When the terminator is itself an
-             * `&` (or the run is empty), the indexOf below finds it at
-             * `index` right away.
-             */
-            rescanFrom = index;
-        }
-
         // Only ever set when legacy matching is allowed; no mode check here.
         if (legacyPacked >= 0) {
             const matchLength = legacyPacked & 7;
@@ -585,9 +620,8 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
                 continue;
             }
         }
-        offset = input.indexOf("&", rescanFrom);
+        offset = input.indexOf("&", start + 1);
     } while (offset >= 0);
-
     return result + input.slice(last);
 }
 
@@ -829,12 +863,9 @@ abstract class EntityDecoderBase {
         let index = offset;
         while (index < inputLength) {
             const char = input.charCodeAt(index);
-            if (isNumber(char)) {
-                result = result * 16 + (char - CharCodes.ZERO);
-            } else if (isHexadecimalCharacter(char)) {
-                result =
-                    result * 16 +
-                    ((char | TO_LOWER_BIT) - CharCodes.LOWER_A + 10);
+            const digit = numericDigits[char];
+            if (digit <= 15) {
+                result = result * 16 + digit;
             } else {
                 this.result = result;
                 this.consumed = consumed;
@@ -1064,6 +1095,24 @@ export class HtmlEntityDecoder extends EntityDecoderBase {
             const c0 = input.charCodeAt(offset);
             const pair = pairIndex(c0, input.charCodeAt(offset + 1));
             const bits = htmlLengthBits[pair];
+            if ((bits & 0x80_00) !== 0 && offset + 32 <= inputLength) {
+                const packed = findLongClassMatch(
+                    input,
+                    offset,
+                    this.decodeMode,
+                );
+                if (packed >= 0) {
+                    const length = packed & 63;
+                    this.consumed = length + 1;
+                    this.emitSlot(packed >> 6);
+                    if (
+                        input.charCodeAt(offset + length - 1) !== CharCodes.SEMI
+                    ) {
+                        this.errors?.missingSemicolonAfterCharacterReference();
+                    }
+                    return this.consumed;
+                }
+            }
             let probed = bits & 0x7f_ff;
             while (probed !== 0) {
                 /*
