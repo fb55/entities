@@ -113,9 +113,10 @@ lookalikes from matching. The pool occupies 9,896 bytes; it replaces a
 3,505-character Latin-1 string and a 1,244-byte long-name pool, trading about
 5.1 kB of runtime storage for fewer comparisons and one shared matcher.
 
-The current data uses 4,096 two-slot buckets. This costs 45,743 more bytes
-of key, slot-metadata and legacy-flag arrays than the earlier 1,281-bucket
-layout, while reducing second-bucket placements from 784 to 124. It also
+The current data uses 4,096 two-slot buckets. Its key and slot-metadata arrays
+occupy 65,536 bytes; the legacy flag shares a bit in each replacement entry.
+This costs 44,719 more bytes than the earlier 1,281-bucket layout, while
+reducing second-bucket placements from 784 to 124. It also
 puts more common names in the first slot checked. Doubling to 8,192 buckets
 did not provide a consistent further throughput gain in the measured
 size/density workloads.
@@ -158,12 +159,13 @@ length probes and a character-by-character scan before verification. A failed
 exact lookup falls back to the longest permitted legacy match. Bounding the
 window keeps repeated invalid references from causing quadratic scanning.
 
-Across chunk boundaries, HTML uses a reusable 32-character `Uint16Array` and
+Across chunk boundaries, HTML uses a reusable 32-character `Uint8Array` and
 verifies it directly against the same key and middle tables. This avoids
 building and then reading a concatenated name string. A 32nd name character
 rules out every exact match, while legacy matching still checks the buffered
 prefix. Resetting the buffered length lets subsequent entities reuse the
-64-byte storage without clearing it. XML's five names need at most four
+32-byte storage without clearing it; only ASCII alphanumerics enter the buffer.
+XML's five names need at most four
 lowercase ASCII letters, so its partial name fits in a 28-bit integer.
 
 In the short-name path, legacy names need no terminator: a failed `;` probe at a
@@ -180,8 +182,9 @@ the semicolon-optional subset is the spec's historical list.
 
 ## Replacement values
 
-Each slot holds a `(offset << 2) | (length - 1)` reference (`slotValue`, a
-`Uint16Array`) into the shipped `values` string, from which the emit either
+Each slot holds a reference (`slotValue`, a `Uint16Array`) into the shipped
+`values` string: bits 2..15 hold the offset, bit 1 marks a legacy name, and
+bit 0 holds the value length minus one. From this reference, the emit either
 takes a `charAt` (one-unit values, the vast majority) or a two-unit
 `slice`. This replaces an earlier per-slot `string[]` design: half the
 footprint and no ~1.4k value-string heap objects, for a slightly costlier

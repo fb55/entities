@@ -93,8 +93,6 @@ const htmlSlotMidOff = /* #__PURE__ */ ((): Uint16Array =>
 const htmlLengthBits = /* #__PURE__ */ ((): Uint32Array =>
     htmlDecode.lengthBits)();
 const htmlMiddles = /* #__PURE__ */ ((): Uint32Array => htmlDecode.middles)();
-const htmlLegacyBits = /* #__PURE__ */ ((): Uint8Array =>
-    htmlDecode.legacyBits)();
 /** Hoisted for the specialized HTML cores; see `emitHtmlValue`. */
 const htmlSlotValue = /* #__PURE__ */ ((): Uint16Array =>
     htmlDecode.slotValue)();
@@ -103,13 +101,13 @@ const htmlValues = /* #__PURE__ */ ((): string => htmlDecode.values)();
 /**
  * The replacement string for a packed `slotValue` entry. Most values need
  * just one UTF-16 code unit.
- * @param packed `(offset << 2) | (length - 1)` from `htmlSlotValue`.
+ * @param packed Replacement offset, legacy flag, and length from `htmlSlotValue`.
  */
 function emitHtmlValue(packed: number): string {
     const off = packed >> 2;
-    return (packed & 3) === 0
+    return (packed & 1) === 0
         ? htmlValues.charAt(off)
-        : htmlValues.slice(off, off + (packed & 3) + 1);
+        : htmlValues.slice(off, off + (packed & 1) + 1);
 }
 
 /**
@@ -319,10 +317,7 @@ function findLegacySlot(
         legacy ^= 1 << top;
         if (top + 2 > maxLength) continue;
         const slot = findSlotHtml(input, start, top + 2);
-        if (
-            slot >= 0 &&
-            (htmlLegacyBits[slot >> 3] & (1 << (slot & 7))) !== 0
-        ) {
+        if (slot >= 0 && (htmlSlotValue[slot] & 2) !== 0) {
             return (slot << 3) | (top + 2);
         }
     }
@@ -534,7 +529,7 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
                 // eslint-disable-next-line unicorn/no-break-in-nested-loop -- an exact match ends the probe loop
                 break;
             }
-            if ((htmlLegacyBits[slot >> 3] & (1 << (slot & 7))) !== 0) {
+            if ((htmlSlotValue[slot] & 2) !== 0) {
                 matched = (slot << 6) | length;
             }
         }
@@ -999,8 +994,8 @@ export class HtmlEntityDecoder extends EntityDecoderBase {
     /** Total name characters seen for the current named entity. */
     private runLength = 0;
 
-    /** Reused for partial names; the 32nd character rules out an exact match. */
-    private readonly nameBuffer = new Uint16Array(32);
+    /** Reused for ASCII alphanumerics; the 32nd character rules out an exact match. */
+    private readonly nameBuffer = new Uint8Array(32);
 
     /**
      * Emit the replacement for a matched slot. Values are at most two
@@ -1012,7 +1007,7 @@ export class HtmlEntityDecoder extends EntityDecoderBase {
         const packed = htmlSlotValue[slot];
         const off = packed >> 2;
         this.emitCodePoint(htmlValues.charCodeAt(off), this.consumed);
-        if ((packed & 3) !== 0) {
+        if ((packed & 1) !== 0) {
             this.emitCodePoint(htmlValues.charCodeAt(off + 1), this.consumed);
         }
     }
@@ -1171,7 +1166,7 @@ export class HtmlEntityDecoder extends EntityDecoderBase {
  * @param buffer Reusable character buffer.
  * @param length Number of characters to match.
  */
-function findBufferedHtmlSlot(buffer: Uint16Array, length: number): number {
+function findBufferedHtmlSlot(buffer: Uint8Array, length: number): number {
     const key =
         (buffer[0] << 25) |
         (buffer[1] << 18) |
@@ -1199,7 +1194,7 @@ function findBufferedHtmlSlot(buffer: Uint16Array, length: number): number {
 
 function isBufferedMiddle(
     slot: number,
-    buffer: Uint16Array,
+    buffer: Uint8Array,
     length: number,
 ): boolean {
     let wordIndex = htmlSlotMidOff[slot];
@@ -1223,14 +1218,14 @@ function isBufferedMiddle(
  * @param buffer Reusable character buffer.
  * @param length Number of buffered characters.
  */
-function findBufferedLegacySlot(buffer: Uint16Array, length: number): number {
+function findBufferedLegacySlot(buffer: Uint8Array, length: number): number {
     let legacy = (htmlLengthBits[pairIndex(buffer[0], buffer[1])] >>> 16) & 31;
     while (legacy !== 0) {
         const top = 31 - Math.clz32(legacy);
         legacy ^= 1 << top;
         if (top + 2 > length) continue;
         const slot = findBufferedHtmlSlot(buffer, top + 2);
-        if (slot >= 0 && (htmlLegacyBits[slot >> 3] & (1 << (slot & 7))) !== 0)
+        if (slot >= 0 && (htmlSlotValue[slot] & 2) !== 0)
             return (slot << 3) | (top + 2);
     }
     return -1;

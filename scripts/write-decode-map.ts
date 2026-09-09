@@ -174,7 +174,7 @@ function buildDecodeData(
         previous = name;
     }
 
-    // `slotValue` packs the value offset into 14 bits (`(offset << 2) | len`).
+    // `slotValue` reserves two bits for the value length and legacy flag.
     if (values.length > 0x3f_ff) {
         throw new Error("Values blob exceeds the 14-bit offset field");
     }
