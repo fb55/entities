@@ -1,0 +1,47 @@
+src/internal/decode-data-format.ts
+  s_d5b9cd3ccc3b9d::t_6b46182cd1735e 105,123-124,152,183-184,190-193,225
+  s_d5b9cd3ccc3b9d::t_be48e6a90679b3 185-189
+src/decode-stream.spec.ts
+  s_d5b9cd3ccc3b9d::t_daae695fdacd40 306-308,328-329,332,335
+  s_d5b9cd3ccc3b9d::t_be48e6a90679b3 309-327,330-331,333-334
+src/decode.ts
+  s_d5b9cd3ccc3b9d::t_a5a7a0c07d13b3 111
+  s_d5b9cd3ccc3b9d::t_e2b7c718f21661 996,1002-1004,1106,1113,1121,1129,1131,1139,1153,1168-1174,1183,1194,1197-1199,1205-1208,1214-1215,1219-1232,1236
+  s_d5b9cd3ccc3b9d::t_bc998705f64d5c 95,174,176-177,180
+  s_d5b9cd3ccc3b9d::t_81af284ed7ad17 509,519-520,524-531,533-538,541-542,544,546-547,549-551
+  s_d5b9cd3ccc3b9d::t_edefaab5bf20ed 739
+  s_d5b9cd3ccc3b9d::t_43a1ce47bc5dad 606,627,640,648,662,690
+  s_d5b9cd3ccc3b9d::t_0420ae6cef8176 1104,1240-1270,1292,1296-1297
+  s_d5b9cd3ccc3b9d::t_78a8a7329afbc4 1282,1291,1293,1295,1298-1299,1304-1305,1307-1308
+  s_d5b9cd3ccc3b9d::t_3ec0fd2e1ee7f6 104-105
+  s_d5b9cd3ccc3b9d::t_be48e6a90679b3 182-185,1133,1137,1175-1182,1184-1193,1195-1196,1200-1204,1209-1213,1216-1218,1233-1234,1302-1303
+  s_d5b9cd3ccc3b9d::t_9a8d06cc70961c 254-257,267-270,351-353,355,436,456,514-517
+scripts/write-decode-map.ts
+  s_d5b9cd3ccc3b9d::t_f20416cfd7051f 195-196,209
+  s_d5b9cd3ccc3b9d::t_8ef192cd813715 183-184
+src/decode.spec.ts
+  s_d5b9cd3ccc3b9d::t_37cbc7fd0989a7 365-371,376-377,381-383,385-389,391-401,403-404
+  s_d5b9cd3ccc3b9d::t_daae695fdacd40 405
+scripts/README.md
+  s_d5b9cd3ccc3b9d::t_5c3bb10c4b3ae8 161-168
+  s_d5b9cd3ccc3b9d::t_599a5962ef995d 116-121,211-214
+  s_d5b9cd3ccc3b9d::t_6bb5799cec6e20 206-210
+  s_d5b9cd3ccc3b9d::t_07d3203a74cecb 108-114
+  s_d5b9cd3ccc3b9d::t_a5a7a0c07d13b3 185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e896eecd986ad8f1027acab6df3fef70cc9f2d14",
+  "prompts": {},
+  "sessions": {
+    "s_d5b9cd3ccc3b9d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07af8-e3e6-7d13-935c-1069f2f34010",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    }
+  }
+}
