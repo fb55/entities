@@ -34,6 +34,66 @@ function streamEntity(
 }
 
 describe("Streaming entity decoders", () => {
+    it.each([DecodingMode.Strict, DecodingMode.Attribute])(
+        "should reject overlong HTML names before a terminator in mode %i",
+        (mode) => {
+            const callback = vi.fn();
+            const decoder = new HtmlEntityDecoder(callback);
+            decoder.startEntity(mode);
+            expect(decoder.write("CounterClockwiseContourIntegral", 0)).toBe(
+                -1,
+            );
+            expect(decoder.write("x", 0)).toBe(0);
+            expect(callback).not.toHaveBeenCalled();
+
+            decoder.startEntity(mode);
+            expect(
+                decoder.write(
+                    `CounterClockwiseContourIntegral${"x".repeat(4096)}`,
+                    0,
+                ),
+            ).toBe(0);
+            expect(callback).not.toHaveBeenCalled();
+        },
+    );
+
+    it("should preserve legacy matches when a buffered HTML name becomes too long", () => {
+        const callback = vi.fn();
+        const missingSemicolonAfterCharacterReference = vi.fn();
+        const decoder = new HtmlEntityDecoder(callback, {
+            missingSemicolonAfterCharacterReference,
+            absenceOfDigitsInNumericCharacterReference: vi.fn(),
+            validateNumericCharacterReference: vi.fn(),
+        });
+        decoder.startEntity(DecodingMode.Legacy);
+        expect(decoder.write("amp", 0)).toBe(-1);
+        expect(decoder.write("x".repeat(4096), 0)).toBe(4);
+        expect(callback).toHaveBeenCalledExactlyOnceWith(38, 4);
+        expect(missingSemicolonAfterCharacterReference).toHaveBeenCalledOnce();
+
+        decoder.startEntity(DecodingMode.Attribute);
+        expect(decoder.write("amp", 0)).toBe(-1);
+        expect(decoder.write("x".repeat(4096), 0)).toBe(0);
+        expect(callback).toHaveBeenCalledOnce();
+    });
+
+    it.each([1, 4096])(
+        "should reject an impossible XML continuation of length %i",
+        (length) => {
+            const callback = vi.fn();
+            const decoder = new XmlEntityDecoder(callback);
+            decoder.startEntity(DecodingMode.Strict);
+            expect(decoder.write("quot", 0)).toBe(-1);
+            expect(decoder.write("x".repeat(length), 0)).toBe(0);
+            expect(callback).not.toHaveBeenCalled();
+
+            decoder.startEntity(DecodingMode.Strict);
+            expect(decoder.write("quot", 0)).toBe(-1);
+            expect(decoder.write(";", 0)).toBe(6);
+            expect(callback).toHaveBeenCalledExactlyOnceWith(34, 6);
+        },
+    );
+
     it("should decode long entities split across chunks (char-by-char)", () => {
         const callback = vi.fn();
         const decoder = new HtmlEntityDecoder(callback);

@@ -1112,6 +1112,8 @@ export class HtmlEntityDecoder extends EntityDecoderBase {
                     }
                     return this.consumed;
                 }
+                // The window decides every exact or legacy candidate.
+                return 0;
             }
             let probed = bits & 0x7f_ff;
             while (probed !== 0) {
@@ -1158,10 +1160,11 @@ export class HtmlEntityDecoder extends EntityDecoderBase {
             }
         }
 
-        // Slow path: scan the run, buffering across chunk boundaries.
+        // A 32nd name character rules out every exact HTML match.
         let index = offset;
         let terminator = -1;
-        while (index < inputLength) {
+        const scanEnd = Math.min(inputLength, offset + 32 - this.runLength);
+        while (index < scanEnd) {
             const char = input.charCodeAt(index);
             if (!isAlphaNumeric(char)) {
                 terminator = char;
@@ -1171,14 +1174,9 @@ export class HtmlEntityDecoder extends EntityDecoderBase {
         }
         const part = index - offset;
         const runLength = this.runLength + part;
-        if (terminator < 0) {
-            // Chunk ended inside the run; buffer what lookups may need.
-            if (this.runLength < 32 && part > 0) {
-                this.pending += input.slice(
-                    offset,
-                    Math.min(index, offset + 32 - this.runLength),
-                );
-            }
+        if (terminator < 0 && runLength < 32) {
+            // The name may continue in the next chunk.
+            this.pending += input.slice(offset, index);
             this.runLength = runLength;
             return -1;
         }
@@ -1273,9 +1271,11 @@ export class XmlEntityDecoder extends EntityDecoderBase {
             return consumed;
         }
 
-        // Slow path: scan the run, buffering across chunk boundaries.
+        // A fifth name character rules out every XML match.
         let index = offset;
-        while (index < inputLength) {
+        const nameEnd = offset + 5 - this.pending.length;
+        const scanEnd = Math.min(inputLength, nameEnd);
+        while (index < scanEnd) {
             const char = input.charCodeAt(index);
             if (!isAlphaNumeric(char)) {
                 if (char !== CharCodes.SEMI) return 0;
@@ -1289,17 +1289,8 @@ export class XmlEntityDecoder extends EntityDecoderBase {
             index++;
         }
 
-        /*
-         * Chunk ended inside the name. Five buffered characters are enough
-         * to decide every entity; a truncated longer run keeps a name
-         * length that can never match.
-         */
-        if (this.pending.length < 5) {
-            this.pending += input.slice(
-                offset,
-                Math.min(index, offset + 5 - this.pending.length),
-            );
-        }
+        if (index === nameEnd) return 0;
+        this.pending += input.slice(offset, index);
         return -1;
     }
 

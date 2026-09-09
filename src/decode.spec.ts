@@ -365,7 +365,7 @@ describe.each(implementations)(
             it("should reject non-ASCII lookalikes inside long entity names", () => {
                 for (const name of Object.keys(entityMap)) {
                     if (name.length <= 16) continue;
-                    for (let index = 2; index < name.length - 2; index++) {
+                    for (let index = 0; index < name.length; index++) {
                         const input = `&${name.slice(0, index)}${String.fromCharCode(
                             name.charCodeAt(index) + 0x1_00,
                         )}${name.slice(index + 1)};`;
