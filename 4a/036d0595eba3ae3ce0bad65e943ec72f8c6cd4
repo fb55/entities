@@ -1,0 +1,33 @@
+src/decode.ts
+  s_d5b9cd3ccc3b9d::t_90c55884b35b6e 49,61,190-192,203-204,213,216-217,226,241,274,279,282,284,373-375,379-381,385,389-391,395-398,402-406,425,446,451,464,1031,1284
+  s_d5b9cd3ccc3b9d::t_7c659f0ce47c89 475,505,596,600,615,629,638,652,677,684-688,720,762-763,768,817,821,854,866,881,895-897,901,905,909,913,918,947,952,956,960,968,1044
+scripts/write-decode-map.ts
+  s_d5b9cd3ccc3b9d::t_b84cf00a6c61e4 265-268,271
+  s_d5b9cd3ccc3b9d::t_8e11901d0faec2 263-264,269,280
+src/internal/decode-data-format.ts
+  s_d5b9cd3ccc3b9d::t_7c659f0ce47c89 5,7
+src/generated/decode-data-html.ts
+  s_d5b9cd3ccc3b9d::t_c0bdb5d8dc2b83 2,11
+scripts/README.md
+  s_d5b9cd3ccc3b9d::t_1485522fa1ba07 204-207
+  s_d5b9cd3ccc3b9d::t_8e11901d0faec2 85-88
+  s_d5b9cd3ccc3b9d::t_7c659f0ce47c89 200-203
+src/decode-codepoint.ts
+  s_d5b9cd3ccc3b9d::t_7c659f0ce47c89 4,28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "4a036d0595eba3ae3ce0bad65e943ec72f8c6cd4",
+  "prompts": {},
+  "sessions": {
+    "s_d5b9cd3ccc3b9d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07af8-e3e6-7d13-935c-1069f2f34010",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    }
+  }
+}
