@@ -82,6 +82,10 @@ The shipped value is `[data, values]`:
   kept separate so it does not force the main string into two-byte
   representation).
 
+The generator escapes replacement characters above U+00FF in the JavaScript
+source, keeping the source itself one-byte too. Parsing restores the original
+UTF-16 values; lookup tables and bundles are unaffected by this spelling.
+
 | section | encoding |
 | --- | --- |
 | header | bias 0x30: name count (2 chars, hi/lo 6 bits), suffixes length (2), cuckoo bucket count (2) |
@@ -193,6 +197,14 @@ the streaming decoder emits each unit as its own callback).
 
 ## Engineering notes (V8, all measured on this code)
 
+- Keep decoder runtime sources within Latin-1, including their comments.
+  A single wider character makes V8 retain the whole source as a two-byte
+  string. Plain punctuation and escaped replacement literals avoid that
+  cost without changing the executable code.
+- Private character codes, states, and packing limits use scalar constants.
+  With `isolatedModules`, TypeScript emits runtime objects even for private
+  `const enum`s; scalars avoid those objects and let bundles discard unused
+  constants, especially in XML-only imports.
 - The synchronous HTML decoder is specialized over module-level constants.
   Per-dataset factory closures are 25–50% slower: N closure instances share
   one `SharedFunctionInfo`, which blocks function-context specialization;

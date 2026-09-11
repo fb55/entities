@@ -260,7 +260,15 @@ function writeDataModule(
     exportName: string,
     data: [string, string],
 ): void {
+    // Literal replacements would widen the entire generated source in V8.
+    const serialized = JSON.stringify(data).replaceAll(
+        // eslint-disable-next-line unicorn/prefer-unicode-code-point-escapes -- escape UTF-16 units, including surrogate halves
+        /[\u0100-\uFFFF]/g,
+        (char) =>
+            String.raw`\u${char.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0")}`,
+    );
     const out = `// Generated using scripts/write-decode-map.ts
+/* eslint-disable unicorn/prefer-unicode-code-point-escapes -- Fixed-width escapes keep generated source compact. */
 
 /**
  * Serialized decode data; the format is documented in
@@ -269,7 +277,7 @@ function writeDataModule(
  * cuckoo choice bits); \`[1]\` holds the replacement values.
  */
 // biome-ignore format: generated data
-export const ${exportName}: readonly [string, string] = ${JSON.stringify(data)};
+export const ${exportName}: readonly [string, string] = ${serialized};
 `;
     writeFileSync(
         new URL(`../src/generated/${fileName}`, import.meta.url),

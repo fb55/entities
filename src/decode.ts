@@ -13,28 +13,24 @@ import {
     pairIndex,
 } from "./internal/decode-data-format.js";
 
-const enum CharCodes {
-    AMP = 38, // "&"
-    NUM = 35, // "#"
-    SEMI = 59, // ";"
-    EQUALS = 61, // "="
-    ZERO = 48, // "0"
-    NINE = 57, // "9"
-    LOWER_A = 97, // "a"
-    LOWER_F = 102, // "f"
-    LOWER_G = 103, // "g"
-    LOWER_L = 108, // "l"
-    LOWER_M = 109, // "m"
-    LOWER_O = 111, // "o"
-    LOWER_P = 112, // "p"
-    LOWER_Q = 113, // "q"
-    LOWER_S = 115, // "s"
-    LOWER_T = 116, // "t"
-    LOWER_U = 117, // "u"
-    LOWER_X = 120, // "x"
-    UPPER_A = 65, // "A"
-    UPPER_F = 70, // "F"
-}
+// Scalar constants avoid runtime enum objects with isolatedModules enabled.
+const CHAR_AMP = 38; // "&"
+const CHAR_NUM = 35; // "#"
+const CHAR_SEMI = 59; // ";"
+const CHAR_EQUALS = 61; // "="
+const CHAR_ZERO = 48; // "0"
+const CHAR_LOWER_A = 97; // "a"
+const CHAR_LOWER_G = 103; // "g"
+const CHAR_LOWER_L = 108; // "l"
+const CHAR_LOWER_M = 109; // "m"
+const CHAR_LOWER_O = 111; // "o"
+const CHAR_LOWER_P = 112; // "p"
+const CHAR_LOWER_Q = 113; // "q"
+const CHAR_LOWER_S = 115; // "s"
+const CHAR_LOWER_T = 116; // "t"
+const CHAR_LOWER_U = 117; // "u"
+const CHAR_LOWER_X = 120; // "x"
+const CHAR_UPPER_A = 65; // "A"
 
 /** Bit that needs to be set to convert an upper case ASCII character to lower case */
 const TO_LOWER_BIT = 0b10_0000;
@@ -45,13 +41,12 @@ const TO_LOWER_BIT = 0b10_0000;
  * @param code Code point to check.
  */
 function isNumber(code: number): boolean {
-    return (code - CharCodes.ZERO) >>> 0 <= 9;
+    return (code - CHAR_ZERO) >>> 0 <= 9;
 }
 
 function isAlphaNumeric(code: number): boolean {
     return (
-        isNumber(code) ||
-        ((code | TO_LOWER_BIT) - CharCodes.LOWER_A) >>> 0 <= 25 // Z - a
+        isNumber(code) || ((code | TO_LOWER_BIT) - CHAR_LOWER_A) >>> 0 <= 25 // Z - a
     );
 }
 
@@ -63,7 +58,7 @@ function isAlphaNumeric(code: number): boolean {
  * @param code Code point to check.
  */
 function isEntityInAttributeInvalidEnd(code: number): boolean {
-    return code === CharCodes.EQUALS || isAlphaNumeric(code);
+    return code === CHAR_EQUALS || isAlphaNumeric(code);
 }
 
 /**
@@ -192,11 +187,9 @@ function isMidMatchHtml(
  * long references, whose full length is stored in `longNumericConsumed`.
  * A zero return means "no numeric entity".
  */
-const enum NumericPacking {
-    CONSUMED_SHIFT = 21,
-    CODE_POINT_MASK = 0x1f_ff_ff,
-    CONSUMED_OVERFLOW = 0x7_ff,
-}
+const NUMERIC_CONSUMED_SHIFT = 21;
+const NUMERIC_CODE_POINT_MASK = 0x1f_ff_ff;
+const NUMERIC_CONSUMED_OVERFLOW = 0x7_ff;
 
 /** Full length, including `&`, when the packed consumed field overflows. */
 let longNumericConsumed = 0;
@@ -207,8 +200,8 @@ let longNumericConsumed = 0;
  * @param packed Packed result of `parseNumericEntity`.
  */
 function unpackConsumed(packed: number): number {
-    const consumed = packed >>> NumericPacking.CONSUMED_SHIFT;
-    return consumed === NumericPacking.CONSUMED_OVERFLOW
+    const consumed = packed >>> NUMERIC_CONSUMED_SHIFT;
+    return consumed === NUMERIC_CONSUMED_OVERFLOW
         ? longNumericConsumed
         : consumed;
 }
@@ -217,11 +210,11 @@ function unpackConsumed(packed: number): number {
 const numericDigits: Uint8Array = /* #__PURE__ */ ((): Uint8Array => {
     const digits = new Uint8Array(128).fill(0xff);
     for (let digit = 0; digit < 10; digit++) {
-        digits[CharCodes.ZERO + digit] = digit;
+        digits[CHAR_ZERO + digit] = digit;
     }
     for (let digit = 0; digit < 6; digit++) {
-        digits[CharCodes.UPPER_A + digit] = digit + 10;
-        digits[CharCodes.LOWER_A + digit] = digit + 10;
+        digits[CHAR_UPPER_A + digit] = digit + 10;
+        digits[CHAR_LOWER_A + digit] = digit + 10;
     }
     return digits;
 })();
@@ -230,7 +223,7 @@ const numericDigits: Uint8Array = /* #__PURE__ */ ((): Uint8Array => {
  * Parse a numeric entity starting right after the `#`. In legacy mode the
  * terminating semicolon is optional. Returns the number of characters
  * consumed (counting the `&` and `#`) packed with the code point (see
- * `NumericPacking`), or 0 if there is no valid numeric entity at this
+ * the packing constants above), or 0 if there is no valid numeric entity at this
  * position.
  * @param input Input string.
  * @param offset Index right after the `#`.
@@ -245,7 +238,7 @@ function parseNumericEntity(
     let index = offset;
     let codePoint = 0;
     let digitsStart: number;
-    if ((input.charCodeAt(index) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
+    if ((input.charCodeAt(index) | TO_LOWER_BIT) === CHAR_LOWER_X) {
         // Hexadecimal entity.
         index += 1;
         digitsStart = index;
@@ -278,17 +271,17 @@ function parseNumericEntity(
     // Clamp once after the loop instead of per digit.
     if (codePoint > 0x10_ff_ff) codePoint = 0x11_00_00;
     let consumed = index - offset + 2; // Includes "#" and the "&" position.
-    if (index < inputLength && input.charCodeAt(index) === CharCodes.SEMI) {
+    if (index < inputLength && input.charCodeAt(index) === CHAR_SEMI) {
         consumed += 1;
     } else if (isStrict) {
         return 0;
     }
-    if (consumed >= NumericPacking.CONSUMED_OVERFLOW) {
+    if (consumed >= NUMERIC_CONSUMED_OVERFLOW) {
         // eslint-disable-next-line unicorn/no-top-level-assignment-in-function -- deliberate side channel, read immediately by unpackConsumed
         longNumericConsumed = consumed;
-        consumed = NumericPacking.CONSUMED_OVERFLOW;
+        consumed = NUMERIC_CONSUMED_OVERFLOW;
     }
-    return (consumed << NumericPacking.CONSUMED_SHIFT) | codePoint;
+    return (consumed << NUMERIC_CONSUMED_SHIFT) | codePoint;
 }
 
 /**
@@ -377,40 +370,40 @@ function matchXmlEntity(input: string, start: number): number {
      * the cases so the miss path (`default`) pays nothing.
      */
     switch (input.charCodeAt(start)) {
-        case CharCodes.LOWER_L: {
-            return input.charCodeAt(start + 1) === CharCodes.LOWER_T &&
-                input.charCodeAt(start + 2) === CharCodes.SEMI
+        case CHAR_LOWER_L: {
+            return input.charCodeAt(start + 1) === CHAR_LOWER_T &&
+                input.charCodeAt(start + 2) === CHAR_SEMI
                 ? (3 << 7) | 0x3c
                 : -1;
         }
-        case CharCodes.LOWER_G: {
-            return input.charCodeAt(start + 1) === CharCodes.LOWER_T &&
-                input.charCodeAt(start + 2) === CharCodes.SEMI
+        case CHAR_LOWER_G: {
+            return input.charCodeAt(start + 1) === CHAR_LOWER_T &&
+                input.charCodeAt(start + 2) === CHAR_SEMI
                 ? (3 << 7) | 0x3e
                 : -1;
         }
-        case CharCodes.LOWER_A: {
+        case CHAR_LOWER_A: {
             const c1 = input.charCodeAt(start + 1);
             const c2 = input.charCodeAt(start + 2);
             if (
-                c1 === CharCodes.LOWER_M &&
-                c2 === CharCodes.LOWER_P &&
-                input.charCodeAt(start + 3) === CharCodes.SEMI
+                c1 === CHAR_LOWER_M &&
+                c2 === CHAR_LOWER_P &&
+                input.charCodeAt(start + 3) === CHAR_SEMI
             ) {
                 return (4 << 7) | 0x26;
             }
-            return c1 === CharCodes.LOWER_P &&
-                c2 === CharCodes.LOWER_O &&
-                input.charCodeAt(start + 3) === CharCodes.LOWER_S &&
-                input.charCodeAt(start + 4) === CharCodes.SEMI
+            return c1 === CHAR_LOWER_P &&
+                c2 === CHAR_LOWER_O &&
+                input.charCodeAt(start + 3) === CHAR_LOWER_S &&
+                input.charCodeAt(start + 4) === CHAR_SEMI
                 ? (5 << 7) | 0x27
                 : -1;
         }
-        case CharCodes.LOWER_Q: {
-            return input.charCodeAt(start + 1) === CharCodes.LOWER_U &&
-                input.charCodeAt(start + 2) === CharCodes.LOWER_O &&
-                input.charCodeAt(start + 3) === CharCodes.LOWER_T &&
-                input.charCodeAt(start + 4) === CharCodes.SEMI
+        case CHAR_LOWER_Q: {
+            return input.charCodeAt(start + 1) === CHAR_LOWER_U &&
+                input.charCodeAt(start + 2) === CHAR_LOWER_O &&
+                input.charCodeAt(start + 3) === CHAR_LOWER_T &&
+                input.charCodeAt(start + 4) === CHAR_SEMI
                 ? (5 << 7) | 0x22
                 : -1;
         }
@@ -429,7 +422,7 @@ function matchXmlEntity(input: string, start: number): number {
  */
 function nextOffset(input: string, last: number): number {
     if (last >= input.length) return -1;
-    return input.charCodeAt(last) === CharCodes.AMP
+    return input.charCodeAt(last) === CHAR_AMP
         ? last
         : input.indexOf("&", last);
 }
@@ -450,12 +443,12 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
         const start = offset + 1;
         if (start + 1 >= inputLength) break;
         const c0 = input.charCodeAt(start);
-        if (c0 === CharCodes.AMP) {
+        if (c0 === CHAR_AMP) {
             // Adjacent "&&": re-enter directly, skipping indexOf.
             offset = start;
             continue;
         }
-        if (c0 === CharCodes.NUM) {
+        if (c0 === CHAR_NUM) {
             const packed = parseNumericEntity(
                 input,
                 start + 1,
@@ -468,9 +461,7 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
                 if (last !== offset) {
                     result += input.slice(last, offset);
                 }
-                result += codePointToString(
-                    packed & NumericPacking.CODE_POINT_MASK,
-                );
+                result += codePointToString(packed & NUMERIC_CODE_POINT_MASK);
                 last = offset + consumed;
                 offset = nextOffset(input, last);
             }
@@ -481,7 +472,7 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
          * name can have; probe `;` at each. A probe hit is fully
          * verified by `findSlot`; no scanning is needed. A `;` miss at
          * a legacy-marked length falls through to a direct legacy
-         * lookup — legacy names need no terminator.
+         * lookup: legacy names need no terminator.
          */
         const bits = htmlLengthBits[pairIndex(c0, input.charCodeAt(start + 1))];
         if ((bits & 0x80_00) !== 0) {
@@ -511,7 +502,7 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
             // eslint-disable-next-line unicorn/no-break-in-nested-loop -- keep the bounded probe loop inline
             if (end > inputLength) break;
             const isTerminated =
-                end < inputLength && input.charCodeAt(end) === CharCodes.SEMI;
+                end < inputLength && input.charCodeAt(end) === CHAR_SEMI;
             if (
                 !(
                     isTerminated ||
@@ -602,11 +593,11 @@ export function decodeXML(xmlString: string): string {
         let consumed = 0;
         let value = "";
         const c1 = xmlString.charCodeAt(start);
-        if (c1 === CharCodes.NUM) {
+        if (c1 === CHAR_NUM) {
             const packed = parseNumericEntity(xmlString, start + 1, true);
             consumed = unpackConsumed(packed);
             if (consumed !== 0) {
-                const codePoint = packed & NumericPacking.CODE_POINT_MASK;
+                const codePoint = packed & NUMERIC_CODE_POINT_MASK;
                 value =
                     (codePoint - 1) >>> 0 < 0xd7_ff
                         ? String.fromCharCode(codePoint)
@@ -621,7 +612,7 @@ export function decodeXML(xmlString: string): string {
                     if (
                         start + 2 < xmlString.length &&
                         xmlString.charCodeAt(start + 1) === 0x74 &&
-                        xmlString.charCodeAt(start + 2) === CharCodes.SEMI
+                        xmlString.charCodeAt(start + 2) === CHAR_SEMI
                     ) {
                         consumed = 4;
                         value = c1 === 0x6c ? "<" : ">";
@@ -635,7 +626,7 @@ export function decodeXML(xmlString: string): string {
                         start + 3 < xmlString.length &&
                         c2 === 0x6d &&
                         xmlString.charCodeAt(start + 2) === 0x70 &&
-                        xmlString.charCodeAt(start + 3) === CharCodes.SEMI
+                        xmlString.charCodeAt(start + 3) === CHAR_SEMI
                     ) {
                         consumed = 5;
                         value = "&";
@@ -644,7 +635,7 @@ export function decodeXML(xmlString: string): string {
                         c2 === 0x70 &&
                         xmlString.charCodeAt(start + 2) === 0x6f &&
                         xmlString.charCodeAt(start + 3) === 0x73 &&
-                        xmlString.charCodeAt(start + 4) === CharCodes.SEMI
+                        xmlString.charCodeAt(start + 4) === CHAR_SEMI
                     ) {
                         consumed = 6;
                         value = "'";
@@ -658,7 +649,7 @@ export function decodeXML(xmlString: string): string {
                         xmlString.charCodeAt(start + 1) === 0x75 &&
                         xmlString.charCodeAt(start + 2) === 0x6f &&
                         xmlString.charCodeAt(start + 3) === 0x74 &&
-                        xmlString.charCodeAt(start + 4) === CharCodes.SEMI
+                        xmlString.charCodeAt(start + 4) === CHAR_SEMI
                     ) {
                         consumed = 6;
                         value = '"';
@@ -683,20 +674,18 @@ export function decodeXML(xmlString: string): string {
          */
         offset =
             offset < xmlString.length &&
-            xmlString.charCodeAt(offset) === CharCodes.AMP
+            xmlString.charCodeAt(offset) === CHAR_AMP
                 ? offset
                 : xmlString.indexOf("&", offset);
     } while (offset >= 0);
     return result + xmlString.slice(lastIndex);
 }
 
-const enum EntityDecoderState {
-    EntityStart,
-    NumericStart,
-    NumericDecimal,
-    NumericHex,
-    NamedEntity,
-}
+const STATE_ENTITY_START = 0;
+const STATE_NUMERIC_START = 1;
+const STATE_NUMERIC_DECIMAL = 2;
+const STATE_NUMERIC_HEX = 3;
+const STATE_NAMED_ENTITY = 4;
 
 /**
  * Producers for character reference errors as defined in the HTML spec.
@@ -728,7 +717,7 @@ export interface EntityErrorProducer {
  */
 abstract class EntityDecoderBase {
     /** The current state of the decoder. */
-    protected state: number = EntityDecoderState.EntityStart;
+    protected state: number = STATE_ENTITY_START;
     /** Characters that were consumed while parsing an entity. */
     protected consumed = 1;
     /** Accumulated numeric code point, or a packed partial XML name. */
@@ -770,13 +759,13 @@ abstract class EntityDecoderBase {
             return -1;
         }
 
-        if ((input.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
-            this.state = EntityDecoderState.NumericHex;
+        if ((input.charCodeAt(offset) | TO_LOWER_BIT) === CHAR_LOWER_X) {
+            this.state = STATE_NUMERIC_HEX;
             this.consumed += 1;
             return this.stateNumericHex(input, offset + 1);
         }
 
-        this.state = EntityDecoderState.NumericDecimal;
+        this.state = STATE_NUMERIC_DECIMAL;
         return this.stateNumericDecimal(input, offset);
     }
 
@@ -825,11 +814,11 @@ abstract class EntityDecoderBase {
         let { result, consumed } = this;
         let index = offset;
         while (index < inputLength) {
-            const digit = input.charCodeAt(index) - CharCodes.ZERO;
+            const digit = input.charCodeAt(index) - CHAR_ZERO;
             if (digit >>> 0 > 9) {
                 this.result = result;
                 this.consumed = consumed;
-                return this.emitNumericEntity(digit + CharCodes.ZERO, 2);
+                return this.emitNumericEntity(digit + CHAR_ZERO, 2);
             }
             result = result * 10 + digit;
             consumed += 1;
@@ -862,7 +851,7 @@ abstract class EntityDecoderBase {
         }
 
         // Figure out if this is a legit end of the entity
-        if (lastCp === CharCodes.SEMI) {
+        if (lastCp === CHAR_SEMI) {
             this.consumed += 1;
         } else if (this.decodeMode === DecodingMode.Strict) {
             return 0;
@@ -874,7 +863,7 @@ abstract class EntityDecoderBase {
         );
 
         if (this.errors) {
-            if (lastCp !== CharCodes.SEMI) {
+            if (lastCp !== CHAR_SEMI) {
                 this.errors.missingSemicolonAfterCharacterReference();
             }
             this.errors.validateNumericCharacterReference(this.result);
@@ -889,7 +878,7 @@ abstract class EntityDecoderBase {
      */
     startEntity(decodeMode: DecodingMode): void {
         this.decodeMode = decodeMode;
-        this.state = EntityDecoderState.EntityStart;
+        this.state = STATE_ENTITY_START;
         this.result = 0;
         this.consumed = 1;
     }
@@ -903,30 +892,30 @@ abstract class EntityDecoderBase {
      */
     write(input: string, offset: number): number {
         switch (this.state) {
-            case EntityDecoderState.EntityStart: {
-                if (input.charCodeAt(offset) === CharCodes.NUM) {
-                    this.state = EntityDecoderState.NumericStart;
+            case STATE_ENTITY_START: {
+                if (input.charCodeAt(offset) === CHAR_NUM) {
+                    this.state = STATE_NUMERIC_START;
                     this.consumed += 1;
                     return this.stateNumericStart(input, offset + 1);
                 }
-                this.state = EntityDecoderState.NamedEntity;
+                this.state = STATE_NAMED_ENTITY;
                 return this.stateNamedEntity(input, offset);
             }
 
-            case EntityDecoderState.NumericStart: {
+            case STATE_NUMERIC_START: {
                 return this.stateNumericStart(input, offset);
             }
 
-            case EntityDecoderState.NumericDecimal: {
+            case STATE_NUMERIC_DECIMAL: {
                 return this.stateNumericDecimal(input, offset);
             }
 
-            case EntityDecoderState.NumericHex: {
+            case STATE_NUMERIC_HEX: {
                 return this.stateNumericHex(input, offset);
             }
 
             default: {
-                // NamedEntity — the only remaining state.
+                // NamedEntity: the only remaining state.
                 return this.stateNamedEntity(input, offset);
             }
         }
@@ -955,20 +944,20 @@ abstract class EntityDecoderBase {
      */
     end(): number {
         switch (this.state) {
-            case EntityDecoderState.NamedEntity: {
+            case STATE_NAMED_ENTITY: {
                 return this.endNamedEntity();
             }
 
             // Otherwise, emit a numeric entity if we have one.
-            case EntityDecoderState.NumericDecimal: {
+            case STATE_NUMERIC_DECIMAL: {
                 return this.emitNumericEntity(0, 2);
             }
 
-            case EntityDecoderState.NumericHex: {
+            case STATE_NUMERIC_HEX: {
                 return this.emitNumericEntity(0, 3);
             }
 
-            case EntityDecoderState.NumericStart: {
+            case STATE_NUMERIC_START: {
                 this.errors?.absenceOfDigitsInNumericCharacterReference(
                     this.consumed,
                 );
@@ -976,7 +965,7 @@ abstract class EntityDecoderBase {
             }
 
             default: {
-                // EntityStart — return 0.
+                // EntityStart: return 0.
                 return 0;
             }
         }
@@ -1039,9 +1028,7 @@ export class HtmlEntityDecoder extends EntityDecoderBase {
                     const length = packed & 63;
                     this.consumed = length + 1;
                     this.emitSlot(packed >> 6);
-                    if (
-                        input.charCodeAt(offset + length - 1) !== CharCodes.SEMI
-                    ) {
+                    if (input.charCodeAt(offset + length - 1) !== CHAR_SEMI) {
                         this.errors?.missingSemicolonAfterCharacterReference();
                     }
                     return this.consumed;
@@ -1054,7 +1041,7 @@ export class HtmlEntityDecoder extends EntityDecoderBase {
                 /*
                  * Shortest candidate first: only one length can carry the
                  * terminating ';' (a ';' inside a longer candidate fails its
-                 * middle comparison), so the order is correctness-neutral —
+                 * middle comparison), so the order is correctness-neutral,
                  * and the most common entities are short. Legacy matches are
                  * resolved after the loop, preserving exact-match
                  * precedence.
@@ -1062,7 +1049,7 @@ export class HtmlEntityDecoder extends EntityDecoderBase {
                 const low = probed & -probed;
                 probed ^= low;
                 const length = 33 - Math.clz32(low);
-                if (input.charCodeAt(offset + length) === CharCodes.SEMI) {
+                if (input.charCodeAt(offset + length) === CHAR_SEMI) {
                     const slot = findSlotHtml(input, offset, length);
                     if (slot >= 0) {
                         this.consumed = length + 2;
@@ -1112,7 +1099,7 @@ export class HtmlEntityDecoder extends EntityDecoderBase {
             this.runLength = runLength;
             return -1;
         }
-        if (terminator === CharCodes.SEMI && (runLength - 2) >>> 0 <= 29) {
+        if (terminator === CHAR_SEMI && (runLength - 2) >>> 0 <= 29) {
             const slot = findBufferedHtmlSlot(this.nameBuffer, runLength);
             if (slot >= 0) {
                 this.consumed = runLength + 2;
@@ -1287,15 +1274,14 @@ export class XmlEntityDecoder extends EntityDecoderBase {
         let { result, consumed } = this;
         for (let index = offset; index < inputLength; index++) {
             const char = input.charCodeAt(index);
-            if (char === CharCodes.SEMI) {
+            if (char === CHAR_SEMI) {
                 const codePoint = xmlCodePoint(result);
                 if (codePoint < 0) return 0;
                 this.consumed = consumed + 1;
                 this.emitCodePoint(codePoint, this.consumed);
                 return this.consumed;
             }
-            if (consumed >= 5 || (char - CharCodes.LOWER_A) >>> 0 > 25)
-                return 0;
+            if (consumed >= 5 || (char - CHAR_LOWER_A) >>> 0 > 25) return 0;
             result = (result << 7) | char;
             consumed++;
         }

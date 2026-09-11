@@ -2,9 +2,9 @@
  * Constants and helpers shared between the decode-data generator
  * (`scripts/write-decode-map.ts`) and the runtime (`src/decode.ts`).
  *
- * The format and the algorithms — front-coded names, exact 32-bit keys in a
+ * The format and the algorithms (front-coded names, exact 32-bit keys in a
  * two-choice cuckoo table, the length-probe front end, and the measured
- * engineering notes — are documented with references in
+ * engineering notes) are documented with references in
  * `scripts/README.md`.
  */
 
