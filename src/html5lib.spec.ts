@@ -5,9 +5,8 @@ import {
     DecodingMode,
     decodeHTML,
     decodeHTMLAttribute,
-    EntityDecoder,
+    HtmlEntityDecoder,
 } from "./decode.js";
-import { htmlDecodeTree } from "./generated/decode-data-html.js";
 
 /**
  * Conformance tests against the WHATWG html5lib-tests tokenizer fixtures,
@@ -24,7 +23,7 @@ import { htmlDecodeTree } from "./generated/decode-data-html.js";
  *    whose input contains neither `<` (would require tag-context modelling)
  *    nor `\r` (would require input-stream preprocessing). The concatenated
  *    character data must equal `decodeHTML(input)`, and also the output of
- *    a streaming `EntityDecoder` fed one character per chunk.
+ *    a streaming `HtmlEntityDecoder` fed one character per chunk.
  * 2. Tests emitting exactly one `<h a=…>` start tag with a single `a`
  *    attribute — the fixtures' template for attribute-value character
  *    reference tests. The expected attribute value must equal
@@ -62,7 +61,7 @@ const ATTRIBUTE_TEMPLATE = /^<h a=(["']?)(.*)\1>$/s;
 const MINIMUM_INCLUDED_TESTS = 4000;
 
 /**
- * Decodes a string by feeding an `EntityDecoder` one character per chunk,
+ * Decodes a string by feeding an `HtmlEntityDecoder` one character per chunk,
  * exercising the streaming state machine across chunk boundaries.
  * @param input The string to decode.
  * @param mode The decoding mode to use for each entity.
@@ -70,7 +69,7 @@ const MINIMUM_INCLUDED_TESTS = 4000;
  */
 function decodeStreaming(input: string, mode: DecodingMode): string {
     let result = "";
-    const decoder = new EntityDecoder(htmlDecodeTree, (codePoint) => {
+    const decoder = new HtmlEntityDecoder((codePoint) => {
         result += String.fromCodePoint(codePoint);
     });
 

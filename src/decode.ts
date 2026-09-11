@@ -3,61 +3,37 @@ import {
     replaceCodePoint,
     replaceCodePointXML,
 } from "./decode-codepoint.js";
-import { htmlDecodeTree } from "./generated/decode-data-html.js";
-import { xmlDecodeTree } from "./generated/decode-data-xml.js";
-import { BinTrieFlags } from "./internal/bin-trie-flags.js";
+import { htmlDecodeData } from "./generated/decode-data-html.js";
+import {
+    BUCKET_HASH_1,
+    BUCKET_HASH_2,
+    CHAR_REMAP,
+    type DecodeData,
+    initDecodeData,
+    pairIndex,
+} from "./internal/decode-data-format.js";
 
-const enum CharCodes {
-    AMP = 38, // "&"
-    NUM = 35, // "#"
-    SEMI = 59, // ";"
-    EQUALS = 61, // "="
-    ZERO = 48, // "0"
-    NINE = 57, // "9"
-    LOWER_A = 97, // "a"
-    LOWER_X = 120, // "x"
-}
+// Scalar constants avoid runtime enum objects with isolatedModules enabled.
+const CHAR_AMP = 38; // "&"
+const CHAR_NUM = 35; // "#"
+const CHAR_SEMI = 59; // ";"
+const CHAR_EQUALS = 61; // "="
+const CHAR_ZERO = 48; // "0"
+const CHAR_LOWER_A = 97; // "a"
+const CHAR_LOWER_G = 103; // "g"
+const CHAR_LOWER_L = 108; // "l"
+const CHAR_LOWER_M = 109; // "m"
+const CHAR_LOWER_O = 111; // "o"
+const CHAR_LOWER_P = 112; // "p"
+const CHAR_LOWER_Q = 113; // "q"
+const CHAR_LOWER_S = 115; // "s"
+const CHAR_LOWER_T = 116; // "t"
+const CHAR_LOWER_U = 117; // "u"
+const CHAR_LOWER_X = 120; // "x"
+const CHAR_UPPER_A = 65; // "A"
 
 /** Bit that needs to be set to convert an upper case ASCII character to lower case */
 const TO_LOWER_BIT = 0b10_0000;
-
-/*
- * `parseNumericEntity` packs its two results into one 32-bit integer:
- * `(consumed << CONSUMED_SHIFT) | codePoint`. The 21-bit code point field
- * fits any valid Unicode value (max 0x10FFFF, clamped before packing); the
- * consumed count excludes `&` and gets the remaining 11 bits. Extract it
- * with `>>>` so the topmost bit isn't treated as a sign.
- *
- * Plain consts rather than a `const enum`: with `isolatedModules`, enum
- * member reads compile to runtime property loads.
- */
-const CONSUMED_SHIFT = 21;
-const CODE_POINT_MASK = 0x1f_ff_ff;
-/**
- * Reserved consumed field for counts of at least 2047 characters after `&`.
- * The true count is in `longNumericConsumed`.
- */
-const CONSUMED_OVERFLOW = 0x7_ff;
-
-/**
- * Side channel for numeric entities of at least 2048 characters including
- * `&`. Set by `parseNumericEntity` when its consumed count reaches the
- * reserved value `CONSUMED_OVERFLOW`; callers read the true count from here.
- * A module-level slot avoids a tuple allocation on the hot path.
- */
-let longNumericConsumed = 0;
-
-/**
- * Extract the consumed count from a `parseNumericEntity` packed result,
- * recovering the true length from `longNumericConsumed` when the packed
- * field contains the sentinel. Read it before the next `parseNumericEntity`
- * call, which may overwrite the side channel. This helper owns that protocol.
- * @param packed Packed result of `parseNumericEntity`.
- */
-function unpackConsumed(packed: number): number {
-    const consumed = packed >>> CONSUMED_SHIFT;
-    return consumed === CONSUMED_OVERFLOW ? longNumericConsumed : consumed;
-}
 
 /**
  * Unsigned subtraction trick: (code - lo) >>> 0 wraps negatives to large
@@ -65,15 +41,13 @@ function unpackConsumed(packed: number): number {
  * @param code Code point to check.
  */
 function isNumber(code: number): boolean {
-    return (code - CharCodes.ZERO) >>> 0 <= 9;
+    return (code - CHAR_ZERO) >>> 0 <= 9;
 }
 
-function isHexadecimalCharacter(code: number): boolean {
-    return ((code | TO_LOWER_BIT) - CharCodes.LOWER_A) >>> 0 <= 5; // F - a
-}
-
-function isAlpha(code: number): boolean {
-    return ((code | TO_LOWER_BIT) - CharCodes.LOWER_A) >>> 0 <= 25; // Z - a
+function isAlphaNumeric(code: number): boolean {
+    return (
+        isNumber(code) || ((code | TO_LOWER_BIT) - CHAR_LOWER_A) >>> 0 <= 25 // Z - a
+    );
 }
 
 /**
@@ -84,15 +58,7 @@ function isAlpha(code: number): boolean {
  * @param code Code point to check.
  */
 function isEntityInAttributeInvalidEnd(code: number): boolean {
-    return code === CharCodes.EQUALS || isAlpha(code) || isNumber(code);
-}
-
-const enum EntityDecoderState {
-    EntityStart,
-    NumericStart,
-    NumericDecimal,
-    NumericHex,
-    NamedEntity,
+    return code === CHAR_EQUALS || isAlphaNumeric(code);
 }
 
 /**
@@ -106,6 +72,620 @@ export enum DecodingMode {
     /** Entities in attributes have limitations on ending characters. */
     Attribute = 2,
 }
+
+/** Decode data for HTML entities. */
+const htmlDecode: DecodeData = /* #__PURE__ */ initDecodeData(htmlDecodeData);
+
+/*
+ * Every decoder below is specialized over these module-level constants. V8
+ * compiles direct references to them roughly 20% faster than property loads
+ * off a shared object.
+ */
+const htmlKeys = /* #__PURE__ */ ((): Int32Array => htmlDecode.keys)();
+const htmlBuckets = /* #__PURE__ */ ((): number => htmlDecode.buckets)();
+const htmlSlotMidOff = /* #__PURE__ */ ((): Uint16Array =>
+    htmlDecode.slotMidOff)();
+const htmlLengthBits = /* #__PURE__ */ ((): Uint32Array =>
+    htmlDecode.lengthBits)();
+const htmlMiddles = /* #__PURE__ */ ((): Uint32Array => htmlDecode.middles)();
+/** Hoisted for the specialized HTML cores; see `emitHtmlValue`. */
+const htmlSlotValue = /* #__PURE__ */ ((): Uint16Array =>
+    htmlDecode.slotValue)();
+const htmlValues = /* #__PURE__ */ ((): string => htmlDecode.values)();
+
+/**
+ * The replacement string for a packed `slotValue` entry. Most values need
+ * just one UTF-16 code unit.
+ * @param packed Replacement offset, legacy flag, and length from `htmlSlotValue`.
+ */
+function emitHtmlValue(packed: number): string {
+    const off = packed >> 2;
+    return (packed & 1) === 0
+        ? htmlValues.charAt(off)
+        : htmlValues.slice(off, off + (packed & 1) + 1);
+}
+
+/**
+ * Find the slot matching `text[start..start+length)`, or -1. A match proves
+ * every character of the span (exact key + middle comparison).
+ * @param text Input text.
+ * @param start Start of the span in `text`.
+ * @param length Length of the span.
+ */
+function findSlotHtml(text: string, start: number, length: number): number {
+    const c0 = text.charCodeAt(start);
+    const c1 = text.charCodeAt(start + 1);
+    const c2 = text.charCodeAt(start + length - 2);
+    const c3 = text.charCodeAt(start + length - 1);
+    /*
+     * Probed spans aren't pre-filtered to alphanumerics; characters >= 0x80
+     * would alias mod 128 inside the packed 7-bit fields, so reject them
+     * before they can forge a key.
+     */
+    if ((c0 | c1 | c2 | c3) > 127) return -1;
+    const key =
+        (c0 << 25) | (c1 << 18) | (c2 << 11) | (CHAR_REMAP[c3] << 5) | length;
+    let slot =
+        2 * (((Math.imul(key, BUCKET_HASH_1) >>> 16) * htmlBuckets) >>> 16);
+    for (let attempt = 0; ; attempt++) {
+        if (
+            htmlKeys[slot] === key &&
+            (length <= 4 || isMidMatchHtml(slot, text, start, length))
+        ) {
+            return slot;
+        }
+        if (
+            htmlKeys[slot + 1] === key &&
+            (length <= 4 || isMidMatchHtml(slot + 1, text, start, length))
+        ) {
+            return slot + 1;
+        }
+        if (attempt === 1) return -1;
+        slot =
+            2 * (((Math.imul(key, BUCKET_HASH_2) >>> 16) * htmlBuckets) >>> 16);
+    }
+}
+
+/**
+ * Compare the middle characters (positions 2..length-3) of the candidate at
+ * `slot` against the input. The key already proves the outer characters and
+ * the length. Names of length at most four are accepted by the caller.
+ * @param slot Slot of the candidate.
+ * @param text Input text.
+ * @param start Start of the span in `text`.
+ * @param length Length of the span.
+ */
+function isMidMatchHtml(
+    slot: number,
+    text: string,
+    start: number,
+    length: number,
+): boolean {
+    let wordIndex = htmlSlotMidOff[slot];
+    let index = start + 2;
+    const end = start + length - 2;
+    while (index + 1 < end) {
+        if (
+            (text.charCodeAt(index) | (text.charCodeAt(index + 1) << 16)) !==
+            htmlMiddles[wordIndex++]
+        )
+            return false;
+        index += 2;
+    }
+    return (
+        index === end ||
+        text.charCodeAt(index) === (htmlMiddles[wordIndex] & 0xff_ff)
+    );
+}
+
+/**
+ * `parseNumericEntity` packs its two results into one integer:
+ * `(consumed << CONSUMED_SHIFT) | codePoint`. The code point occupies the low
+ * 21 bits (max 0x110000, clamped before packing); `consumed` takes the upper
+ * 11 bits and is read back with `>>> CONSUMED_SHIFT`, so the sign bit set by a
+ * large `consumed` is harmless. The maximum consumed field is reserved for
+ * long references, whose full length is stored in `longNumericConsumed`.
+ * A zero return means "no numeric entity".
+ */
+const NUMERIC_CONSUMED_SHIFT = 21;
+const NUMERIC_CODE_POINT_MASK = 0x1f_ff_ff;
+const NUMERIC_CONSUMED_OVERFLOW = 0x7_ff;
+
+/** Full length, including `&`, when the packed consumed field overflows. */
+let longNumericConsumed = 0;
+
+/**
+ * Recover the consumed count before the next numeric parse can overwrite
+ * `longNumericConsumed`. This avoids allocating a tuple for each reference.
+ * @param packed Packed result of `parseNumericEntity`.
+ */
+function unpackConsumed(packed: number): number {
+    const consumed = packed >>> NUMERIC_CONSUMED_SHIFT;
+    return consumed === NUMERIC_CONSUMED_OVERFLOW
+        ? longNumericConsumed
+        : consumed;
+}
+
+/** ASCII digit values; 0xff marks characters outside the hexadecimal range. */
+const numericDigits: Uint8Array = /* #__PURE__ */ ((): Uint8Array => {
+    const digits = new Uint8Array(128).fill(0xff);
+    for (let digit = 0; digit < 10; digit++) {
+        digits[CHAR_ZERO + digit] = digit;
+    }
+    for (let digit = 0; digit < 6; digit++) {
+        digits[CHAR_UPPER_A + digit] = digit + 10;
+        digits[CHAR_LOWER_A + digit] = digit + 10;
+    }
+    return digits;
+})();
+
+/**
+ * Parse a numeric entity starting right after the `#`. In legacy mode the
+ * terminating semicolon is optional. Returns the number of characters
+ * consumed (counting the `&` and `#`) packed with the code point (see
+ * the packing constants above), or 0 if there is no valid numeric entity at this
+ * position.
+ * @param input Input string.
+ * @param offset Index right after the `#`.
+ * @param isStrict Whether a terminating semicolon is required.
+ */
+function parseNumericEntity(
+    input: string,
+    offset: number,
+    isStrict: boolean,
+): number {
+    const inputLength = input.length;
+    let index = offset;
+    let codePoint = 0;
+    let digitsStart: number;
+    if ((input.charCodeAt(index) | TO_LOWER_BIT) === CHAR_LOWER_X) {
+        // Hexadecimal entity.
+        index += 1;
+        digitsStart = index;
+        while (index < inputLength) {
+            const char = input.charCodeAt(index);
+            if (char >= 128) break;
+            const digit = numericDigits[char];
+            if (digit <= 15) {
+                codePoint = codePoint * 16 + digit;
+                index++;
+            } else {
+                break;
+            }
+        }
+    } else {
+        digitsStart = index;
+        while (index < inputLength) {
+            const char = input.charCodeAt(index);
+            if (char >= 128) break;
+            const digit = numericDigits[char];
+            if (digit <= 9) {
+                codePoint = codePoint * 10 + digit;
+                index++;
+            } else {
+                break;
+            }
+        }
+    }
+    if (index === digitsStart) return 0;
+    // Clamp once after the loop instead of per digit.
+    if (codePoint > 0x10_ff_ff) codePoint = 0x11_00_00;
+    let consumed = index - offset + 2; // Includes "#" and the "&" position.
+    if (index < inputLength && input.charCodeAt(index) === CHAR_SEMI) {
+        consumed += 1;
+    } else if (isStrict) {
+        return 0;
+    }
+    if (consumed >= NUMERIC_CONSUMED_OVERFLOW) {
+        // eslint-disable-next-line unicorn/no-top-level-assignment-in-function -- deliberate side channel, read immediately by unpackConsumed
+        longNumericConsumed = consumed;
+        consumed = NUMERIC_CONSUMED_OVERFLOW;
+    }
+    return (consumed << NUMERIC_CONSUMED_SHIFT) | codePoint;
+}
+
+/**
+ * Find the longest legacy (semicolon-less) match for the name starting at
+ * `start`, using the per-class legacy length bits. Returns
+ * `slot << 3 | matchLength`, or -1 if there is no match. Only called after
+ * the exact probes failed (the miss path).
+ * @param input Input text.
+ * @param start Start of the name.
+ * @param maxLength Number of available run characters.
+ */
+function findLegacySlot(
+    input: string,
+    start: number,
+    maxLength: number,
+): number {
+    let legacy =
+        (htmlLengthBits[
+            pairIndex(input.charCodeAt(start), input.charCodeAt(start + 1))
+        ] >>>
+            16) &
+        31;
+    while (legacy !== 0) {
+        // Longest first: the spec matches references greedily.
+        const top = 31 - Math.clz32(legacy);
+        legacy ^= 1 << top;
+        if (top + 2 > maxLength) continue;
+        const slot = findSlotHtml(input, start, top + 2);
+        if (slot >= 0 && (htmlSlotValue[slot] & 2) !== 0) {
+            return (slot << 3) | (top + 2);
+        }
+    }
+    return -1;
+}
+
+/**
+ * Match a class containing long names without probing all its shorter lengths.
+ * The 32-character window bounds the scan even for invalid or unterminated runs.
+ * Returns `(slot << 6) | consumed`, excluding the `&`, or -1 on a miss.
+ * @param input Input containing the candidate name.
+ * @param start Start of the name.
+ * @param mode Decoding mode, including the rules for legacy matches.
+ */
+function findLongClassMatch(
+    input: string,
+    start: number,
+    mode: DecodingMode,
+): number {
+    const length = input.slice(start, start + 32).indexOf(";");
+    if ((length - 2) >>> 0 <= 29) {
+        const slot = findSlotHtml(input, start, length);
+        if (slot >= 0) return (slot << 6) | (length + 1);
+    }
+    if (mode !== DecodingMode.Strict) {
+        const packed = findLegacySlot(
+            input,
+            start,
+            Math.min(31, input.length - start),
+        );
+        if (packed >= 0) {
+            const length = packed & 7;
+            if (
+                mode !== DecodingMode.Attribute ||
+                start + length >= input.length ||
+                !isEntityInAttributeInvalidEnd(input.charCodeAt(start + length))
+            )
+                return ((packed >> 3) << 6) | length;
+        }
+    }
+    return -1;
+}
+
+/**
+ * Match one of XML's five predefined entities (name plus the terminating
+ * semicolon) at `start`. Returns `(consumedLength << 7) | codePoint` where
+ * `consumedLength` counts the name and the semicolon, or -1 if nothing
+ * matches. All five patterns are decided within five characters of `start`,
+ * so the entity set ships no decode data.
+ * @param input Input text.
+ * @param start Index of the name's first character (right after the `&`).
+ */
+function matchXmlEntity(input: string, start: number): number {
+    /*
+     * Direct char-code compares: `startsWith` costs a builtin call per
+     * probe, measured ~10% of entity-dense XML decode. Loads stay inside
+     * the cases so the miss path (`default`) pays nothing.
+     */
+    switch (input.charCodeAt(start)) {
+        case CHAR_LOWER_L: {
+            return input.charCodeAt(start + 1) === CHAR_LOWER_T &&
+                input.charCodeAt(start + 2) === CHAR_SEMI
+                ? (3 << 7) | 0x3c
+                : -1;
+        }
+        case CHAR_LOWER_G: {
+            return input.charCodeAt(start + 1) === CHAR_LOWER_T &&
+                input.charCodeAt(start + 2) === CHAR_SEMI
+                ? (3 << 7) | 0x3e
+                : -1;
+        }
+        case CHAR_LOWER_A: {
+            const c1 = input.charCodeAt(start + 1);
+            const c2 = input.charCodeAt(start + 2);
+            if (
+                c1 === CHAR_LOWER_M &&
+                c2 === CHAR_LOWER_P &&
+                input.charCodeAt(start + 3) === CHAR_SEMI
+            ) {
+                return (4 << 7) | 0x26;
+            }
+            return c1 === CHAR_LOWER_P &&
+                c2 === CHAR_LOWER_O &&
+                input.charCodeAt(start + 3) === CHAR_LOWER_S &&
+                input.charCodeAt(start + 4) === CHAR_SEMI
+                ? (5 << 7) | 0x27
+                : -1;
+        }
+        case CHAR_LOWER_Q: {
+            return input.charCodeAt(start + 1) === CHAR_LOWER_U &&
+                input.charCodeAt(start + 2) === CHAR_LOWER_O &&
+                input.charCodeAt(start + 3) === CHAR_LOWER_T &&
+                input.charCodeAt(start + 4) === CHAR_SEMI
+                ? (5 << 7) | 0x22
+                : -1;
+        }
+        default: {
+            return -1;
+        }
+    }
+}
+
+/**
+ * The next `&` to resume from after emitting a replacement, given the index
+ * just past it. A leaf the decoders call after every emit: the common
+ * adjacent-entity case (`&amp;&lt;`) skips the `indexOf` C++ call.
+ * @param input Input text.
+ * @param last Index just past the entity that was emitted.
+ */
+function nextOffset(input: string, last: number): number {
+    if (last >= input.length) return -1;
+    return input.charCodeAt(last) === CHAR_AMP
+        ? last
+        : input.indexOf("&", last);
+}
+
+/**
+ * Synchronous HTML decoder, shared by all three decoding modes.
+ * @param input String to decode.
+ * @param mode Decoding mode for named entities.
+ */
+function decodeHtmlText(input: string, mode: DecodingMode): string {
+    const isLegacyAllowed = mode !== DecodingMode.Strict;
+    let offset = input.indexOf("&");
+    if (offset < 0) return input;
+    const inputLength = input.length;
+    let result = "";
+    let last = 0;
+    do {
+        const start = offset + 1;
+        if (start + 1 >= inputLength) break;
+        const c0 = input.charCodeAt(start);
+        if (c0 === CHAR_AMP) {
+            // Adjacent "&&": re-enter directly, skipping indexOf.
+            offset = start;
+            continue;
+        }
+        if (c0 === CHAR_NUM) {
+            const packed = parseNumericEntity(
+                input,
+                start + 1,
+                !isLegacyAllowed,
+            );
+            const consumed = unpackConsumed(packed);
+            if (consumed === 0) {
+                offset = input.indexOf("&", start);
+            } else {
+                if (last !== offset) {
+                    result += input.slice(last, offset);
+                }
+                result += codePointToString(packed & NUMERIC_CODE_POINT_MASK);
+                last = offset + consumed;
+                offset = nextOffset(input, last);
+            }
+            continue;
+        }
+        /*
+         * Named entity. The (c0,c1) class lists every length a matching
+         * name can have; probe `;` at each. A probe hit is fully
+         * verified by `findSlot`; no scanning is needed. A `;` miss at
+         * a legacy-marked length falls through to a direct legacy
+         * lookup: legacy names need no terminator.
+         */
+        const bits = htmlLengthBits[pairIndex(c0, input.charCodeAt(start + 1))];
+        if ((bits & 0x80_00) !== 0) {
+            const packed = findLongClassMatch(input, start, mode);
+            if (packed >= 0) {
+                if (last !== offset) result += input.slice(last, offset);
+                result += emitHtmlValue(htmlSlotValue[packed >> 6]);
+                last = start + (packed & 63);
+                offset = nextOffset(input, last);
+            } else {
+                offset = input.indexOf("&", start);
+            }
+            continue;
+        }
+        let probed = bits & 0x7f_ff;
+        /*
+         * Slot in bits 6+, semicolon in bit 5, consumed name span in bits 0-4.
+         * This path only handles names up to 16 characters, plus their ';'.
+         */
+        let matched = -1;
+        while (probed !== 0) {
+            const low = probed & -probed;
+            probed ^= low;
+            const length = 33 - Math.clz32(low);
+            const end = start + length;
+            // Longer probes cannot match either; lengths are ascending.
+            // eslint-disable-next-line unicorn/no-break-in-nested-loop -- keep the bounded probe loop inline
+            if (end > inputLength) break;
+            const isTerminated =
+                end < inputLength && input.charCodeAt(end) === CHAR_SEMI;
+            if (
+                !(
+                    isTerminated ||
+                    (isLegacyAllowed && ((bits >>> (length + 14)) & 1) !== 0)
+                )
+            )
+                // eslint-disable-next-line unicorn/no-break-in-nested-loop -- skip impossible candidates in the inline probe loop
+                continue;
+            // Share the lookup call site, including after legacy-only inputs.
+            const slot = findSlotHtml(input, start, length);
+            // eslint-disable-next-line unicorn/no-break-in-nested-loop -- skip failed candidates in the inline probe loop
+            if (slot < 0) continue;
+            if (isTerminated) {
+                matched = (slot << 6) | 32 | (length + 1);
+                // eslint-disable-next-line unicorn/no-break-in-nested-loop -- an exact match ends the probe loop
+                break;
+            }
+            if ((htmlSlotValue[slot] & 2) !== 0) {
+                matched = (slot << 6) | length;
+            }
+        }
+        if (matched >= 0) {
+            const length = matched & 31;
+            if (
+                (matched & 32) !== 0 ||
+                mode !== DecodingMode.Attribute ||
+                start + length >= inputLength ||
+                !isEntityInAttributeInvalidEnd(input.charCodeAt(start + length))
+            ) {
+                if (last !== offset) result += input.slice(last, offset);
+                result += emitHtmlValue(htmlSlotValue[matched >> 6]);
+                last = start + length;
+                offset = nextOffset(input, last);
+                continue;
+            }
+        }
+        offset = input.indexOf("&", start + 1);
+    } while (offset >= 0);
+    return result + input.slice(last);
+}
+
+/**
+ * Decodes an HTML string.
+ * @param htmlString The string to decode.
+ * @param mode The decoding mode.
+ * @returns The decoded string.
+ */
+export function decodeHTML(
+    htmlString: string,
+    mode: DecodingMode = DecodingMode.Legacy,
+): string {
+    return decodeHtmlText(htmlString, mode);
+}
+
+/**
+ * Decodes an HTML string in an attribute.
+ * @param htmlAttribute The string to decode.
+ * @returns The decoded string.
+ */
+export function decodeHTMLAttribute(htmlAttribute: string): string {
+    return decodeHtmlText(htmlAttribute, DecodingMode.Attribute);
+}
+
+/**
+ * Decodes an HTML string, requiring all entities to be terminated by a
+ * semicolon.
+ * @param htmlString The string to decode.
+ * @returns The decoded string.
+ */
+export function decodeHTMLStrict(htmlString: string): string {
+    return decodeHtmlText(htmlString, DecodingMode.Strict);
+}
+
+/**
+ * Decodes an XML string, requiring all entities to be terminated by a
+ * semicolon.
+ * @param xmlString The string to decode.
+ * @returns The decoded string.
+ */
+export function decodeXML(xmlString: string): string {
+    let offset = xmlString.indexOf("&");
+    if (offset < 0) return xmlString;
+    let lastIndex = 0;
+    let result = "";
+    do {
+        const start = offset + 1;
+        if (start + 1 >= xmlString.length) break;
+        let consumed = 0;
+        let value = "";
+        const c1 = xmlString.charCodeAt(start);
+        if (c1 === CHAR_NUM) {
+            const packed = parseNumericEntity(xmlString, start + 1, true);
+            consumed = unpackConsumed(packed);
+            if (consumed !== 0) {
+                const codePoint = packed & NUMERIC_CODE_POINT_MASK;
+                value =
+                    (codePoint - 1) >>> 0 < 0xd7_ff
+                        ? String.fromCharCode(codePoint)
+                        : String.fromCodePoint(replaceCodePointXML(codePoint));
+            }
+        } else {
+            /* eslint-disable unicorn/no-break-in-nested-loop -- Keep XML name dispatch inline with the decode loop. */
+            switch (c1) {
+                // &lt; / &gt;
+                case 0x6c:
+                case 0x67: {
+                    if (
+                        start + 2 < xmlString.length &&
+                        xmlString.charCodeAt(start + 1) === 0x74 &&
+                        xmlString.charCodeAt(start + 2) === CHAR_SEMI
+                    ) {
+                        consumed = 4;
+                        value = c1 === 0x6c ? "<" : ">";
+                    }
+                    break;
+                }
+                // &amp; / &apos;
+                case 0x61: {
+                    const c2 = xmlString.charCodeAt(start + 1);
+                    if (
+                        start + 3 < xmlString.length &&
+                        c2 === 0x6d &&
+                        xmlString.charCodeAt(start + 2) === 0x70 &&
+                        xmlString.charCodeAt(start + 3) === CHAR_SEMI
+                    ) {
+                        consumed = 5;
+                        value = "&";
+                    } else if (
+                        start + 4 < xmlString.length &&
+                        c2 === 0x70 &&
+                        xmlString.charCodeAt(start + 2) === 0x6f &&
+                        xmlString.charCodeAt(start + 3) === 0x73 &&
+                        xmlString.charCodeAt(start + 4) === CHAR_SEMI
+                    ) {
+                        consumed = 6;
+                        value = "'";
+                    }
+                    break;
+                }
+                // &quot;
+                case 0x71: {
+                    if (
+                        start + 4 < xmlString.length &&
+                        xmlString.charCodeAt(start + 1) === 0x75 &&
+                        xmlString.charCodeAt(start + 2) === 0x6f &&
+                        xmlString.charCodeAt(start + 3) === 0x74 &&
+                        xmlString.charCodeAt(start + 4) === CHAR_SEMI
+                    ) {
+                        consumed = 6;
+                        value = '"';
+                    }
+                    break;
+                }
+            }
+            /* eslint-enable unicorn/no-break-in-nested-loop */
+        }
+        if (consumed > 0) {
+            if (lastIndex < offset)
+                result += xmlString.slice(lastIndex, offset);
+            result += value;
+            offset = lastIndex = offset + consumed;
+        } else {
+            offset = start;
+        }
+        /*
+         * Adjacent entities (`&x;&y;`) are common in entity-dense input;
+         * checking the single character at `lastIndex` first skips the
+         * `indexOf` call (and its per-call overhead) for that case.
+         */
+        offset =
+            offset < xmlString.length &&
+            xmlString.charCodeAt(offset) === CHAR_AMP
+                ? offset
+                : xmlString.indexOf("&", offset);
+    } while (offset >= 0);
+    return result + xmlString.slice(lastIndex);
+}
+
+const STATE_ENTITY_START = 0;
+const STATE_NUMERIC_START = 1;
+const STATE_NUMERIC_DECIMAL = 2;
+const STATE_NUMERIC_HEX = 3;
+const STATE_NAMED_ENTITY = 4;
 
 /**
  * Producers for character reference errors as defined in the HTML spec.
@@ -123,107 +703,48 @@ export interface EntityErrorProducer {
 }
 
 /**
- * Token decoder with support of writing partial entities.
+ * Token decoder with support of writing partial entities; the shared base
+ * of `HtmlEntityDecoder` and `XmlEntityDecoder`. Numeric entities are
+ * identical in both document types and are handled here; named entities are
+ * left to the subclasses.
+ *
+ * The decoder is driven by a tokenizer: after a `&`, write the following
+ * input (possibly in chunks). `write` returns the number of characters
+ * consumed once the entity is decided, or -1 while more input is needed.
+ * Rejection may surface later than strictly possible (the decoder buffers
+ * until a terminator or the name-length limit), but emitted code points,
+ * consumed counts, and final return values are exact.
  */
-export class EntityDecoder {
+abstract class EntityDecoderBase {
     /** The current state of the decoder. */
-    private state: number = EntityDecoderState.EntityStart;
+    protected state: number = STATE_ENTITY_START;
     /** Characters that were consumed while parsing an entity. */
-    private consumed = 1;
-    /**
-     * The result of the entity.
-     *
-     * For named entities: the trie index of the best legacy match so far
-     * (0 = none). For numeric entities: the accumulated code point.
-     */
-    private result = 0;
-
-    /** The current index in the decode tree. */
-    private treeIndex = 0;
-    /**
-     * Characters consumed since the last recorded legacy match, plus one.
-     * Invariant at the top of the `stateNamedEntity` loop: `excess` equals
-     * the number of unrecorded consumed characters + 1.
-     */
-    // biome-ignore lint/correctness/noUnusedPrivateClassMembers: False positive (read via destructuring)
-    private excess = 1;
+    protected consumed = 1;
+    /** Accumulated numeric code point, or a packed partial XML name. */
+    protected result = 0;
     /** The mode in which the decoder is operating. */
-    private decodeMode = DecodingMode.Strict;
-    /** The number of characters that have been consumed in the current run. */
-    // biome-ignore lint/correctness/noUnusedPrivateClassMembers: False positive
-    private runConsumed = 0;
+    protected decodeMode: DecodingMode = DecodingMode.Strict;
+
+    /** Replacement rules for numeric character references. */
+    protected readonly replaceNumericCodePoint: (codePoint: number) => number =
+        replaceCodePoint;
 
     constructor(
-        /** The predefined HTML or XML decode tree. */
-        private readonly decodeTree: Uint16Array,
         /**
          * The function that is called when a codepoint is decoded.
          *
-         * For named entities that decode to multiple code points, this will
-         * be called multiple times, with the second codepoint, and the same
-         * `consumed` value.
+         * For multi-byte named entities, this will be called multiple times,
+         * with the second codepoint, and the same `consumed` value.
          * @param codepoint The decoded codepoint.
-         * @param consumed The number of characters consumed by the decoder.
+         * @param consumed The number of bytes consumed by the decoder.
          */
-        private readonly emitCodePoint: (cp: number, consumed: number) => void,
+        protected readonly emitCodePoint: (
+            cp: number,
+            consumed: number,
+        ) => void,
         /** An object that is used to produce errors. */
-        private readonly errors?: EntityErrorProducer | undefined,
+        protected readonly errors?: EntityErrorProducer | undefined,
     ) {}
-
-    /**
-     * Resets the instance to make it reusable.
-     * @param decodeMode Entity decoding mode to use.
-     */
-    startEntity(decodeMode: DecodingMode): void {
-        this.decodeMode = decodeMode;
-        this.state = EntityDecoderState.EntityStart;
-        this.result = 0;
-        this.treeIndex = 0;
-        this.excess = 1;
-        this.consumed = 1;
-        this.runConsumed = 0;
-    }
-
-    /**
-     * Write an entity to the decoder. This can be called multiple times with partial entities.
-     * If the entity is incomplete, the decoder will return -1.
-     *
-     * Mirrors the non-streaming `decodeWithTrie`, but with the ability to stop decoding if the
-     * entity is incomplete, and resume when the next string is written.
-     * @param input The string containing the entity (or a continuation of the entity).
-     * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
-     * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
-     */
-    write(input: string, offset: number): number {
-        switch (this.state) {
-            case EntityDecoderState.EntityStart: {
-                if (input.charCodeAt(offset) === CharCodes.NUM) {
-                    this.state = EntityDecoderState.NumericStart;
-                    this.consumed += 1;
-                    return this.stateNumericStart(input, offset + 1);
-                }
-                this.state = EntityDecoderState.NamedEntity;
-                return this.stateNamedEntity(input, offset);
-            }
-
-            case EntityDecoderState.NumericStart: {
-                return this.stateNumericStart(input, offset);
-            }
-
-            case EntityDecoderState.NumericDecimal: {
-                return this.stateNumericDecimal(input, offset);
-            }
-
-            case EntityDecoderState.NumericHex: {
-                return this.stateNumericHex(input, offset);
-            }
-
-            default: {
-                // NamedEntity — the only remaining state.
-                return this.stateNamedEntity(input, offset);
-            }
-        }
-    }
 
     /**
      * Switches between the numeric decimal and hexadecimal states.
@@ -233,53 +754,46 @@ export class EntityDecoder {
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
      */
-    // eslint-disable-next-line unicorn/consistent-class-member-order
     private stateNumericStart(input: string, offset: number): number {
         if (offset >= input.length) {
             return -1;
         }
 
-        if ((input.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
-            this.state = EntityDecoderState.NumericHex;
+        if ((input.charCodeAt(offset) | TO_LOWER_BIT) === CHAR_LOWER_X) {
+            this.state = STATE_NUMERIC_HEX;
             this.consumed += 1;
             return this.stateNumericHex(input, offset + 1);
         }
 
-        this.state = EntityDecoderState.NumericDecimal;
+        this.state = STATE_NUMERIC_DECIMAL;
         return this.stateNumericDecimal(input, offset);
     }
 
     /**
      * Parses a hexadecimal numeric entity.
      *
-     * Equivalent to the `Hexademical character reference state` in the HTML
-     * spec. Digit parsing matches the hex loop in `parseNumericEntity`.
-     * The accumulated value is preserved for numeric validation callbacks.
+     * Equivalent to the `Hexadecimal character reference state` in the HTML spec.
      * @param input The string containing the entity (or a continuation of the entity).
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
      */
     private stateNumericHex(input: string, offset: number): number {
         const inputLength = input.length;
-        // Local accumulators; flushed before any exit (see stateNamedEntity).
-        let { result } = this;
-        let { consumed } = this;
-        while (offset < inputLength) {
-            const char = input.charCodeAt(offset);
-            if (isNumber(char) || isHexadecimalCharacter(char)) {
-                // Convert hex digit to value (0-15); 'a'/'A' -> 10.
-                const digit =
-                    char <= CharCodes.NINE
-                        ? char - CharCodes.ZERO
-                        : (char | TO_LOWER_BIT) - CharCodes.LOWER_A + 10;
+        // Local accumulators; flushed before any exit.
+        let { result, consumed } = this;
+        let index = offset;
+        while (index < inputLength) {
+            const char = input.charCodeAt(index);
+            const digit = numericDigits[char];
+            if (digit <= 15) {
                 result = result * 16 + digit;
-                consumed += 1;
-                offset += 1;
             } else {
                 this.result = result;
                 this.consumed = consumed;
                 return this.emitNumericEntity(char, 3);
             }
+            consumed += 1;
+            index += 1;
         }
         this.result = result;
         this.consumed = consumed;
@@ -289,28 +803,26 @@ export class EntityDecoder {
     /**
      * Parses a decimal numeric entity.
      *
-     * Equivalent to the `Decimal character reference state` in the HTML
-     * spec. Digit parsing matches the decimal loop in `parseNumericEntity`.
-     * The accumulated value is preserved for numeric validation callbacks.
+     * Equivalent to the `Decimal character reference state` in the HTML spec.
      * @param input The string containing the entity (or a continuation of the entity).
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
      */
     private stateNumericDecimal(input: string, offset: number): number {
         const inputLength = input.length;
-        // Local accumulators; flushed before any exit (see stateNamedEntity).
-        let { result } = this;
-        let { consumed } = this;
-        while (offset < inputLength) {
-            const digit = input.charCodeAt(offset) - CharCodes.ZERO;
+        // Local accumulators; flushed before any exit.
+        let { result, consumed } = this;
+        let index = offset;
+        while (index < inputLength) {
+            const digit = input.charCodeAt(index) - CHAR_ZERO;
             if (digit >>> 0 > 9) {
                 this.result = result;
                 this.consumed = consumed;
-                return this.emitNumericEntity(digit + CharCodes.ZERO, 2);
+                return this.emitNumericEntity(digit + CHAR_ZERO, 2);
             }
             result = result * 10 + digit;
             consumed += 1;
-            offset += 1;
+            index += 1;
         }
         this.result = result;
         this.consumed = consumed;
@@ -320,7 +832,7 @@ export class EntityDecoder {
     /**
      * Validate and emit a numeric entity.
      *
-     * Implements the logic from the `Hexademical character reference start
+     * Implements the logic from the `Hexadecimal character reference start
      * state` and `Numeric character reference end state` in the HTML spec.
      * @param lastCp The last code point of the entity. Used to see if the
      *               entity was terminated with a semicolon.
@@ -339,24 +851,21 @@ export class EntityDecoder {
         }
 
         // Figure out if this is a legit end of the entity
-        if (lastCp === CharCodes.SEMI) {
+        if (lastCp === CHAR_SEMI) {
             this.consumed += 1;
         } else if (this.decodeMode === DecodingMode.Strict) {
             return 0;
         }
 
         this.emitCodePoint(
-            (this.decodeTree === xmlDecodeTree
-                ? replaceCodePointXML
-                : replaceCodePoint)(this.result),
+            this.replaceNumericCodePoint(this.result),
             this.consumed,
         );
 
         if (this.errors) {
-            if (lastCp !== CharCodes.SEMI) {
+            if (lastCp !== CHAR_SEMI) {
                 this.errors.missingSemicolonAfterCharacterReference();
             }
-
             this.errors.validateNumericCharacterReference(this.result);
         }
 
@@ -364,316 +873,68 @@ export class EntityDecoder {
     }
 
     /**
-     * Flush locally-tracked walk state back to the fields, then emit the
-     * recorded legacy match or reject (cold path — at most once per
-     * entity). Called after failed navigation (leaf node, branch miss, or
-     * compact-run mismatch). In attribute mode, reject if no legacy was
-     * recorded at the current node, if we descended past it, or if the
-     * pending input character is an invalid attribute terminator.
-     * @param consumed Locally-tracked consumed count.
-     * @param excess Locally-tracked excess count.
-     * @param char Pending input character (may be the mismatching char).
-     * @param valueLength Value length at the current trie node.
+     * Resets the instance to make it reusable.
+     * @param decodeMode Entity decoding mode to use.
      */
-    private flushAndEmitLegacyOrReject(
-        consumed: number,
-        excess: number,
-        char: number,
-        valueLength: number,
-    ): number {
-        this.consumed = consumed;
-        this.excess = excess;
-        return this.result === 0 ||
-            (this.decodeMode === DecodingMode.Attribute &&
-                (valueLength === 0 ||
-                    excess > 1 ||
-                    isEntityInAttributeInvalidEnd(char)))
-            ? 0
-            : this.emitNotTerminatedNamedEntity();
+    startEntity(decodeMode: DecodingMode): void {
+        this.decodeMode = decodeMode;
+        this.state = STATE_ENTITY_START;
+        this.result = 0;
+        this.consumed = 1;
     }
 
     /**
-     * Parses a named entity.
-     *
-     * Equivalent to the `Named character reference state` in the HTML spec.
+     * Write an entity to the decoder. This can be called multiple times with partial entities.
+     * If the entity is incomplete, the decoder will return -1.
+     * @param input The string containing the entity (or a continuation of the entity).
+     * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
+     * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+     */
+    write(input: string, offset: number): number {
+        switch (this.state) {
+            case STATE_ENTITY_START: {
+                if (input.charCodeAt(offset) === CHAR_NUM) {
+                    this.state = STATE_NUMERIC_START;
+                    this.consumed += 1;
+                    return this.stateNumericStart(input, offset + 1);
+                }
+                this.state = STATE_NAMED_ENTITY;
+                return this.stateNamedEntity(input, offset);
+            }
+
+            case STATE_NUMERIC_START: {
+                return this.stateNumericStart(input, offset);
+            }
+
+            case STATE_NUMERIC_DECIMAL: {
+                return this.stateNumericDecimal(input, offset);
+            }
+
+            case STATE_NUMERIC_HEX: {
+                return this.stateNumericHex(input, offset);
+            }
+
+            default: {
+                // NamedEntity: the only remaining state.
+                return this.stateNamedEntity(input, offset);
+            }
+        }
+    }
+
+    /**
+     * Decode a named entity.
      * @param input The string containing the entity (or a continuation of the entity).
      * @param offset The current offset.
      * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
      */
-    private stateNamedEntity(input: string, offset: number): number {
-        const { decodeTree } = this;
-        const inputLength = input.length;
-        const isStrict = this.decodeMode === DecodingMode.Strict;
-
-        /*
-         * Local copies of the resumable walk state avoid per-character
-         * field writes. They are flushed back to the fields
-         * on every exit (chunk end, and before any emit helper that reads
-         * them). `this.result` is only written at the (rare) record points,
-         * so it stays a direct field write.
-         *
-         * Legacy-match recording happens in two idempotent places: at the
-         * loop top when sitting on a value node, and in the chunk-end
-         * epilogue (so `end()` sees matches that land exactly on a chunk
-         * boundary). Recording applies `consumed += excess - 1; excess = 1`,
-         * which is a no-op when repeated — the loop-top invariant is
-         * `excess` = unrecorded consumed characters + 1.
-         */
-        let { treeIndex } = this;
-        let { excess } = this;
-        let { consumed } = this;
-        let current = decodeTree[treeIndex];
-
-        while (offset < inputLength) {
-            /*
-             * Descend through value-less jump-table nodes (including the
-             * single-branch encoding) inline, mirroring `decodeWithTrie`:
-             * this avoids a `determineBranch` call per level for the
-             * dominant node shape — including the root on the first write.
-             */
-            while (
-                (current &
-                    (BinTrieFlags.VALUE_LENGTH | BinTrieFlags.FLAG13)) ===
-                    0 &&
-                (current & BinTrieFlags.JUMP_TABLE) !== 0
-            ) {
-                const char = input.charCodeAt(offset);
-                const jumpOffset = current & BinTrieFlags.JUMP_TABLE;
-                const branchCount = (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
-                if (branchCount === 0) {
-                    // Single branch encoded inline in the jump offset bits.
-                    if (char !== jumpOffset) {
-                        return this.flushAndEmitLegacyOrReject(
-                            consumed,
-                            excess,
-                            char,
-                            0,
-                        );
-                    }
-                    treeIndex += 1;
-                } else {
-                    const slot = char - jumpOffset;
-                    if (slot >>> 0 >= branchCount) {
-                        return this.flushAndEmitLegacyOrReject(
-                            consumed,
-                            excess,
-                            char,
-                            0,
-                        );
-                    }
-                    const stored = decodeTree[treeIndex + 1 + slot];
-                    if (stored === 0) {
-                        return this.flushAndEmitLegacyOrReject(
-                            consumed,
-                            excess,
-                            char,
-                            0,
-                        );
-                    }
-                    // End-relative: branch data ends at treeIndex+1+branchCount.
-                    treeIndex = (treeIndex + branchCount + stored) & 0xff_ff;
-                }
-                current = decodeTree[treeIndex];
-                offset += 1;
-                excess += 1;
-                /*
-                 * `charCodeAt` past the end returns NaN, which would alias
-                 * to slot 0 after `>>> 0` — bail out explicitly.
-                 */
-                // eslint-disable-next-line unicorn/no-break-in-nested-loop
-                if (offset >= inputLength) break;
-            }
-            if (offset >= inputLength) break;
-
-            // Handle compact runs (resumable across chunks).
-            if (
-                (current &
-                    (BinTrieFlags.VALUE_LENGTH | BinTrieFlags.FLAG13)) ===
-                BinTrieFlags.FLAG13
-            ) {
-                const runLength =
-                    (current & BinTrieFlags.BRANCH_LENGTH) >> 7; /* 3..63 */
-                let { runConsumed } = this;
-
-                // If we are starting a run, check the first char.
-                if (runConsumed === 0) {
-                    const char = input.charCodeAt(offset);
-                    if (char !== (current & BinTrieFlags.JUMP_TABLE)) {
-                        return this.flushAndEmitLegacyOrReject(
-                            consumed,
-                            excess,
-                            char,
-                            0,
-                        );
-                    }
-                    offset += 1;
-                    excess += 1;
-                    runConsumed = 1;
-                }
-
-                // Check remaining characters in the run (packed two per uint16 word).
-                while (runConsumed < runLength) {
-                    if (offset >= inputLength) {
-                        this.treeIndex = treeIndex;
-                        this.excess = excess;
-                        this.consumed = consumed;
-                        this.runConsumed = runConsumed;
-                        return -1;
-                    }
-
-                    const charIndexInPacked = runConsumed - 1;
-                    const packedWord =
-                        decodeTree[treeIndex + 1 + (charIndexInPacked >> 1)];
-                    const expectedChar =
-                        (packedWord >> ((charIndexInPacked & 1) << 3)) & 0xff;
-
-                    const char = input.charCodeAt(offset);
-                    if (char !== expectedChar) {
-                        this.runConsumed = 0;
-                        return this.flushAndEmitLegacyOrReject(
-                            consumed,
-                            excess,
-                            char,
-                            0,
-                        );
-                    }
-                    offset += 1;
-                    excess += 1;
-                    runConsumed += 1;
-                }
-
-                this.runConsumed = 0;
-                treeIndex += 1 + (runLength >> 1);
-                current = decodeTree[treeIndex];
-                // Loop top handles the landed-on node (record/emit/branch).
-                continue;
-            }
-
-            // Header plus out-of-line value words; 0 means no value.
-            const valueLength = current >>> 14;
-            const char = input.charCodeAt(offset);
-
-            if (valueLength !== 0) {
-                // Record a legacy match (FLAG13 clear = semicolon optional).
-                if (!isStrict && (current & BinTrieFlags.FLAG13) === 0) {
-                    this.result = treeIndex;
-                    consumed += excess - 1;
-                    excess = 1;
-                }
-
-                /*
-                 * Implicit semicolon handling: emit immediately. Covers both
-                 * strict (FLAG13 set) and legacy entities — neither stores
-                 * an explicit `;` branch in the trie.
-                 */
-                if (char === CharCodes.SEMI) {
-                    return this.emitNamedEntityData(
-                        treeIndex,
-                        valueLength,
-                        consumed + excess,
-                    );
-                }
-
-                /*
-                 * `valueLength === 1` packs the codepoint into the header
-                 * word's low 13 bits, where branch metadata also lives. Skip
-                 * the branch lookup on leaves so those value bits aren't
-                 * reinterpreted as branch offsets.
-                 */
-                if (valueLength === 1) {
-                    return this.flushAndEmitLegacyOrReject(
-                        consumed,
-                        excess,
-                        char,
-                        valueLength,
-                    );
-                }
-            }
-
-            // Value-bearing or dictionary node: dispatch through determineBranch.
-            const next = determineBranch(
-                decodeTree,
-                current,
-                treeIndex + (valueLength || 1),
-                char,
-            );
-
-            if (next < 0) {
-                return this.flushAndEmitLegacyOrReject(
-                    consumed,
-                    excess,
-                    char,
-                    valueLength,
-                );
-            }
-
-            treeIndex = next;
-            current = decodeTree[treeIndex];
-            offset += 1;
-            excess += 1;
-        }
-
-        /*
-         * Chunk exhausted. Record a legacy match we may be sitting on, so a
-         * subsequent `end()` emits it, then persist the walk state.
-         */
-        if (
-            !isStrict &&
-            current >>> 14 !== 0 &&
-            (current & BinTrieFlags.FLAG13) === 0
-        ) {
-            this.result = treeIndex;
-            consumed += excess - 1;
-            excess = 1;
-        }
-        this.treeIndex = treeIndex;
-        this.excess = excess;
-        this.consumed = consumed;
-        return -1;
-    }
+    protected abstract stateNamedEntity(input: string, offset: number): number;
 
     /**
-     * Emit a named entity that was not terminated with a semicolon.
-     * @returns The number of characters consumed.
+     * Resolve a named entity that was still incomplete when the input
+     * ended.
+     * @returns The number of characters that were consumed.
      */
-    private emitNotTerminatedNamedEntity(): number {
-        const { result, decodeTree } = this;
-
-        const valueLength = decodeTree[result] >>> 14;
-
-        this.emitNamedEntityData(result, valueLength, this.consumed);
-        this.errors?.missingSemicolonAfterCharacterReference();
-
-        return this.consumed;
-    }
-
-    /**
-     * Emit a named entity.
-     * @param result The index of the entity in the decode tree.
-     * @param valueLength Encoded value length (header plus any value words).
-     * @param consumed The number of characters consumed.
-     * @returns The number of characters consumed.
-     */
-    private emitNamedEntityData(
-        result: number,
-        valueLength: number,
-        consumed: number,
-    ): number {
-        const { decodeTree } = this;
-
-        this.emitCodePoint(
-            valueLength === 1
-                ? decodeTree[result] & BinTrieFlags.VALUE_MASK
-                : decodeTree[result + 1],
-            consumed,
-        );
-        if (valueLength === 3) {
-            // Emit the second UTF-16 code unit.
-            this.emitCodePoint(decodeTree[result + 2], consumed);
-        }
-
-        return consumed;
-    }
+    protected abstract endNamedEntity(): number;
 
     /**
      * Signal to the parser that the end of the input was reached.
@@ -683,29 +944,28 @@ export class EntityDecoder {
      */
     end(): number {
         switch (this.state) {
-            case EntityDecoderState.NamedEntity: {
-                // Emit a named entity if we have one.
-                return this.result !== 0 &&
-                    (this.decodeMode !== DecodingMode.Attribute ||
-                        this.result === this.treeIndex)
-                    ? this.emitNotTerminatedNamedEntity()
-                    : 0;
+            case STATE_NAMED_ENTITY: {
+                return this.endNamedEntity();
             }
+
             // Otherwise, emit a numeric entity if we have one.
-            case EntityDecoderState.NumericDecimal: {
+            case STATE_NUMERIC_DECIMAL: {
                 return this.emitNumericEntity(0, 2);
             }
-            case EntityDecoderState.NumericHex: {
+
+            case STATE_NUMERIC_HEX: {
                 return this.emitNumericEntity(0, 3);
             }
-            case EntityDecoderState.NumericStart: {
+
+            case STATE_NUMERIC_START: {
                 this.errors?.absenceOfDigitsInNumericCharacterReference(
                     this.consumed,
                 );
                 return 0;
             }
+
             default: {
-                // EntityStart or unknown — return 0.
+                // EntityStart: return 0.
                 return 0;
             }
         }
@@ -713,656 +973,327 @@ export class EntityDecoder {
 }
 
 /**
- * Determines the branch of the current node that is taken given the current
- * character. This function is used to traverse the trie.
+ * Streaming decoder for HTML entities.
  *
- * See `BinTrieFlags` for the branch-data layouts handled here.
- * @param decodeTree The trie.
- * @param current The current node's header word.
- * @param nodeIndex Index of the node's first branch-data word (the header
- *   plus any value words have been skipped by the caller).
- * @param char The current character.
- * @returns The index of the next node, or -1 if no branch is taken.
+ * When the entity fits inside the current chunk (the common case), the
+ * lookup runs directly on the chunk via the same length-probe scheme as the
+ * synchronous decoder; chunk-boundary runs use a reusable character buffer.
  */
-export function determineBranch(
-    decodeTree: Uint16Array,
-    current: number,
-    nodeIndex: number,
-    char: number,
-): number {
-    const branchCount = (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
-    const jumpOffset = current & BinTrieFlags.JUMP_TABLE;
+export class HtmlEntityDecoder extends EntityDecoderBase {
+    /** Total name characters seen for the current named entity. */
+    private runLength = 0;
 
-    // Case 1: Single branch or jump table (jumpOffset encodes the first/only char code).
-    if (jumpOffset) {
-        if (branchCount === 0) {
-            // Single branch encoded inline in the jump offset bits.
-            return char === jumpOffset ? nodeIndex : -1;
+    /** Reused for ASCII alphanumerics; the 32nd character rules out an exact match. */
+    private readonly nameBuffer = new Uint8Array(32);
+
+    /**
+     * Emit the replacement for a matched slot. Values are at most two
+     * UTF-16 code units; like previous versions, each unit is emitted as
+     * its own callback (surrogate halves included).
+     * @param slot The matched slot.
+     */
+    private emitSlot(slot: number): void {
+        const packed = htmlSlotValue[slot];
+        const off = packed >> 2;
+        this.emitCodePoint(htmlValues.charCodeAt(off), this.consumed);
+        if ((packed & 1) !== 0) {
+            this.emitCodePoint(htmlValues.charCodeAt(off + 1), this.consumed);
         }
-
-        /*
-         * Jump table: branchCount consecutive slots starting at jumpOffset.
-         * Unsigned comparison handles both < 0 and >= branchCount in one check.
-         */
-        const slot = char - jumpOffset;
-        if (slot >>> 0 >= branchCount) return -1;
-        const stored = decodeTree[nodeIndex + slot];
-        /*
-         * 0 = empty slot (no branch); otherwise the child's offset from the
-         * end of the branch array, +1 (end-relative pointers compress
-         * better). `& 0xff_ff` mirrors the encoder's uint16 wrap for
-         * backreferences to already-encoded nodes.
-         */
-        return stored === 0
-            ? -1
-            : (nodeIndex + branchCount + stored - 1) & 0xff_ff;
     }
 
-    /*
-     * Case 2: Packed dictionary. Linear scan — over 90% of dict nodes have
-     * <= 4 branches in the HTML trie, where the constant-factor savings
-     * dominate over binary search's asymptotic edge.
-     */
-    if (branchCount === 0) return -1;
-    const packedKeySlots = (branchCount + 1) >> 1;
-    const branchEnd = nodeIndex + packedKeySlots + branchCount;
-    for (let index = 0; index < branchCount; index++) {
-        const packed = decodeTree[nodeIndex + (index >> 1)];
-        const key = (packed >> ((index & 1) << 3)) & 0xff;
-        if (key === char) {
-            const pointerIndex = nodeIndex + packedKeySlots + index;
-            // Pointers are relative to the end of the branch data.
-            return (branchEnd + decodeTree[pointerIndex]) & 0xff_ff;
+    override startEntity(decodeMode: DecodingMode): void {
+        super.startEntity(decodeMode);
+        this.runLength = 0;
+    }
+
+    protected stateNamedEntity(input: string, offset: number): number {
+        const inputLength = input.length;
+
+        if (this.runLength === 0 && offset + 17 <= inputLength) {
+            /*
+             * Fast path: all length probes are conclusive inside this
+             * chunk. (Near the chunk end a probe miss could be a name
+             * continuing in the next chunk, so fall through to buffering.)
+             */
+            const c0 = input.charCodeAt(offset);
+            const pair = pairIndex(c0, input.charCodeAt(offset + 1));
+            const bits = htmlLengthBits[pair];
+            if ((bits & 0x80_00) !== 0 && offset + 32 <= inputLength) {
+                const packed = findLongClassMatch(
+                    input,
+                    offset,
+                    this.decodeMode,
+                );
+                if (packed >= 0) {
+                    const length = packed & 63;
+                    this.consumed = length + 1;
+                    this.emitSlot(packed >> 6);
+                    if (input.charCodeAt(offset + length - 1) !== CHAR_SEMI) {
+                        this.errors?.missingSemicolonAfterCharacterReference();
+                    }
+                    return this.consumed;
+                }
+                // The window decides every exact or legacy candidate.
+                return 0;
+            }
+            let probed = bits & 0x7f_ff;
+            while (probed !== 0) {
+                /*
+                 * Shortest candidate first: only one length can carry the
+                 * terminating ';' (a ';' inside a longer candidate fails its
+                 * middle comparison), so the order is correctness-neutral,
+                 * and the most common entities are short. Legacy matches are
+                 * resolved after the loop, preserving exact-match
+                 * precedence.
+                 */
+                const low = probed & -probed;
+                probed ^= low;
+                const length = 33 - Math.clz32(low);
+                if (input.charCodeAt(offset + length) === CHAR_SEMI) {
+                    const slot = findSlotHtml(input, offset, length);
+                    if (slot >= 0) {
+                        this.consumed = length + 2;
+                        this.emitSlot(slot);
+                        return this.consumed;
+                    }
+                }
+            }
+            if ((bits & 0x80_00) === 0) {
+                if (this.decodeMode !== DecodingMode.Strict) {
+                    const packed = findLegacySlot(input, offset, 31);
+                    if (packed >= 0) {
+                        const matchLength = packed & 7;
+                        const next = input.charCodeAt(offset + matchLength);
+                        if (
+                            this.decodeMode === DecodingMode.Attribute &&
+                            isEntityInAttributeInvalidEnd(next)
+                        ) {
+                            return 0;
+                        }
+                        this.consumed = matchLength + 1;
+                        this.emitSlot(packed >> 3);
+                        this.errors?.missingSemicolonAfterCharacterReference();
+                        return this.consumed;
+                    }
+                }
+                // No long names in this class: the probes were exhaustive.
+                return 0;
+            }
         }
-        // Keys are sorted; if we've passed `char`, no match is possible.
-        if (key > char) return -1;
+
+        // A 32nd name character rules out every exact HTML match.
+        let index = offset;
+        let { runLength } = this;
+        let terminator = -1;
+        const scanEnd = Math.min(inputLength, offset + 32 - runLength);
+        while (index < scanEnd) {
+            const char = input.charCodeAt(index);
+            if (!isAlphaNumeric(char)) {
+                terminator = char;
+                break;
+            }
+            this.nameBuffer[runLength++] = char;
+            index++;
+        }
+        if (terminator < 0 && runLength < 32) {
+            this.runLength = runLength;
+            return -1;
+        }
+        if (terminator === CHAR_SEMI && (runLength - 2) >>> 0 <= 29) {
+            const slot = findBufferedHtmlSlot(this.nameBuffer, runLength);
+            if (slot >= 0) {
+                this.consumed = runLength + 2;
+                this.emitSlot(slot);
+                return this.consumed;
+            }
+        }
+        if (this.decodeMode !== DecodingMode.Strict && runLength >= 2) {
+            const packed = findBufferedLegacySlot(this.nameBuffer, runLength);
+            if (packed >= 0) {
+                const length = packed & 7;
+                const next =
+                    length < runLength ? this.nameBuffer[length] : terminator;
+                if (
+                    this.decodeMode === DecodingMode.Attribute &&
+                    isEntityInAttributeInvalidEnd(next)
+                )
+                    return 0;
+                this.consumed = length + 1;
+                this.emitSlot(packed >> 3);
+                this.errors?.missingSemicolonAfterCharacterReference();
+                return this.consumed;
+            }
+        }
+        return 0;
+    }
+
+    protected endNamedEntity(): number {
+        // Emit the longest legacy match in the buffered run, if any.
+        if (this.decodeMode === DecodingMode.Strict || this.runLength < 2) {
+            return 0;
+        }
+        const packed = findBufferedLegacySlot(this.nameBuffer, this.runLength);
+        if (packed < 0) return 0;
+        if (
+            this.decodeMode === DecodingMode.Attribute &&
+            (packed & 7) < this.runLength
+        ) {
+            return 0;
+        }
+        this.consumed = (packed & 7) + 1;
+        this.emitSlot(packed >> 3);
+        this.errors?.missingSemicolonAfterCharacterReference();
+        return this.consumed;
+    }
+}
+
+/**
+ * Find a buffered name. Its characters were already checked as ASCII
+ * alphanumerics while scanning, so no outer-character range check is needed.
+ * @param buffer Reusable character buffer.
+ * @param length Number of characters to match.
+ */
+function findBufferedHtmlSlot(buffer: Uint8Array, length: number): number {
+    const key =
+        (buffer[0] << 25) |
+        (buffer[1] << 18) |
+        (buffer[length - 2] << 11) |
+        (CHAR_REMAP[buffer[length - 1]] << 5) |
+        length;
+    let slot =
+        2 * (((Math.imul(key, BUCKET_HASH_1) >>> 16) * htmlBuckets) >>> 16);
+    for (let attempt = 0; ; attempt++) {
+        if (
+            htmlKeys[slot] === key &&
+            (length <= 4 || isBufferedMiddle(slot, buffer, length))
+        )
+            return slot;
+        if (
+            htmlKeys[slot + 1] === key &&
+            (length <= 4 || isBufferedMiddle(slot + 1, buffer, length))
+        )
+            return slot + 1;
+        if (attempt === 1) return -1;
+        slot =
+            2 * (((Math.imul(key, BUCKET_HASH_2) >>> 16) * htmlBuckets) >>> 16);
+    }
+}
+
+function isBufferedMiddle(
+    slot: number,
+    buffer: Uint8Array,
+    length: number,
+): boolean {
+    let wordIndex = htmlSlotMidOff[slot];
+    let index = 2;
+    const end = length - 2;
+    while (index + 1 < end) {
+        if (
+            (buffer[index] | (buffer[index + 1] << 16)) !==
+            htmlMiddles[wordIndex++]
+        )
+            return false;
+        index += 2;
+    }
+    return (
+        index === end || buffer[index] === (htmlMiddles[wordIndex] & 0xff_ff)
+    );
+}
+
+/**
+ * Find the longest legacy name in the buffer, packed as `(slot << 3) | length`.
+ * @param buffer Reusable character buffer.
+ * @param length Number of buffered characters.
+ */
+function findBufferedLegacySlot(buffer: Uint8Array, length: number): number {
+    let legacy = (htmlLengthBits[pairIndex(buffer[0], buffer[1])] >>> 16) & 31;
+    while (legacy !== 0) {
+        const top = 31 - Math.clz32(legacy);
+        legacy ^= 1 << top;
+        if (top + 2 > length) continue;
+        const slot = findBufferedHtmlSlot(buffer, top + 2);
+        if (slot >= 0 && (htmlSlotValue[slot] & 2) !== 0)
+            return (slot << 3) | (top + 2);
     }
     return -1;
 }
 
 /**
- * Read the decoded value from a trie node.
- * @param decodeTree The trie.
- * @param nodeIndex The index of the node.
- * @param valueLength The length of the value (1, 2, or 3).
- * @returns The decoded string.
+ * Match an XML name packed in seven-bit groups, or return -1.
+ * @param name Packed name accumulated across chunks.
  */
-function readTrieValue(
-    decodeTree: Uint16Array,
-    nodeIndex: number,
-    valueLength: number,
-): string {
-    if (valueLength === 1) {
-        return String.fromCharCode(
-            decodeTree[nodeIndex] & BinTrieFlags.VALUE_MASK,
-        );
-    }
-    if (valueLength === 2) {
-        return String.fromCharCode(decodeTree[nodeIndex + 1]);
-    }
-    return String.fromCharCode(
-        decodeTree[nodeIndex + 1],
-        decodeTree[nodeIndex + 2],
-    );
-}
-
-/**
- * Parse a numeric entity (`&#DDD;` or `&#xHHH;`).
- *
- * Encodes the result as `(consumed << CONSUMED_SHIFT) | codepoint` (see
- * the packing comment at the top of the file; overlong entities spill
- * their length into `longNumericConsumed`). Returns 0 when no digits were
- * found.
- *
- * This is the sync counterpart of the streaming
- * `EntityDecoder#stateNumericDecimal` / `#stateNumericHex`. Digit parsing
- * matches those methods; only this packed result needs a value clamp.
- * @param input       The input string.
- * @param numberStart Index of the `#` character.
- * @param inputLength Cached `input.length`.
- */
-function parseNumericEntity(
-    input: string,
-    numberStart: number,
-    inputLength: number,
-): number {
-    let offset = numberStart + 1; // Skip "#"
-    let cp = 0;
-    let digitStart = offset;
-
-    /*
-     * Separate decimal and hexadecimal loops: each multiplies by a constant
-     * and runs a single digit test, instead of a per-character base check.
-     */
-    if (
-        offset < inputLength &&
-        (input.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X
-    ) {
-        offset += 1;
-        digitStart = offset;
-        while (offset < inputLength) {
-            const char = input.charCodeAt(offset);
-            if (isNumber(char)) {
-                cp = cp * 16 + (char - CharCodes.ZERO);
-            } else if (isHexadecimalCharacter(char)) {
-                cp = cp * 16 + ((char | TO_LOWER_BIT) - CharCodes.LOWER_A + 10);
-            } else {
-                break;
-            }
-            offset += 1;
+function xmlCodePoint(name: number): number {
+    switch (name) {
+        case 0x18_76_f0: {
+            // "amp"
+            return 0x26;
         }
-    } else {
-        while (offset < inputLength) {
-            const digit = input.charCodeAt(offset) - CharCodes.ZERO;
-            if (digit >>> 0 > 9) break;
-            cp = cp * 10 + digit;
-            offset += 1;
+        case 0xc_3c_37_f3: {
+            // "apos"
+            return 0x27;
+        }
+        case 0x33_f4: {
+            // "gt"
+            return 0x3e;
+        }
+        case 0x36_74: {
+            // "lt"
+            return 0x3c;
+        }
+        case 0xe_3d_77_f4: {
+            // "quot"
+            return 0x22;
+        }
+        default: {
+            return -1;
         }
     }
+}
 
-    if (offset === digitStart) return 0;
+/**
+ * Streaming decoder for XML entities: the five predefined named entities
+ * plus numeric character references.
+ */
+export class XmlEntityDecoder extends EntityDecoderBase {
+    protected override readonly replaceNumericCodePoint: (
+        codePoint: number,
+    ) => number = replaceCodePointXML;
 
-    // Include the semicolon in consumed when present.
-    if (offset < inputLength && input.charCodeAt(offset) === CharCodes.SEMI) {
-        offset += 1;
+    protected stateNamedEntity(input: string, offset: number): number {
+        const inputLength = input.length;
+        if (this.consumed === 1 && offset + 5 <= inputLength) {
+            // Fast path: all five patterns are decided within five chars.
+            const packed = matchXmlEntity(input, offset);
+            if (packed < 0) return 0;
+            const consumed = (this.consumed = (packed >> 7) + 1);
+            this.emitCodePoint(packed & 127, consumed);
+            return consumed;
+        }
+
+        // XML names need at most four seven-bit characters, fitting in 28 bits.
+        let { result, consumed } = this;
+        for (let index = offset; index < inputLength; index++) {
+            const char = input.charCodeAt(index);
+            if (char === CHAR_SEMI) {
+                const codePoint = xmlCodePoint(result);
+                if (codePoint < 0) return 0;
+                this.consumed = consumed + 1;
+                this.emitCodePoint(codePoint, this.consumed);
+                return this.consumed;
+            }
+            if (consumed >= 5 || (char - CHAR_LOWER_A) >>> 0 > 25) return 0;
+            result = (result << 7) | char;
+            consumed++;
+        }
+        this.result = result;
+        this.consumed = consumed;
+        return -1;
     }
 
-    /*
-     * Clamp out-of-range values to 0x110000 so they fit the 21-bit field
-     * and decode to U+FFFD. Lengths at or above CONSUMED_OVERFLOW use the
-     * side channel described with the packing constants.
-     */
-    if (cp > 0x10_ff_ff) cp = 0x11_00_00;
-    let consumed = offset - numberStart;
-    if (consumed >= CONSUMED_OVERFLOW) {
-        // eslint-disable-next-line unicorn/no-top-level-assignment-in-function -- deliberate side channel, see `longNumericConsumed`
-        longNumericConsumed = consumed;
-        consumed = CONSUMED_OVERFLOW;
+    protected endNamedEntity(): number {
+        // XML has no legacy entities; an unterminated name never matches.
+        return 0;
     }
-    return (consumed << CONSUMED_SHIFT) | cp;
 }
 
-/**
- * Decode all entities in `input` using the HTML trie.
- *
- * Hard-wired to `htmlDecodeTree`: the inline root navigation below assumes
- * the HTML root's jump-table shape, so this must not be generalized to
- * other tries (the XML trie's dictionary root would silently match no
- * entities — `decodeXML` has its own hand-coded fast path instead).
- * @param input      The string to decode.
- * @param isStrict Only match semicolon-terminated entities.
- * @param isAttribute Whether to apply attribute-specific parsing rules (disallowing certain non-semicolon terminators).
- * @returns The decoded string.
- */
-function decodeWithTrie(
-    input: string,
-    isStrict: boolean,
-    isAttribute: boolean,
-): string {
-    const decodeTree = htmlDecodeTree;
-    // Fast path: no entities at all — return input without any allocation.
-    let offset = input.indexOf("&");
-    if (offset < 0) return input;
-
-    const inputLength = input.length;
-    /*
-     * `chunkStart` marks the start of the next pending slice. Rejected
-     * entities don't advance it, so consecutive rejections are stitched
-     * into a single `slice` once a real match (or end of input) is hit.
-     */
-    let chunkStart = 0;
-    let result = "";
-
-    /*
-     * Root navigation fields, hoisted out of the per-entity loop. The HTML
-     * root is a multi-branch jump-table covering [A-Za-z]; see the inline
-     * first-iteration comment below.
-     */
-    const root = decodeTree[0];
-    const rootJumpOffset = root & BinTrieFlags.JUMP_TABLE;
-    const rootBranchCount = (root & BinTrieFlags.BRANCH_LENGTH) >> 7;
-
-    do {
-        const entityStart = offset + 1;
-
-        // Quick check: entity names must start with [A-Za-z], numeric with #.
-        const firstChar = input.charCodeAt(entityStart);
-        let consumed: number;
-        let value: string;
-        if (firstChar === CharCodes.NUM) {
-            const packed = parseNumericEntity(input, entityStart, inputLength);
-            consumed = unpackConsumed(packed);
-            // In strict mode, require semicolon termination.
-            if (
-                isStrict &&
-                consumed > 0 &&
-                input.charCodeAt(entityStart + consumed - 1) !== CharCodes.SEMI
-            ) {
-                consumed = 0;
-            }
-            value =
-                consumed === 0
-                    ? ""
-                    : codePointToString(packed & CODE_POINT_MASK);
-        } else if (isAlpha(firstChar)) {
-            consumed = 0;
-            value = "";
-
-            /*
-             * The generator guarantees a jump-table root. Consume the first
-             * character directly, then walk from its child.
-             */
-            const rootSlotIndex = firstChar - rootJumpOffset;
-            let nodeIndex: number;
-            if (rootSlotIndex >>> 0 < rootBranchCount) {
-                const stored = decodeTree[1 + rootSlotIndex];
-                nodeIndex =
-                    stored === 0 ? -1 : (rootBranchCount + stored) & 0xff_ff;
-            } else {
-                nodeIndex = -1;
-            }
-
-            /*
-             * Best legacy (no-semicolon) match so far, as trie coordinates.
-             * Deferring `readTrieValue` to the end avoids allocating a
-             * string for matches that longer matches supersede.
-             */
-            let bestNodeIndex = 0;
-            let bestValueLength = 0;
-            let current = nodeIndex < 0 ? 0 : decodeTree[nodeIndex];
-            let index = entityStart + 1;
-
-            /*
-             * Walk the trie from the root child. The `trie` label lets the
-             * inner descent and compact-run loops abandon the entity (and
-             * fall through to the legacy/reject handling) directly.
-             */
-            trie: while (index < inputLength) {
-                /*
-                 * Inline value-less jump tables and single branches. A miss
-                 * falls through to the recorded legacy match or rejection.
-                 */
-                while (
-                    // Value-less, non-run node with a nonzero jump offset.
-                    (current &
-                        (BinTrieFlags.VALUE_LENGTH | BinTrieFlags.FLAG13)) ===
-                        0 &&
-                    (current & BinTrieFlags.JUMP_TABLE) !== 0
-                ) {
-                    const jumpOffset = current & BinTrieFlags.JUMP_TABLE;
-                    const branchCount =
-                        (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
-                    if (branchCount === 0) {
-                        // Single branch encoded inline in the jump offset bits.
-                        if (input.charCodeAt(index) !== jumpOffset) break trie;
-                        nodeIndex += 1;
-                    } else {
-                        const slot = input.charCodeAt(index) - jumpOffset;
-                        if (slot >>> 0 >= branchCount) break trie;
-                        const stored = decodeTree[nodeIndex + 1 + slot];
-                        if (stored === 0) break trie;
-                        // End-relative: branch data ends at nodeIndex+1+branchCount.
-                        nodeIndex =
-                            (nodeIndex + branchCount + stored) & 0xff_ff;
-                    }
-                    current = decodeTree[nodeIndex];
-                    index += 1;
-                    /*
-                     * `charCodeAt` past the end returns NaN, which would
-                     * alias to slot 0 after `>>> 0` — bail out explicitly.
-                     */
-                    if (index >= inputLength) break trie;
-                }
-
-                // FLAG13 without a value marks a compact run.
-                if (
-                    (current &
-                        (BinTrieFlags.VALUE_LENGTH | BinTrieFlags.FLAG13)) ===
-                    BinTrieFlags.FLAG13
-                ) {
-                    const runLength =
-                        (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
-
-                    // Check first char (stored in JUMP_TABLE bits).
-                    if (
-                        input.charCodeAt(index) !==
-                        (current & BinTrieFlags.JUMP_TABLE)
-                    ) {
-                        // eslint-disable-next-line unicorn/no-break-in-nested-loop
-                        break;
-                    }
-                    index += 1;
-
-                    // Check remaining characters (packed two per uint16 word).
-                    const remaining = runLength - 1;
-                    let wordIndex = nodeIndex + 1;
-                    let charIndexInPacked = 0;
-
-                    /*
-                     * Process pairs: read one packed word, compare low byte then high byte.
-                     * No explicit bounds check needed — charCodeAt returns NaN for OOB,
-                     * which never equals an integer, so the mismatch break fires naturally.
-                     */
-                    for (
-                        ;
-                        charIndexInPacked + 1 < remaining;
-                        charIndexInPacked += 2
-                    ) {
-                        const packed = decodeTree[wordIndex];
-                        if (input.charCodeAt(index) !== (packed & 0xff))
-                            break trie;
-                        index += 1;
-                        if (input.charCodeAt(index) !== ((packed >> 8) & 0xff))
-                            break trie;
-                        index += 1;
-                        wordIndex += 1;
-                    }
-                    // Handle odd trailing char.
-                    if (charIndexInPacked < remaining) {
-                        if (
-                            input.charCodeAt(index) !==
-                            (decodeTree[wordIndex] & 0xff)
-                        )
-                            // eslint-disable-next-line unicorn/no-break-in-nested-loop
-                            break;
-                        index += 1;
-                    }
-
-                    nodeIndex += 1 + (runLength >> 1);
-                    current = decodeTree[nodeIndex];
-                    // eslint-disable-next-line unicorn/no-break-in-nested-loop
-                    continue;
-                }
-
-                // Header plus out-of-line value words; 0 means no value.
-                const valueLength = current >>> 14;
-                const char = input.charCodeAt(index);
-
-                /*
-                 * Check current node for a value before navigating.
-                 * This handles both: (a) values reached via compact runs on the
-                 * previous iteration, and (b) values at regular branch targets.
-                 */
-                if (valueLength !== 0) {
-                    // If char is `;`, emit immediately.
-                    if (char === CharCodes.SEMI) {
-                        consumed = index - entityStart + 1;
-                        // Inline leaves carry the value in the low 13 bits.
-                        value =
-                            valueLength === 1
-                                ? String.fromCharCode(
-                                      current & BinTrieFlags.VALUE_MASK,
-                                  )
-                                : readTrieValue(
-                                      decodeTree,
-                                      nodeIndex,
-                                      valueLength,
-                                  );
-                        // eslint-disable-next-line unicorn/no-break-in-nested-loop
-                        break;
-                    }
-
-                    // Record non-terminated (legacy) match (FLAG13 clear = semicolon optional).
-                    if (!isStrict && (current & BinTrieFlags.FLAG13) === 0) {
-                        consumed = index - entityStart;
-                        bestNodeIndex = nodeIndex;
-                        bestValueLength = valueLength;
-                    }
-
-                    /*
-                     * A valueLength of 1 means the value is packed inline in the header
-                     * word — these are always leaf nodes with no branches, so we can
-                     * stop walking the trie.
-                     */
-                    // eslint-disable-next-line unicorn/no-break-in-nested-loop
-                    if (valueLength === 1) break;
-                }
-
-                // Navigate to the next node (valueLength || 1: skip past value words, minimum 1 for header).
-                const next = determineBranch(
-                    decodeTree,
-                    current,
-                    nodeIndex + (valueLength || 1),
-                    char,
-                );
-                // eslint-disable-next-line unicorn/no-break-in-nested-loop
-                if (next < 0) break;
-
-                nodeIndex = next;
-                current = decodeTree[nodeIndex];
-                index += 1;
-            }
-
-            /*
-             * Post-loop: if the semicolon path didn't set value,
-             * check for a final legacy match. The last navigation may
-             * have landed on a legacy node whose value hasn't been
-             * recorded yet (loop exited before the top-of-loop check
-             * could run).
-             */
-            if (value === "") {
-                const finalVL = current >>> 14;
-                if (
-                    finalVL !== 0 &&
-                    !isStrict &&
-                    (current & BinTrieFlags.FLAG13) === 0
-                ) {
-                    consumed = index - entityStart;
-                    bestNodeIndex = nodeIndex;
-                    bestValueLength = finalVL;
-                }
-                if (consumed > 0) {
-                    value = readTrieValue(
-                        decodeTree,
-                        bestNodeIndex,
-                        bestValueLength,
-                    );
-                }
-            }
-        } else {
-            consumed = 0;
-            value = "";
-        }
-
-        /*
-         * The attribute end-char rule (HTML spec §13.2.5.73) only applies to
-         * unterminated *named* references.  Semicolon-terminated entities and
-         * numeric entities are always accepted, matching EntityDecoder behavior.
-         *
-         * When `attribute` is false (the common case), short-circuit skips all
-         * the unterminated-named checks entirely.
-         */
-        if (
-            consumed === 0 ||
-            (isAttribute &&
-                firstChar !== CharCodes.NUM &&
-                input.charCodeAt(entityStart + consumed - 1) !==
-                    CharCodes.SEMI &&
-                entityStart + consumed < inputLength &&
-                isEntityInAttributeInvalidEnd(
-                    input.charCodeAt(entityStart + consumed),
-                ))
-        ) {
-            // Rejected: leave `&` in the pending chunk, scan past it.
-            offset = entityStart;
-        } else {
-            if (chunkStart < offset) {
-                result += input.slice(chunkStart, offset);
-            }
-            result += value;
-            offset = chunkStart = entityStart + consumed;
-        }
-
-        /*
-         * Adjacent entities (`&x;&y;`) are common in entity-dense input;
-         * checking the single character at `offset` first skips the
-         * `indexOf` call (and its per-call overhead) for that case.
-         */
-        if (input.charCodeAt(offset) !== CharCodes.AMP) {
-            offset = input.indexOf("&", offset);
-        }
-    } while (offset >= 0);
-
-    return result + input.slice(chunkStart);
-}
-
-/**
- * Decodes an HTML string.
- * @param htmlString The string to decode.
- * @param mode The decoding mode.
- * @returns The decoded string.
- */
-export function decodeHTML(
-    htmlString: string,
-    mode: DecodingMode = DecodingMode.Legacy,
-): string {
-    return decodeWithTrie(
-        htmlString,
-        mode === DecodingMode.Strict,
-        mode === DecodingMode.Attribute,
-    );
-}
-
-/**
- * Decodes an HTML string in an attribute.
- * @param htmlAttribute The string to decode.
- * @returns The decoded string.
- */
-export function decodeHTMLAttribute(htmlAttribute: string): string {
-    return decodeWithTrie(htmlAttribute, false, true);
-}
-
-/**
- * Decodes an HTML string, requiring all entities to be terminated by a semicolon.
- * @param htmlString The string to decode.
- * @returns The decoded string.
- */
-export function decodeHTMLStrict(htmlString: string): string {
-    return decodeWithTrie(htmlString, true, false);
-}
-
-/**
- * Decodes an XML string, requiring all entities to be terminated by a semicolon.
- *
- * Uses a hand-coded fast path for the 5 XML named entities (amp, lt, gt,
- * quot, apos) plus numeric entities, bypassing the trie entirely.
- * @param xmlString The string to decode.
- * @returns The decoded string.
- */
-export function decodeXML(xmlString: string): string {
-    let offset = xmlString.indexOf("&");
-    if (offset < 0) return xmlString;
-
-    let lastIndex = 0;
-    let result = "";
-
-    do {
-        const start = offset + 1;
-        let consumed = 0;
-        let value = "";
-
-        const c1 = xmlString.charCodeAt(start);
-
-        if (c1 === CharCodes.NUM) {
-            const packed = parseNumericEntity(
-                xmlString,
-                start,
-                xmlString.length,
-            );
-            consumed = unpackConsumed(packed);
-            // XML is always strict — require semicolon.
-            if (
-                consumed === 0 ||
-                xmlString.charCodeAt(start + consumed - 1) !== CharCodes.SEMI
-            ) {
-                consumed = 0;
-            } else {
-                const codePoint = packed & CODE_POINT_MASK;
-                // Nonzero BMP values below the surrogate range need no replacement.
-                value =
-                    (codePoint - 1) >>> 0 < 0xd7_ff
-                        ? String.fromCharCode(codePoint)
-                        : String.fromCodePoint(replaceCodePointXML(codePoint));
-            }
-        } else {
-            /* eslint-disable unicorn/no-break-in-nested-loop -- Keep XML name dispatch inline with the decode loop. */
-            switch (c1) {
-                // &lt; / &gt;
-                case 0x6c:
-                case 0x67: {
-                    if (
-                        xmlString.charCodeAt(start + 1) === 0x74 &&
-                        xmlString.charCodeAt(start + 2) === CharCodes.SEMI
-                    ) {
-                        consumed = 3;
-                        value = c1 === 0x6c ? "<" : ">";
-                    }
-                    break;
-                }
-                // &amp; / &apos;
-                case 0x61: {
-                    const c2 = xmlString.charCodeAt(start + 1);
-                    if (
-                        c2 === 0x6d &&
-                        xmlString.charCodeAt(start + 2) === 0x70 &&
-                        xmlString.charCodeAt(start + 3) === CharCodes.SEMI
-                    ) {
-                        consumed = 4;
-                        value = "&";
-                    } else if (
-                        c2 === 0x70 &&
-                        xmlString.charCodeAt(start + 2) === 0x6f &&
-                        xmlString.charCodeAt(start + 3) === 0x73 &&
-                        xmlString.charCodeAt(start + 4) === CharCodes.SEMI
-                    ) {
-                        consumed = 5;
-                        value = "'";
-                    }
-                    break;
-                }
-                // &quot;
-                case 0x71: {
-                    if (
-                        xmlString.charCodeAt(start + 1) === 0x75 &&
-                        xmlString.charCodeAt(start + 2) === 0x6f &&
-                        xmlString.charCodeAt(start + 3) === 0x74 &&
-                        xmlString.charCodeAt(start + 4) === CharCodes.SEMI
-                    ) {
-                        consumed = 5;
-                        value = '"';
-                    }
-                    break;
-                }
-            }
-            /* eslint-enable unicorn/no-break-in-nested-loop */
-        }
-
-        if (consumed > 0) {
-            if (lastIndex < offset)
-                result += xmlString.slice(lastIndex, offset);
-            result += value;
-            offset = lastIndex = start + consumed;
-        } else {
-            offset = start;
-        }
-        /*
-         * Adjacent entities (`&x;&y;`) are common in entity-dense input;
-         * checking the single character at `lastIndex` first skips the
-         * `indexOf` call (and its per-call overhead) for that case.
-         */
-        offset =
-            xmlString.charCodeAt(offset) === CharCodes.AMP
-                ? offset
-                : xmlString.indexOf("&", offset);
-    } while (offset >= 0);
-
-    return result + xmlString.slice(lastIndex);
-}
-
-export {
-    replaceCodePoint,
-    replaceCodePointXML,
-} from "./decode-codepoint.js";
-// Re-export for use by eg. htmlparser2
-export { htmlDecodeTree } from "./generated/decode-data-html.js";
-export { xmlDecodeTree } from "./generated/decode-data-xml.js";
+export { replaceCodePoint, replaceCodePointXML } from "./decode-codepoint.js";
