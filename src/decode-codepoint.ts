@@ -1,7 +1,7 @@
 // Adapted from https://github.com/mathiasbynens/he/blob/36afe179392226cf1b6ccdb16ebbb7a5a844d93a/src/he.js#L106-L134
 
 /**
- * C1 Unicode control character reference replacements (code points 128–159).
+ * C1 Unicode control character reference replacements (code points 128-159).
  * Index i gives the replacement for code point 128+i; 0 means "no replacement".
  */
 const c1: number[] = [
@@ -25,7 +25,7 @@ function isInvalidCodePoint(codePoint: number): boolean {
 /**
  * Replace the given code point with U+FFFD if it is NUL (0), a surrogate, or
  * outside the valid Unicode range. Code points in the C1 controls range
- * (128–159) are remapped to their Windows-1252 equivalents, following the
+ * (128-159) are remapped to their Windows-1252 equivalents, following the
  * HTML spec. All other code points are returned unchanged.
  * @param codePoint Unicode code point to convert.
  */
