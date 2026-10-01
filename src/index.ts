@@ -144,7 +144,8 @@ export {
     decodeHTMLStrict,
     decodeXML,
     decodeXML as decodeXMLStrict,
-    EntityDecoder,
+    HtmlEntityDecoder,
+    XmlEntityDecoder,
 } from "./decode.js";
 
 export {

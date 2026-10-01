@@ -5,24 +5,23 @@ import {
     DecodingMode,
     decodeHTML,
     decodeXML,
-    EntityDecoder,
+    HtmlEntityDecoder,
+    XmlEntityDecoder,
 } from "./decode.js";
-import { htmlDecodeTree } from "./generated/decode-data-html.js";
-import { xmlDecodeTree } from "./generated/decode-data-xml.js";
 
 /**
- * Decode `&name;` through EntityDecoder in `chunkSize`-char writes.
- * @param decodeTree The trie to decode against.
+ * Decode `&name;` through a streaming decoder in `chunkSize`-char writes.
+ * @param Decoder The decoder class to use.
  * @param input Full entity text, starting at the `&`.
  * @param chunkSize Characters per write call.
  */
 function streamEntity(
-    decodeTree: Uint16Array,
+    Decoder: typeof HtmlEntityDecoder | typeof XmlEntityDecoder,
     input: string,
     chunkSize: number,
 ): { output: string; consumed: number } {
     let output = "";
-    const decoder = new EntityDecoder(decodeTree, (cp) => {
+    const decoder = new Decoder((cp) => {
         output += String.fromCodePoint(cp);
     });
     decoder.startEntity(DecodingMode.Legacy);
@@ -34,24 +33,75 @@ function streamEntity(
     return { output, consumed };
 }
 
-/**
- * Create an EntityDecoder with a spy callback, already started in `mode`.
- * @param mode Decoding mode to start with.
- * @param decodeTree Trie to decode against.
- */
-function newDecoder(mode: DecodingMode, decodeTree = htmlDecodeTree) {
-    const callback = vi.fn<(cp: number, consumed: number) => void>();
-    const decoder = new EntityDecoder(decodeTree, callback);
-    decoder.startEntity(mode);
-    return { decoder, callback };
-}
+describe("Streaming entity decoders", () => {
+    it.each([DecodingMode.Strict, DecodingMode.Attribute])(
+        "should reject overlong HTML names before a terminator in mode %i",
+        (mode) => {
+            const callback = vi.fn();
+            const decoder = new HtmlEntityDecoder(callback);
+            decoder.startEntity(mode);
+            expect(decoder.write("CounterClockwiseContourIntegral", 0)).toBe(
+                -1,
+            );
+            expect(decoder.write("x", 0)).toBe(0);
+            expect(callback).not.toHaveBeenCalled();
 
-describe("EntityDecoder Streaming", () => {
+            decoder.startEntity(mode);
+            expect(
+                decoder.write(
+                    `CounterClockwiseContourIntegral${"x".repeat(4096)}`,
+                    0,
+                ),
+            ).toBe(0);
+            expect(callback).not.toHaveBeenCalled();
+        },
+    );
+
+    it("should preserve legacy matches when a buffered HTML name becomes too long", () => {
+        const callback = vi.fn();
+        const missingSemicolonAfterCharacterReference = vi.fn();
+        const decoder = new HtmlEntityDecoder(callback, {
+            missingSemicolonAfterCharacterReference,
+            absenceOfDigitsInNumericCharacterReference: vi.fn(),
+            validateNumericCharacterReference: vi.fn(),
+        });
+        decoder.startEntity(DecodingMode.Legacy);
+        expect(decoder.write("amp", 0)).toBe(-1);
+        expect(decoder.write("x".repeat(4096), 0)).toBe(4);
+        expect(callback).toHaveBeenCalledExactlyOnceWith(38, 4);
+        expect(missingSemicolonAfterCharacterReference).toHaveBeenCalledOnce();
+
+        decoder.startEntity(DecodingMode.Attribute);
+        expect(decoder.write("amp", 0)).toBe(-1);
+        expect(decoder.write("x".repeat(4096), 0)).toBe(0);
+        expect(callback).toHaveBeenCalledOnce();
+    });
+
+    it.each([1, 4096])(
+        "should reject an impossible XML continuation of length %i",
+        (length) => {
+            const callback = vi.fn();
+            const decoder = new XmlEntityDecoder(callback);
+            decoder.startEntity(DecodingMode.Strict);
+            expect(decoder.write("quot", 0)).toBe(-1);
+            expect(decoder.write("x".repeat(length), 0)).toBe(0);
+            expect(callback).not.toHaveBeenCalled();
+
+            decoder.startEntity(DecodingMode.Strict);
+            expect(decoder.write("quot", 0)).toBe(-1);
+            expect(decoder.write(";", 0)).toBe(6);
+            expect(callback).toHaveBeenCalledExactlyOnceWith(34, 6);
+        },
+    );
+
     it("should decode long entities split across chunks (char-by-char)", () => {
-        const { decoder, callback } = newDecoder(DecodingMode.Strict);
+        const callback = vi.fn();
+        const decoder = new HtmlEntityDecoder(callback);
 
         const entity = "&CounterClockwiseContourIntegral;";
         const codepoint = 8755; // ∳
+
+        decoder.startEntity(DecodingMode.Strict);
 
         // Feed char by char starting after '&'
         for (let index = 1; index < entity.length; index++) {
@@ -69,10 +119,13 @@ describe("EntityDecoder Streaming", () => {
     });
 
     it("should decode distinct chunks", () => {
-        const { decoder, callback } = newDecoder(DecodingMode.Strict);
+        const callback = vi.fn();
+        const decoder = new HtmlEntityDecoder(callback);
 
         const part1 = "&CounterClockwise";
         const part2 = "ContourIntegral;";
+
+        decoder.startEntity(DecodingMode.Strict);
 
         expect(decoder.write(part1.substring(1), 0)).toBe(-1);
         expect(decoder.write(part2, 0)).toBe(33);
@@ -81,23 +134,24 @@ describe("EntityDecoder Streaming", () => {
     });
 
     it("should not over-consume a legacy compact-run entity (e.g. `&Egrave`)", () => {
+        const callback = vi.fn();
+        const decoder = new HtmlEntityDecoder(callback);
+
         /*
-         * The `&Egrave` string is a legacy (semicolon-optional) entity stored
-         * as a compact run. When it is terminated by the next character, only
-         * its 7 characters (`&Egrave`) should be consumed -- the following `&`
-         * must remain available to start the next entity.
+         * `&Egrave` is a legacy (semicolon-optional) entity. When it is
+         * terminated by the next character, only its 7 characters (`&Egrave`)
+         * should be consumed -- the following `&` must remain available to
+         * start the next entity.
          */
-        const { decoder, callback } = newDecoder(DecodingMode.Legacy);
+        decoder.startEntity(DecodingMode.Legacy);
 
         expect(decoder.write("&Egrave&CHcy", 1)).toBe(7);
         expect(callback).toHaveBeenCalledWith(0xc8, 7); // È
     });
 
     it("should decode xml entities (single chunk)", () => {
-        const { decoder, callback } = newDecoder(
-            DecodingMode.Strict,
-            xmlDecodeTree,
-        );
+        const callback = vi.fn();
+        const decoder = new XmlEntityDecoder(callback);
 
         const data = "&amp;&gt;&amp&lt;&copy;&#x61;&#x62&#99;&#100&#101";
 
@@ -137,10 +191,8 @@ describe("EntityDecoder Streaming", () => {
     });
 
     it("should decode xml entities (char-by-char)", () => {
-        const { decoder, callback } = newDecoder(
-            DecodingMode.Strict,
-            xmlDecodeTree,
-        );
+        const callback = vi.fn();
+        const decoder = new XmlEntityDecoder(callback);
 
         const data = "&amp;&gt;&amp&lt;&copy;&#x61;&#x62&#99;&#100&#101";
 
@@ -192,31 +244,38 @@ describe("EntityDecoder Streaming", () => {
     });
 
     /*
-     * A legacy entity ending in a compact run (`&Aacute` — "cute" is a run)
-     * must report exactly the entity's length as consumed (7, not 8): the
-     * run's final character is part of the match, not excess. One extra
-     * consumed character here makes a streaming parser swallow the
-     * character following the entity.
+     * A legacy entity must report exactly its own length as consumed
+     * (`&Aacute` → 7, not 8). One extra consumed character here makes a
+     * streaming parser swallow the character following the entity.
      */
-    describe("consumed count for legacy entities ending in a compact run", () => {
-        const entity = "&Aacute"; // 7 chars; "cute" is a compact run.
+    describe("consumed count for legacy entities", () => {
+        const entity = "&Aacute"; // 7 chars.
         const codepoint = 0xc1; // Á
 
         it("should report 7 consumed when terminated by another char", () => {
-            const { decoder, callback } = newDecoder(DecodingMode.Legacy);
+            const callback = vi.fn();
+            const decoder = new HtmlEntityDecoder(callback);
+
+            decoder.startEntity(DecodingMode.Legacy);
             expect(decoder.write(`${entity} x`, 1)).toBe(entity.length);
             expect(callback).toHaveBeenCalledWith(codepoint, entity.length);
         });
 
         it("should report 7 consumed at the end of input", () => {
-            const { decoder, callback } = newDecoder(DecodingMode.Legacy);
+            const callback = vi.fn();
+            const decoder = new HtmlEntityDecoder(callback);
+
+            decoder.startEntity(DecodingMode.Legacy);
             expect(decoder.write(entity, 1)).toBe(-1);
             expect(decoder.end()).toBe(entity.length);
             expect(callback).toHaveBeenCalledWith(codepoint, entity.length);
         });
 
         it("should report 7 consumed when written char-by-char", () => {
-            const { decoder, callback } = newDecoder(DecodingMode.Legacy);
+            const callback = vi.fn();
+            const decoder = new HtmlEntityDecoder(callback);
+
+            decoder.startEntity(DecodingMode.Legacy);
             for (let index = 1; index < entity.length; index++) {
                 expect(decoder.write(entity[index], 0)).toBe(-1);
             }
@@ -225,23 +284,55 @@ describe("EntityDecoder Streaming", () => {
         });
 
         it("should still include the semicolon when present", () => {
-            const { decoder, callback } = newDecoder(DecodingMode.Legacy);
+            const callback = vi.fn();
+            const decoder = new HtmlEntityDecoder(callback);
+
+            decoder.startEntity(DecodingMode.Legacy);
             expect(decoder.write(`${entity};`, 1)).toBe(entity.length + 1);
             expect(callback).toHaveBeenCalledWith(codepoint, entity.length + 1);
         });
 
         it("should reject in attribute mode when followed by `=`", () => {
-            const { decoder, callback } = newDecoder(DecodingMode.Attribute);
+            const callback = vi.fn();
+            const decoder = new HtmlEntityDecoder(callback);
+
+            decoder.startEntity(DecodingMode.Attribute);
             expect(decoder.write(`${entity}=`, 1)).toBe(0);
             expect(callback).not.toHaveBeenCalled();
         });
     });
 
-    /*
-     * Every entity from both maps goes through EntityDecoder whole and
-     * char-by-char, matching the sync decoders in output and consumed count.
-     */
     describe("exhaustive full-map agreement with the sync decoders", () => {
+        it.each([
+            ["HTML", HtmlEntityDecoder, entityMap],
+            ["XML", XmlEntityDecoder, xmlMap],
+        ] as const)(
+            "should reuse a %s decoder across every name split",
+            (_name, Decoder, map) => {
+                let output = "";
+                const decoder = new Decoder((cp) => {
+                    output += String.fromCodePoint(cp);
+                });
+                for (const [name, value] of Object.entries(map)) {
+                    for (let split = 1; split <= name.length; split++) {
+                        output = "";
+                        decoder.startEntity(DecodingMode.Strict);
+                        expect(
+                            decoder.write(`pad${name.slice(0, split)}`, 3),
+                        ).toBe(-1);
+                        expect(decoder.write(`${name.slice(split)};`, 0)).toBe(
+                            name.length + 2,
+                        );
+                        expect(output).toBe(value);
+                    }
+                    output = "";
+                    decoder.startEntity(DecodingMode.Strict);
+                    expect(decoder.write("#65;", 0)).toBe(5);
+                    expect(output).toBe("A");
+                }
+            },
+        );
+
         const chunkSizes = [
             ["whole", Number.MAX_SAFE_INTEGER],
             ["char-by-char", 1],
@@ -253,7 +344,7 @@ describe("EntityDecoder Streaming", () => {
                 for (const name of Object.keys(entityMap)) {
                     const input = `&${name};`;
                     const result = streamEntity(
-                        htmlDecodeTree,
+                        HtmlEntityDecoder,
                         input,
                         chunkSize,
                     );
@@ -269,7 +360,7 @@ describe("EntityDecoder Streaming", () => {
                 for (const name of Object.keys(xmlMap)) {
                     const input = `&${name};`;
                     const result = streamEntity(
-                        xmlDecodeTree,
+                        XmlEntityDecoder,
                         input,
                         chunkSize,
                     );
@@ -280,23 +371,46 @@ describe("EntityDecoder Streaming", () => {
         );
     });
 
+    it("should report a missing semicolon for in-chunk legacy matches", () => {
+        // Long enough to take the in-chunk fast path (> 16 chars available).
+        const callback = vi.fn();
+        const errors = {
+            missingSemicolonAfterCharacterReference: vi.fn(),
+            absenceOfDigitsInNumericCharacterReference: vi.fn(),
+            validateNumericCharacterReference: vi.fn(),
+        };
+        const decoder = new HtmlEntityDecoder(callback, errors);
+        decoder.startEntity(DecodingMode.Legacy);
+        expect(decoder.write("ampampampampampampamp", 0)).toBe(4);
+        expect(callback).toHaveBeenCalledWith(38, 4);
+        expect(
+            errors.missingSemicolonAfterCharacterReference,
+        ).toHaveBeenCalledTimes(1);
+    });
+
     /*
-     * Chunk-boundary invariants of the resumable walk: a legacy match that
-     * lands exactly on a chunk boundary must be recorded before the chunk
-     * ends, so a subsequent `end()` (or rejection in the next chunk) emits
-     * it with the right consumed count.
+     * Chunk-boundary invariants: a legacy entity whose characters arrive
+     * across multiple chunks must still be resolved by a subsequent
+     * `end()` (or rejection in the next chunk) with the right consumed
+     * count — the decoder buffers the partial name between writes.
      */
     describe("legacy matches at chunk boundaries", () => {
-        it("should emit a match reached mid-descent across chunks via end()", () => {
-            const { decoder, callback } = newDecoder(DecodingMode.Legacy);
+        it("should emit a match buffered across chunks via end()", () => {
+            const callback = vi.fn();
+            const decoder = new HtmlEntityDecoder(callback);
+
+            decoder.startEntity(DecodingMode.Legacy);
             expect(decoder.write("no", 0)).toBe(-1);
             expect(decoder.write("t", 0)).toBe(-1);
             expect(decoder.end()).toBe(4);
             expect(callback).toHaveBeenCalledWith(0xac, 4); // ¬
         });
 
-        it("should emit a compact-run match split across chunks via end()", () => {
-            const { decoder, callback } = newDecoder(DecodingMode.Legacy);
+        it("should emit a multi-chunk legacy match via end()", () => {
+            const callback = vi.fn();
+            const decoder = new HtmlEntityDecoder(callback);
+
+            decoder.startEntity(DecodingMode.Legacy);
             expect(decoder.write("Aac", 0)).toBe(-1);
             expect(decoder.write("ute", 0)).toBe(-1);
             expect(decoder.end()).toBe(7);
@@ -304,36 +418,42 @@ describe("EntityDecoder Streaming", () => {
         });
 
         it("should not record strict-only matches at a chunk end", () => {
-            const { decoder, callback } = newDecoder(DecodingMode.Strict);
+            const callback = vi.fn();
+            const decoder = new HtmlEntityDecoder(callback);
+
+            decoder.startEntity(DecodingMode.Strict);
             expect(decoder.write("amp", 0)).toBe(-1);
             expect(decoder.end()).toBe(0);
             expect(callback).not.toHaveBeenCalled();
         });
 
         it("should apply attribute terminator rules across a chunk boundary", () => {
-            const rejecting = newDecoder(DecodingMode.Attribute);
-            expect(rejecting.decoder.write("Aacute", 0)).toBe(-1);
-            expect(rejecting.decoder.write("=", 0)).toBe(0);
-            expect(rejecting.callback).not.toHaveBeenCalled();
+            const callback = vi.fn();
+            const rejecting = new HtmlEntityDecoder(callback);
+            rejecting.startEntity(DecodingMode.Attribute);
+            expect(rejecting.write("Aacute", 0)).toBe(-1);
+            expect(rejecting.write("=", 0)).toBe(0);
+            expect(callback).not.toHaveBeenCalled();
 
-            const accepting = newDecoder(DecodingMode.Attribute);
-            expect(accepting.decoder.write("Aacute", 0)).toBe(-1);
-            expect(accepting.decoder.write(" ", 0)).toBe(7);
-            expect(accepting.callback).toHaveBeenCalledWith(0xc1, 7);
+            const accepting = new HtmlEntityDecoder(callback);
+            accepting.startEntity(DecodingMode.Attribute);
+            expect(accepting.write("Aacute", 0)).toBe(-1);
+            expect(accepting.write(" ", 0)).toBe(7);
+            expect(callback).toHaveBeenCalledWith(0xc1, 7);
         });
     });
-    it("should not remap C1 numeric references when using the XML tree", () => {
+    it("should not remap C1 numeric references when using the XML decoder", () => {
         const callback = vi.fn();
-        const decoder = new EntityDecoder(xmlDecodeTree, callback);
+        const decoder = new XmlEntityDecoder(callback);
 
         decoder.startEntity(DecodingMode.Strict);
         expect(decoder.write("#x80;", 0)).toBe(6);
         expect(callback).toHaveBeenCalledWith(0x80, 6);
     });
 
-    it("should remap C1 numeric references when using the HTML tree", () => {
+    it("should remap C1 numeric references when using the HTML decoder", () => {
         const callback = vi.fn();
-        const decoder = new EntityDecoder(htmlDecodeTree, callback);
+        const decoder = new HtmlEntityDecoder(callback);
 
         decoder.startEntity(DecodingMode.Strict);
         expect(decoder.write("#x80;", 0)).toBe(6);
