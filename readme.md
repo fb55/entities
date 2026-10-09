@@ -40,7 +40,15 @@ entities.decodeHTML("asdf &amp; &yuml; &uuml; &apos;"); // "asdf & ÿ ü '"
 
 Benchmarked in September 2025 with Node v24.6.0 on Apple M2 using `tinybench`.
 Higher ops/s is better; `avg (μs)` is the mean time per operation.
-See `scripts/benchmark.ts` to reproduce.
+See `scripts/benchmark/benchmark.ts` to reproduce. The benchmark requires Node
+v22+ and installs `he` separately from the main development dependencies:
+
+```sh
+npm ci
+npm ci --prefix scripts/benchmark
+npm --prefix scripts/benchmark run lint
+npm run benchmark
+```
 
 ### Decoding
 

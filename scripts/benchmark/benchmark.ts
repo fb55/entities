@@ -1,8 +1,8 @@
-import he from "he";
+import * as he from "he";
 import * as htmlEntities from "html-entities";
 import { parseEntities } from "parse-entities";
 import { Bench } from "tinybench";
-import * as entities from "../src/index.js";
+import * as entities from "../../src/index.js";
 
 const htmlEntitiesHtml5EncodeOptions: htmlEntities.EncodeOptions = {
     level: "html5",

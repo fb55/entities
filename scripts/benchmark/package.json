@@ -1,0 +1,18 @@
+{
+    "name": "entities-benchmark",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "benchmark": "node --import=tsx benchmark.ts",
+        "lint": "tsc --noEmit"
+    },
+    "dependencies": {
+        "he": "^2.0.0"
+    },
+    "devDependencies": {
+        "@types/he": "^1.2.3"
+    },
+    "engines": {
+        "node": ">=22"
+    }
+}
