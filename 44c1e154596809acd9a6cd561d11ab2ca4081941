@@ -1,0 +1,37 @@
+.github/dependabot.yml
+  s_cdf7d3feeacb5b::t_59daf92b03e71f 9-14
+.github/workflows/nodejs-test.yml
+  s_cdf7d3feeacb5b::t_e8de9154e57d63 26,28
+eslint.config.mjs
+  s_cdf7d3feeacb5b::t_c427a7a6c1aefa 19
+package.json
+  s_cdf7d3feeacb5b::t_5f09d0cad8725d 45
+readme.md
+  s_cdf7d3feeacb5b::t_0cb538b0609f21 43-51
+scripts/benchmark/benchmark.ts
+  s_cdf7d3feeacb5b::t_7a7edf1b639bc6 1,5
+scripts/benchmark/package-lock.json
+  s_cdf7d3feeacb5b::t_f1022bbd2a861d 1-38
+scripts/benchmark/package.json
+  s_cdf7d3feeacb5b::t_f11f42ce3351f2 1-18
+scripts/benchmark/tsconfig.json
+  s_cdf7d3feeacb5b::t_8215a91a28541e 1-5
+tsconfig.eslint.json
+  s_cdf7d3feeacb5b::t_eff2dfc23bfb89 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "44c1e154596809acd9a6cd561d11ab2ca4081941",
+  "prompts": {},
+  "sessions": {
+    "s_cdf7d3feeacb5b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12099-9640-7912-a885-2718c69285cc",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    }
+  }
+}
