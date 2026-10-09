@@ -7,7 +7,10 @@
         "lint": "tsc --noEmit"
     },
     "dependencies": {
-        "he": "^2.0.0"
+        "he": "^2.0.0",
+        "html-entities": "^2.6.0",
+        "parse-entities": "^4.0.2",
+        "tinybench": "^6.2.0"
     },
     "devDependencies": {
         "@types/he": "^1.2.3"
