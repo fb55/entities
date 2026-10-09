@@ -40,8 +40,14 @@ entities.decodeHTML("asdf &amp; &yuml; &uuml; &apos;"); // "asdf & ÿ ü '"
 
 Benchmarked in September 2025 with Node v24.6.0 on Apple M2 using `tinybench`.
 Higher ops/s is better; `avg (μs)` is the mean time per operation.
-See `scripts/benchmark/benchmark.ts` to reproduce. The benchmark requires Node
-v22+ and installs `he` separately from the main development dependencies:
+The tables below are historical measurements of the listed library versions,
+including `he` 1.2.0. The current benchmark uses the versions in
+`scripts/benchmark/package-lock.json`, including `he` 2.0.0, and does not reproduce
+these historical results.
+
+To run the current comparison, use `scripts/benchmark/benchmark.ts`. It requires
+Node v22+ and installs benchmark dependencies separately from the main development
+dependencies:
 
 ```sh
 npm ci
