@@ -1,0 +1,21 @@
+scripts/benchmark/package-lock.json
+  s_cdf7d3feeacb5b::t_5bdc5a593ac44d 9-12,28-76,88-175
+scripts/benchmark/package.json
+  s_cdf7d3feeacb5b::t_74d1d9e6182523 10-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3a0c6aefe75d29d0456b7c53a25ec01521b05cfe",
+  "prompts": {},
+  "sessions": {
+    "s_cdf7d3feeacb5b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12099-9640-7912-a885-2718c69285cc",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    }
+  }
+}
