@@ -23,7 +23,9 @@ jobs:
                   node-version: lts/*
                   cache: npm
             - run: npm ci
+            - run: npm ci --prefix scripts/benchmark
             - run: npm run lint
+            - run: npm --prefix scripts/benchmark run lint
 
     test:
         name: Node ${{ matrix.node }}
@@ -33,7 +35,7 @@ jobs:
             fail-fast: false
             matrix:
                 node:
-                    - '20.19.0'
+                    - '20'
                     - '22'
                     - '24'
                     - 'lts/*'
