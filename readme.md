@@ -42,17 +42,6 @@ Benchmarked in October 2026 with Node v26.9.0 on AMD Ryzen 7 5800X3D using
 `tinybench` 6.2.1 (median of three runs).
 Higher ops/s is better; `avg (ns)` is the mean time per operation.
 
-To run the current comparison, use `scripts/benchmark/benchmark.ts`. It requires
-Node v22+ and installs benchmark dependencies separately from the main development
-dependencies:
-
-```sh
-npm ci
-npm ci --prefix scripts/benchmark
-npm --prefix scripts/benchmark run lint
-npm run benchmark
-```
-
 ### Decoding
 
 | Library        | Version | ops/s     | avg (ns) | ±%   | slower |
