@@ -39,11 +39,8 @@ entities.decodeHTML("asdf &amp; &yuml; &uuml; &apos;"); // "asdf & ÿ ü '"
 ## Performance
 
 Benchmarked in October 2026 with Node v26.9.0 on AMD Ryzen 7 5800X3D using
-`tinybench` 6.2.1 and the versions in `scripts/benchmark/package-lock.json`.
-Each task ran for 10 seconds after a 1-second warmup, in three complete runs.
-For each library and category, the table uses the run with the median throughput.
-Higher ops/s is better; `avg (ns)` is that run's mean time per operation, and `±%`
-is its relative margin of error for mean latency at 95% confidence.
+`tinybench` 6.2.1 (median of three runs).
+Higher ops/s is better; `avg (ns)` is the mean time per operation.
 
 To run the current comparison, use `scripts/benchmark/benchmark.ts`. It requires
 Node v22+ and installs benchmark dependencies separately from the main development
