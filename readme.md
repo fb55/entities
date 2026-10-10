@@ -38,12 +38,12 @@ entities.decodeHTML("asdf &amp; &yuml; &uuml; &apos;"); // "asdf & ÿ ü '"
 
 ## Performance
 
-Benchmarked in September 2025 with Node v24.6.0 on Apple M2 using `tinybench`.
-Higher ops/s is better; `avg (μs)` is the mean time per operation.
-The tables below are historical measurements of the listed library versions,
-including `he` 1.2.0. The current benchmark uses the versions in
-`scripts/benchmark/package-lock.json`, including `he` 2.0.0, and does not reproduce
-these historical results.
+Benchmarked in October 2026 with Node v26.9.0 on AMD Ryzen 7 5800X3D using
+`tinybench` 6.2.1 and the versions in `scripts/benchmark/package-lock.json`.
+Each task ran for 10 seconds after a 1-second warmup, in three complete runs.
+For each library and category, the table uses the run with the median throughput.
+Higher ops/s is better; `avg (ns)` is that run's mean time per operation, and `±%`
+is its relative margin of error for mean latency at 95% confidence.
 
 To run the current comparison, use `scripts/benchmark/benchmark.ts`. It requires
 Node v22+ and installs benchmark dependencies separately from the main development
@@ -58,28 +58,28 @@ npm run benchmark
 
 ### Decoding
 
-| Library        | Version | ops/s     | avg (μs) | ±%   | slower |
+| Library        | Version | ops/s     | avg (ns) | ±%   | slower |
 | -------------- | ------- | --------- | -------- | ---- | ------ |
-| entities       | 7.0.0   | 5,838,416 | 175.57   | 0.06 | —      |
-| html-entities  | 2.6.0   | 2,919,637 | 347.77   | 0.33 | 50.0%  |
-| he             | 1.2.0   | 2,318,438 | 446.48   | 0.70 | 60.3%  |
-| parse-entities | 4.0.2   |   852,855 | 1,199.51 | 0.36 | 85.4%  |
+| entities       | 8.1.0   | 7,078,447 | 144.63   | 1.49 | —      |
+| html-entities  | 2.6.0   | 1,789,087 | 576.33   | 2.49 | 74.7%  |
+| he             | 2.0.0   | 1,321,673 | 797.93   | 4.70 | 81.3%  |
+| parse-entities | 4.0.2   |   782,771 | 1,291.03 | 0.12 | 88.9%  |
 
 ### Encoding
 
-| Library        | Version | ops/s     | avg (μs) | ±%   | slower |
-| -------------- | ------- | --------- | -------- | ---- | ------ |
-| entities       | 7.0.0   | 2,770,115 | 368.09   | 0.11 | —      |
-| html-entities  | 2.6.0   | 1,491,963 | 679.96   | 0.58 | 46.2%  |
-| he             | 1.2.0   |   481,278 | 2,118.25 | 0.61 | 82.6%  |
+| Library       | Version | ops/s     | avg (ns) | ±%   | slower |
+| ------------- | ------- | --------- | -------- | ---- | ------ |
+| entities      | 8.1.0   | 3,347,934 | 308.15   | 2.36 | —      |
+| html-entities | 2.6.0   | 1,163,800 | 878.89   | 2.45 | 65.2%  |
+| he            | 2.0.0   |   412,329 | 2,452.05 | 0.30 | 87.7%  |
 
 ### Escaping
 
-| Library        | Version | ops/s     | avg (μs) | ±%   | slower |
-| -------------- | ------- | --------- | -------- | ---- | ------ |
-| entities       | 7.0.0   | 4,616,468 | 223.84   | 0.17 | —      |
-| he             | 1.2.0   | 3,659,301 | 280.76   | 0.58 | 20.7%  |
-| html-entities  | 2.6.0   | 3,555,301 | 296.63   | 0.84 | 23.0%  |
+| Library       | Version | ops/s     | avg (ns) | ±%   | slower |
+| ------------- | ------- | --------- | -------- | ---- | ------ |
+| entities      | 8.1.0   | 5,156,151 | 198.19   | 0.52 | —      |
+| he            | 2.0.0   | 2,745,905 | 380.32   | 3.71 | 46.7%  |
+| html-entities | 2.6.0   | 2,463,884 | 415.09   | 1.86 | 52.2%  |
 
 Note: Micro-benchmarks may vary across machines and Node versions.
 
@@ -103,7 +103,7 @@ This is helpful for decoding entities in legacy environments.
 
 > Why should I use `entities` instead of alternative modules?
 
-As of September 2025, `entities` is faster than other modules. Still, this is
+As of October 2026, `entities` is faster than other modules. Still, this is
 not a differentiated space and other modules can catch up.
 
 **More importantly**, you might already have `entities` in your dependency graph
