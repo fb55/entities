@@ -1,0 +1,21 @@
+.github/dependabot.yml
+  s_cdf7d3feeacb5b::t_a4a454a7d687ca 19-22
+.github/workflows/codeql-analysis.yml
+  s_cdf7d3feeacb5b::t_a4a454a7d687ca 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ab3149ad05f1ccd6ae09688dff0b3f6a6a2871ab",
+  "prompts": {},
+  "sessions": {
+    "s_cdf7d3feeacb5b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12099-9640-7912-a885-2718c69285cc",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Felix Böhm <fb55@users.noreply.github.com>"
+    }
+  }
+}
