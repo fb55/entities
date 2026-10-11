@@ -42,6 +42,7 @@
         "!**/*.spec.ts"
     ],
     "scripts": {
+        "prebenchmark": "npm ci --prefix scripts/benchmark",
         "benchmark": "npm --prefix scripts/benchmark run benchmark",
         "build": "tsc",
         "build:docs": "typedoc --hideGenerator src/index.ts",
