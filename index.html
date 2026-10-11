@@ -32,9 +32,9 @@ can do that as well!</li>
 </code><button type="button">Copy</button></pre>
 
 <h2 id="performance" class="tsd-anchor-link">Performance<a href="#performance" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
-<p>Benchmarked in September 2025 with Node v24.6.0 on Apple M2 using <code>tinybench</code>.
-Higher ops/s is better; <code>avg (μs)</code> is the mean time per operation.
-See <code>scripts/benchmark.ts</code> to reproduce.</p>
+<p>Benchmarked in October 2026 with Node v26.9.0 on AMD Ryzen 7 5800X3D using
+<code>tinybench</code> 6.2.1 (median of three runs).
+Higher ops/s is better; <code>avg (ns)</code> is the mean time per operation.</p>
 <h3 id="decoding" class="tsd-anchor-link">Decoding<a href="#decoding" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <table>
 <thead>
@@ -42,7 +42,7 @@ See <code>scripts/benchmark.ts</code> to reproduce.</p>
 <th>Library</th>
 <th>Version</th>
 <th>ops/s</th>
-<th>avg (μs)</th>
+<th>avg (ns)</th>
 <th>±%</th>
 <th>slower</th>
 </tr>
@@ -50,35 +50,35 @@ See <code>scripts/benchmark.ts</code> to reproduce.</p>
 <tbody>
 <tr>
 <td>entities</td>
-<td>7.0.0</td>
-<td>5,838,416</td>
-<td>175.57</td>
-<td>0.06</td>
+<td>8.1.0</td>
+<td>7,078,447</td>
+<td>144.63</td>
+<td>1.49</td>
 <td>—</td>
 </tr>
 <tr>
 <td>html-entities</td>
 <td>2.6.0</td>
-<td>2,919,637</td>
-<td>347.77</td>
-<td>0.33</td>
-<td>50.0%</td>
+<td>1,789,087</td>
+<td>576.33</td>
+<td>2.49</td>
+<td>74.7%</td>
 </tr>
 <tr>
 <td>he</td>
-<td>1.2.0</td>
-<td>2,318,438</td>
-<td>446.48</td>
-<td>0.70</td>
-<td>60.3%</td>
+<td>2.0.0</td>
+<td>1,321,673</td>
+<td>797.93</td>
+<td>4.70</td>
+<td>81.3%</td>
 </tr>
 <tr>
 <td>parse-entities</td>
 <td>4.0.2</td>
-<td>852,855</td>
-<td>1,199.51</td>
-<td>0.36</td>
-<td>85.4%</td>
+<td>782,771</td>
+<td>1,291.03</td>
+<td>0.12</td>
+<td>88.9%</td>
 </tr>
 </tbody>
 </table>
@@ -89,7 +89,7 @@ See <code>scripts/benchmark.ts</code> to reproduce.</p>
 <th>Library</th>
 <th>Version</th>
 <th>ops/s</th>
-<th>avg (μs)</th>
+<th>avg (ns)</th>
 <th>±%</th>
 <th>slower</th>
 </tr>
@@ -97,27 +97,27 @@ See <code>scripts/benchmark.ts</code> to reproduce.</p>
 <tbody>
 <tr>
 <td>entities</td>
-<td>7.0.0</td>
-<td>2,770,115</td>
-<td>368.09</td>
-<td>0.11</td>
+<td>8.1.0</td>
+<td>3,347,934</td>
+<td>308.15</td>
+<td>2.36</td>
 <td>—</td>
 </tr>
 <tr>
 <td>html-entities</td>
 <td>2.6.0</td>
-<td>1,491,963</td>
-<td>679.96</td>
-<td>0.58</td>
-<td>46.2%</td>
+<td>1,163,800</td>
+<td>878.89</td>
+<td>2.45</td>
+<td>65.2%</td>
 </tr>
 <tr>
 <td>he</td>
-<td>1.2.0</td>
-<td>481,278</td>
-<td>2,118.25</td>
-<td>0.61</td>
-<td>82.6%</td>
+<td>2.0.0</td>
+<td>412,329</td>
+<td>2,452.05</td>
+<td>0.30</td>
+<td>87.7%</td>
 </tr>
 </tbody>
 </table>
@@ -128,7 +128,7 @@ See <code>scripts/benchmark.ts</code> to reproduce.</p>
 <th>Library</th>
 <th>Version</th>
 <th>ops/s</th>
-<th>avg (μs)</th>
+<th>avg (ns)</th>
 <th>±%</th>
 <th>slower</th>
 </tr>
@@ -136,27 +136,27 @@ See <code>scripts/benchmark.ts</code> to reproduce.</p>
 <tbody>
 <tr>
 <td>entities</td>
-<td>7.0.0</td>
-<td>4,616,468</td>
-<td>223.84</td>
-<td>0.17</td>
+<td>8.1.0</td>
+<td>5,156,151</td>
+<td>198.19</td>
+<td>0.52</td>
 <td>—</td>
 </tr>
 <tr>
 <td>he</td>
-<td>1.2.0</td>
-<td>3,659,301</td>
-<td>280.76</td>
-<td>0.58</td>
-<td>20.7%</td>
+<td>2.0.0</td>
+<td>2,745,905</td>
+<td>380.32</td>
+<td>3.71</td>
+<td>46.7%</td>
 </tr>
 <tr>
 <td>html-entities</td>
 <td>2.6.0</td>
-<td>3,555,301</td>
-<td>296.63</td>
-<td>0.84</td>
-<td>23.0%</td>
+<td>2,463,884</td>
+<td>415.09</td>
+<td>1.86</td>
+<td>52.2%</td>
 </tr>
 </tbody>
 </table>
@@ -179,7 +179,7 @@ This is helpful for decoding entities in legacy environments.</p>
 <blockquote>
 <p>Why should I use <code>entities</code> instead of alternative modules?</p>
 </blockquote>
-<p>As of September 2025, <code>entities</code> is faster than other modules. Still, this is
+<p>As of October 2026, <code>entities</code> is faster than other modules. Still, this is
 not a differentiated space and other modules can catch up.</p>
 <p><strong>More importantly</strong>, you might already have <code>entities</code> in your dependency graph
 (as a dependency of eg. <code>cheerio</code>, or <code>htmlparser2</code>), and including it directly
