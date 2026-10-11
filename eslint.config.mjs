@@ -16,7 +16,7 @@ export default defineConfig([
         },
     },
     {
-        ignores: ["eslint.config.{js,cjs,mjs}"],
+        ignores: ["eslint.config.{js,cjs,mjs}", "scripts/benchmark/**"],
     },
     ...feedicFlatConfig,
     {
