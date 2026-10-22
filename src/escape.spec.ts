@@ -4,8 +4,20 @@ import * as entities from "./index.js";
 describe("escape HTML", () => {
     it("should escape HTML attribute values", () =>
         expect(entities.escapeAttribute('<a " attr > & value \u{A0}!')).toBe(
-            "<a &quot; attr > &amp; value &nbsp;!",
+            "&lt;a &quot; attr &gt; &amp; value &nbsp;!",
         ));
+
+    it("should escape angle brackets in HTML attribute values", () => {
+        expect(entities.escapeAttribute("<img src=x onerror=alert(1)>")).toBe(
+            "&lt;img src=x onerror=alert(1)&gt;",
+        );
+        expect(
+            entities.encode("a<b>c", {
+                level: entities.EntityLevel.HTML,
+                mode: entities.EncodingMode.Attribute,
+            }),
+        ).toBe("a&lt;b&gt;c");
+    });
 
     it("should escape HTML text", () =>
         expect(entities.escapeText('<a " text > & value \u{A0}!')).toBe(

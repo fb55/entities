@@ -151,7 +151,7 @@ export function escapeUTF8(data: string): string {
     return escapeWithRegex(xmlEscapeRegex, data);
 }
 
-const attributeEscapeRegex = /["&\u{A0}]/gu;
+const attributeEscapeRegex = /["&<>\u{A0}]/gu;
 
 /**
  * Encodes all characters that have to be escaped in HTML attributes,
