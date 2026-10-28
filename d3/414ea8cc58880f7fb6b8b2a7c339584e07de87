@@ -1,0 +1,27 @@
+readme.md
+  s_74e3feba4805c5::t_5ca5658bf0b110 41-47,51-57,61-66,70-77
+scripts/benchmark/benchmark.ts
+  s_74e3feba4805c5::t_dc79717ddd558d 1-7,10-14,21,23-30,32-36,38-40,51-70,72-75,77-101,104,111-118,123,125-141,143-144,146-156,158-162,165-266,268-278,280-292,296-297,307,309-312,315-324,326-327,332-343,346-355,359-393,396-400,404-413,415-440,443-451
+  s_74e3feba4805c5::t_2257b6500e833d 293-295,325,356-358,401-403
+  s_74e3feba4805c5::t_6bf42d1a2fc861 395
+  s_74e3feba4805c5::t_0120bbe758963a 8-9,42-49,120-122,328-331,394,414,441-442
+  s_74e3feba4805c5::t_d3d6ea96207c94 106-110,119
+  s_74e3feba4805c5::t_b1d0e84e0f52b0 298-306,308,344-345
+  s_74e3feba4805c5::t_fa56fc5dc428d9 37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d3414ea8cc58880f7fb6b8b2a7c339584e07de87",
+  "prompts": {},
+  "sessions": {
+    "s_74e3feba4805c5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b41a0da9-91fa-42dd-9755-4d30dd64d360",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    }
+  }
+}
