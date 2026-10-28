@@ -158,11 +158,20 @@ const markup = (() => {
 const normalizeAngleBrackets = (text: string) =>
     text.replaceAll("\u2329", "\u27E8").replaceAll("\u232A", "\u27E9");
 
-/** Encoded and escaped output must decode back to the input. */
-function checkRoundTrip(input: string, output: string): void {
-    if (entities.decodeHTML(output) !== input) {
-        throw new Error("Output does not decode back to the input");
-    }
+/**
+ * Encoded and escaped output must decode back to the input, and must not
+ * contain characters matched by `unescaped`. Matching `&` that doesn't start
+ * a character reference keeps a no-op from passing on inputs like `AT&T`.
+ */
+function checkEscaped(unescaped: RegExp): Operation["check"] {
+    return (input, output) => {
+        if (entities.decodeHTML(output) !== input) {
+            throw new Error("Output does not decode back to the input");
+        }
+        if (unescaped.test(output)) {
+            throw new Error("Output contains characters that must be escaped");
+        }
+    };
 }
 
 const operations: Record<string, Operation> = {
@@ -220,7 +229,9 @@ const operations: Record<string, Operation> = {
             },
             cjk: { label: "CJK and emoji", text: text(5, 4096, cjkAndEmoji) },
         },
-        check: checkRoundTrip,
+        check: checkEscaped(
+            /[<>"'\u0080-\uFFFF]|&(?![\da-z]+;|#\d+;|#x[\da-f]+;)/i,
+        ),
     },
     escape: {
         title: "Escaping",
@@ -241,7 +252,7 @@ const operations: Record<string, Operation> = {
             },
             markup: { label: "Markup", text: markup },
         },
-        check: checkRoundTrip,
+        check: checkEscaped(/[<>"']|&(?![\da-z]+;|#\d+;|#x[\da-f]+;)/i),
     },
 };
 
