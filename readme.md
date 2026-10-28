@@ -38,34 +38,43 @@ entities.decodeHTML("asdf &amp; &yuml; &uuml; &apos;"); // "asdf & ÿ ü '"
 
 ## Performance
 
-Benchmarked in October 2026 with Node v26.9.0 on AMD Ryzen 7 5800X3D using
-`tinybench` 6.2.2 (median of three runs).
-Higher ops/s is better; `avg (ns)` is the mean time per operation.
+Benchmarked in October 2026 with Node v26.9.0 on AMD Ryzen 7 5800X3D.
+Libraries are compared on equivalent operations; for `entities`, these are
+`decodeHTML`, `encodeNonAsciiHTML` and `escapeUTF8`. Throughput is in MB/s of
+UTF-8 input; higher is better. Each library and input runs in its own process,
+and every number is the median of three runs. Run `npm run benchmark` to
+reproduce; the inputs are defined in
+[`scripts/benchmark/benchmark.ts`](scripts/benchmark/benchmark.ts).
 
 ### Decoding
 
-| Library        | Version | ops/s     | avg (ns) | ±%   | slower |
-| -------------- | ------- | --------- | -------- | ---- | ------ |
-| entities       | 9.0.0   | 7,166,122 | 143.06   | 1.84 | —      |
-| html-entities  | 2.6.0   | 1,841,816 | 555.83   | 2.08 | 74.3%  |
-| he             | 2.0.0   | 1,342,742 | 777.00   | 4.21 | 81.3%  |
-| parse-entities | 4.0.2   |   791,202 | 1,277.50 | 0.16 | 89.0%  |
+| Input                  |     Size |     entities |     html-entities 2.6.0 |                he 2.0.0 |     parse-entities 4.0.2 |
+| ---------------------- | -------: | -----------: | ----------------------: | ----------------------: | -----------------------: |
+| Short text             |     49 B |     570 MB/s |  105 MB/s (5.4× slower) | 72.2 MB/s (7.9× slower) |   42.1 MB/s (14× slower) |
+| Prose, no references   |  4.0 KiB | 133,446 MB/s | 2,149 MB/s (62× slower) | 2,144 MB/s (62× slower) | 127 MB/s (1,054× slower) |
+| Prose, some references |  4.0 KiB |   1,480 MB/s |  293 MB/s (5.1× slower) |  190 MB/s (7.8× slower) |   47.0 MB/s (32× slower) |
+| All named references   | 19.9 KiB |     160 MB/s | 56.4 MB/s (2.8× slower) | 30.4 MB/s (5.3× slower) |   12.4 MB/s (13× slower) |
+| Numeric references     |  4.0 KiB |     275 MB/s | 38.4 MB/s (7.2× slower) | 33.2 MB/s (8.3× slower) |  51.1 MB/s (5.4× slower) |
 
 ### Encoding
 
-| Library       | Version | ops/s     | avg (ns) | ±%   | slower |
-| ------------- | ------- | --------- | -------- | ---- | ------ |
-| entities      | 9.0.0   | 3,391,253 | 303.36   | 2.01 | —      |
-| html-entities | 2.6.0   | 1,196,692 | 845.38   | 0.05 | 64.7%  |
-| he            | 2.0.0   |   416,576 | 2,422.30 | 0.21 | 87.7%  |
+| Input          |    Size |   entities |      html-entities 2.6.0 |                he 2.0.0 |
+| -------------- | ------: | ---------: | -----------------------: | ----------------------: |
+| Short text     |    48 B |   195 MB/s |  65.5 MB/s (3.0× slower) | 20.7 MB/s (9.4× slower) |
+| ASCII prose    | 4.0 KiB | 1,110 MB/s | 1,001 MB/s (1.1× slower) |  556 MB/s (2.0× slower) |
+| Accented prose | 4.0 KiB |   260 MB/s |   149 MB/s (1.7× slower) | 57.6 MB/s (4.5× slower) |
+| CJK and emoji  | 4.0 KiB |   126 MB/s |  45.6 MB/s (2.8× slower) | 28.3 MB/s (4.4× slower) |
 
 ### Escaping
 
-| Library       | Version | ops/s     | avg (ns) | ±%   | slower |
-| ------------- | ------- | --------- | -------- | ---- | ------ |
-| entities      | 9.0.0   | 4,941,235 | 206.17   | 0.47 | —      |
-| he            | 2.0.0   | 2,710,987 | 373.95   | 0.18 | 45.1%  |
-| html-entities | 2.6.0   | 2,476,290 | 412.55   | 1.51 | 49.9%  |
+| Input      |    Size |   entities |      html-entities 2.6.0 |                 he 2.0.0 |
+| ---------- | ------: | ---------: | -----------------------: | -----------------------: |
+| Short text |    48 B |   326 MB/s |   146 MB/s (2.2× slower) |   156 MB/s (2.1× slower) |
+| Prose      | 4.0 KiB | 4,431 MB/s | 2,502 MB/s (1.8× slower) | 2,654 MB/s (1.7× slower) |
+| Markup     | 4.1 KiB |   301 MB/s |   181 MB/s (1.7× slower) |   194 MB/s (1.5× slower) |
+
+Without an `&` in the input, `entities` returns it after a single `indexOf`
+scan, which explains the "no references" row.
 
 Note: Micro-benchmarks may vary across machines and Node versions.
 
