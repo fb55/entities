@@ -38,43 +38,57 @@ entities.decodeHTML("asdf &amp; &yuml; &uuml; &apos;"); // "asdf & ÿ ü '"
 
 ## Performance
 
-Benchmarked in October 2026 with Node v26.9.0 on AMD Ryzen 7 5800X3D.
-Libraries are compared on equivalent operations; for `entities`, these are
-`decodeHTML`, `encodeNonAsciiHTML` and `escapeUTF8`. Throughput is in MB/s of
-UTF-8 input; higher is better. Each library and input runs in its own process,
-and every number is the median of three runs. Run `npm run benchmark` to
-reproduce; the inputs are defined in
-[`scripts/benchmark/benchmark.ts`](scripts/benchmark/benchmark.ts).
+Benchmarked in October 2026 with Node v26.9.0 on AMD Ryzen 7 5800X3D
+(median of three runs). Other libraries are shown relative to `entities`.
 
 ### Decoding
 
-| Input                  |     Size |     entities |     html-entities 2.6.0 |                he 2.0.0 |     parse-entities 4.0.2 |
-| ---------------------- | -------: | -----------: | ----------------------: | ----------------------: | -----------------------: |
-| Short text             |     49 B |     570 MB/s |  105 MB/s (5.4× slower) | 72.2 MB/s (7.9× slower) |   42.1 MB/s (14× slower) |
-| Prose, no references   |  4.0 KiB | 133,446 MB/s | 2,149 MB/s (62× slower) | 2,144 MB/s (62× slower) | 127 MB/s (1,054× slower) |
-| Prose, some references |  4.0 KiB |   1,480 MB/s |  293 MB/s (5.1× slower) |  190 MB/s (7.8× slower) |   47.0 MB/s (32× slower) |
-| All named references   | 19.9 KiB |     157 MB/s | 56.7 MB/s (2.8× slower) | 30.5 MB/s (5.1× slower) |   12.4 MB/s (13× slower) |
-| Numeric references     |  4.0 KiB |     275 MB/s | 38.4 MB/s (7.2× slower) | 33.2 MB/s (8.3× slower) |  51.1 MB/s (5.4× slower) |
+| Library              | Short text (49 B) | Plain prose (4.0 KiB) | Prose with references (4.0 KiB) | All named references (19.9 KiB) | Numeric references (4.0 KiB) |
+| -------------------- | ----------------: | --------------------: | ------------------------------: | ------------------------------: | ---------------------------: |
+| entities             |          578 MB/s |          131,381 MB/s |                      1,425 MB/s |                        161 MB/s |                     272 MB/s |
+| html-entities 2.6.0  |       5.5× slower |            61× slower |                     4.8× slower |                     2.7× slower |                  7.1× slower |
+| he 2.0.0             |       7.8× slower |            61× slower |                     7.5× slower |                     5.0× slower |                  8.0× slower |
+| parse-entities 4.0.2 |        14× slower |         1,040× slower |                      30× slower |                      13× slower |                  5.0× slower |
+| ent 2.2.2            |        10× slower |            61× slower |                      10× slower |                     6.9× slower |                   11× slower |
+
+`entities` returns input without `&` after a single `indexOf` scan, hence
+the plain prose result.
 
 ### Encoding
 
-| Input          |    Size |   entities |      html-entities 2.6.0 |                he 2.0.0 |
-| -------------- | ------: | ---------: | -----------------------: | ----------------------: |
-| Short text     |    48 B |   195 MB/s |  65.5 MB/s (3.0× slower) | 20.7 MB/s (9.4× slower) |
-| ASCII prose    | 4.0 KiB | 1,110 MB/s | 1,001 MB/s (1.1× slower) |  556 MB/s (2.0× slower) |
-| Accented prose | 4.0 KiB |   260 MB/s |   149 MB/s (1.7× slower) | 57.6 MB/s (4.5× slower) |
-| CJK and emoji  | 4.0 KiB |   126 MB/s |  45.6 MB/s (2.8× slower) | 28.3 MB/s (4.4× slower) |
+| Library                  | Short text (48 B) | ASCII prose (4.0 KiB) | Accented prose (4.0 KiB) | CJK and emoji (4.0 KiB) |
+| ------------------------ | ----------------: | --------------------: | -----------------------: | ----------------------: |
+| entities                 |          195 MB/s |            1,107 MB/s |                 251 MB/s |                127 MB/s |
+| html-entities 2.6.0      |       3.0× slower |           1.1× slower |              1.6× slower |             2.7× slower |
+| he 2.0.0                 |       9.4× slower |           2.0× slower |              4.3× slower |             4.4× slower |
+| stringify-entities 4.0.4 |       8.0× slower |           1.7× slower |              3.8× slower |             5.6× slower |
+| ent 2.2.2                |        14× slower |            98× slower |               23× slower |             5.3× slower |
 
 ### Escaping
 
-| Input      |    Size |   entities |      html-entities 2.6.0 |                 he 2.0.0 |
-| ---------- | ------: | ---------: | -----------------------: | -----------------------: |
-| Short text |    48 B |   326 MB/s |   146 MB/s (2.2× slower) |   156 MB/s (2.1× slower) |
-| Prose      | 4.0 KiB | 4,431 MB/s | 2,502 MB/s (1.8× slower) | 2,654 MB/s (1.7× slower) |
-| Markup     | 4.1 KiB |   301 MB/s |   181 MB/s (1.7× slower) |   194 MB/s (1.5× slower) |
+| Library                  | Short text (48 B) | Prose (4.0 KiB) | Markup (4.1 KiB) |
+| ------------------------ | ----------------: | --------------: | ---------------: |
+| entities                 |          326 MB/s |      4,447 MB/s |         304 MB/s |
+| html-entities 2.6.0      |       2.3× slower |     1.8× slower |      1.7× slower |
+| he 2.0.0                 |       2.1× slower |     1.7× slower |      1.6× slower |
+| stringify-entities 4.0.4 |       3.6× slower |     2.7× slower |      2.8× slower |
+| escape-html 1.0.3        |            ≈ same |      12× slower |      1.2× slower |
+| html-escaper 3.0.3       |       2.2× slower |     1.7× slower |      1.6× slower |
+| lodash 4.18.1            |       2.4× slower |     1.8× slower |      1.7× slower |
+| escape-goat 4.0.0        |       3.5× slower |     1.6× slower |      1.2× faster |
 
-Without an `&` in the input, `entities` returns it after a single `indexOf`
-scan, which explains the "no references" row.
+### Unescaping
+
+| Library              | Short text (62 B) | Prose (4.1 KiB) | Markup (5.7 KiB) |
+| -------------------- | ----------------: | --------------: | ---------------: |
+| entities             |          329 MB/s |      4,552 MB/s |         410 MB/s |
+| html-entities 2.6.0  |       3.7× slower |     5.7× slower |      3.7× slower |
+| he 2.0.0             |       5.2× slower |     8.4× slower |      5.8× slower |
+| parse-entities 4.0.2 |       8.0× slower |      75× slower |       13× slower |
+| ent 2.2.2            |       7.8× slower |      11× slower |      8.9× slower |
+| html-escaper 3.0.3   |       2.8× slower |     5.2× slower |      3.0× slower |
+| lodash 4.18.1        |       3.0× slower |     4.8× slower |      3.0× slower |
+| escape-goat 4.0.0    |       2.8× slower |     2.3× slower |      1.1× slower |
 
 Note: Micro-benchmarks may vary across machines and Node versions.
 

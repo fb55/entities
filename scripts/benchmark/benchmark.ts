@@ -12,9 +12,16 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import ent from "ent";
+import { htmlEscape, htmlUnescape } from "escape-goat";
+import escapeHtml from "escape-html";
 import * as he from "he";
 import * as htmlEntities from "html-entities";
+import * as htmlEscaper from "html-escaper";
+import lodashEscape from "lodash/escape.js";
+import lodashUnescape from "lodash/unescape.js";
 import { parseEntities } from "parse-entities";
+import { stringifyEntities } from "stringify-entities";
 import { Bench } from "tinybench";
 import * as entities from "../../src/index.js";
 
@@ -151,6 +158,22 @@ const markup = (() => {
     return out;
 })();
 
+const escapingProse = text(6, 4096, englishWords, specialCharacters, 0.02);
+
+/** Escapes the five characters every escaping library handles. */
+const escapeBasic = (text: string) =>
+    text.replaceAll(
+        /[&<>"']/g,
+        (char) =>
+            ({
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#39;",
+            })[char]!,
+    );
+
 /**
  * html-entities still decodes `&lang;` and `&rang;` to their HTML 4 code
  * points (U+2329, U+232A) instead of U+27E8 and U+27E9.
@@ -183,15 +206,16 @@ const operations: Record<string, Operation> = {
                 htmlEntities.decode(input, { level: "html5", scope: "body" }),
             he: (input) => he.decode(input),
             "parse-entities": (input) => parseEntities(input),
+            ent: (input) => ent.decode(input),
         },
         inputs: {
             short: { label: "Short text", text: shortDecodeInput },
             plain: {
-                label: "Prose, no references",
+                label: "Plain prose",
                 text: text(1, 4096, englishWords),
             },
             prose: {
-                label: "Prose, some references",
+                label: "Prose with references",
                 text: text(2, 4096, englishWords, commonReferences, 0.1),
             },
             named: {
@@ -216,6 +240,9 @@ const operations: Record<string, Operation> = {
                     mode: "nonAsciiPrintable",
                 }),
             he: (input) => he.encode(input, { useNamedReferences: true }),
+            "stringify-entities": (input) =>
+                stringifyEntities(input, { useNamedReferences: true }),
+            ent: (input) => ent.encode(input, { named: true }),
         },
         inputs: {
             short: { label: "Short text", text: shortEncodeInput },
@@ -243,16 +270,43 @@ const operations: Record<string, Operation> = {
                     mode: "specialChars",
                 }),
             he: (input) => he.escape(input),
+            "stringify-entities": (input) =>
+                stringifyEntities(input, { escapeOnly: true }),
+            "escape-html": (input) => escapeHtml(input),
+            "html-escaper": (input) => htmlEscaper.escape(input),
+            lodash: (input) => lodashEscape(input),
+            "escape-goat": (input) => htmlEscape(input),
         },
         inputs: {
             short: { label: "Short text", text: shortEncodeInput },
-            prose: {
-                label: "Prose",
-                text: text(6, 4096, englishWords, specialCharacters, 0.02),
-            },
+            prose: { label: "Prose", text: escapingProse },
             markup: { label: "Markup", text: markup },
         },
         check: checkEscaped(/[<>"']|&(?![\da-z]+;|#\d+;|#x[\da-f]+;)/i),
+    },
+    unescape: {
+        title: "Unescaping",
+        libraries: {
+            entities: (input) => entities.decodeHTML(input),
+            "html-entities": (input) =>
+                htmlEntities.decode(input, { level: "html5", scope: "body" }),
+            he: (input) => he.decode(input),
+            "parse-entities": (input) => parseEntities(input),
+            ent: (input) => ent.decode(input),
+            "html-escaper": (input) => htmlEscaper.unescape(input),
+            lodash: (input) => lodashUnescape(input),
+            "escape-goat": (input) => htmlUnescape(input),
+        },
+        inputs: {
+            short: { label: "Short text", text: escapeBasic(shortEncodeInput) },
+            prose: { label: "Prose", text: escapeBasic(escapingProse) },
+            markup: { label: "Markup", text: escapeBasic(markup) },
+        },
+        check(_input, output, reference) {
+            if (output !== reference) {
+                throw new Error("Output differs from `entities`");
+            }
+        },
     },
 };
 
@@ -331,35 +385,31 @@ function printTable(
     operation: Operation,
     rates: Map<string, number>,
 ): void {
-    const libraries = Object.keys(operation.libraries);
-    const header = [
-        "Input",
-        "Size",
-        ...libraries.map((library) =>
-            library === "entities" ? library : `${library} ${version(library)}`,
-        ),
-    ];
-    const measured = Object.entries(operation.inputs).filter(([input]) =>
+    const inputs = Object.entries(operation.inputs).filter(([input]) =>
         rates.has(jobId({ operation: name, input, library: "entities" })),
     );
-    const rows = measured.map(([input, { label, text }]) => {
-        const bytes = Buffer.byteLength(text);
-        const rate = (library: string) =>
-            bytes * rates.get(jobId({ operation: name, input, library }))!;
-        const baseline = rate("entities");
-        return [
-            label,
-            formatSize(bytes),
-            ...libraries.map((library) => {
-                const current = rate(library);
-                if (library === "entities") return formatRate(current);
-                const factor = baseline / current;
-                return factor >= 1
-                    ? `${formatRate(current)} (${formatNumber(factor, 10)}× slower)`
-                    : `${formatRate(current)} (${formatNumber(1 / factor, 10)}× faster)`;
-            }),
-        ];
-    });
+    const header = [
+        "Library",
+        ...inputs.map(
+            ([, { label, text }]) =>
+                `${label} (${formatSize(Buffer.byteLength(text))})`,
+        ),
+    ];
+    // `entities` shows throughput; other libraries show relative speed.
+    const rows = Object.keys(operation.libraries).map((library) => [
+        library === "entities" ? library : `${library} ${version(library)}`,
+        ...inputs.map(([input, { text }]) => {
+            const rate = (lib: string) =>
+                Buffer.byteLength(text) *
+                rates.get(jobId({ operation: name, input, library: lib }))!;
+            if (library === "entities") return formatRate(rate(library));
+            const factor = rate("entities") / rate(library);
+            if (factor < 1.05 && factor > 1 / 1.05) return "≈ same";
+            return factor >= 1
+                ? `${formatNumber(factor, 10)}× slower`
+                : `${formatNumber(1 / factor, 10)}× faster`;
+        }),
+    ]);
 
     const widths = header.map((_, column) =>
         Math.max(...[header, ...rows].map((row) => row[column].length)),

@@ -7,13 +7,23 @@
         "lint": "tsc --noEmit"
     },
     "dependencies": {
+        "ent": "^2.2.2",
+        "escape-goat": "^4.0.0",
+        "escape-html": "^1.0.3",
         "he": "^2.0.0",
         "html-entities": "^2.6.0",
+        "html-escaper": "^3.0.3",
+        "lodash": "^4.18.1",
         "parse-entities": "^4.0.2",
+        "stringify-entities": "^4.0.4",
         "tinybench": "^6.2.2"
     },
     "devDependencies": {
-        "@types/he": "^1.2.3"
+        "@types/ent": "^2.2.8",
+        "@types/escape-html": "^1.0.4",
+        "@types/he": "^1.2.3",
+        "@types/html-escaper": "^3.0.4",
+        "@types/lodash": "^4.17.27"
     },
     "engines": {
         "node": ">=22"
