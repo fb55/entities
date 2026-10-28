@@ -53,7 +53,7 @@ reproduce; the inputs are defined in
 | Short text             |     49 B |     570 MB/s |  105 MB/s (5.4× slower) | 72.2 MB/s (7.9× slower) |   42.1 MB/s (14× slower) |
 | Prose, no references   |  4.0 KiB | 133,446 MB/s | 2,149 MB/s (62× slower) | 2,144 MB/s (62× slower) | 127 MB/s (1,054× slower) |
 | Prose, some references |  4.0 KiB |   1,480 MB/s |  293 MB/s (5.1× slower) |  190 MB/s (7.8× slower) |   47.0 MB/s (32× slower) |
-| All named references   | 19.9 KiB |     160 MB/s | 56.4 MB/s (2.8× slower) | 30.4 MB/s (5.3× slower) |   12.4 MB/s (13× slower) |
+| All named references   | 19.9 KiB |     157 MB/s | 56.7 MB/s (2.8× slower) | 30.5 MB/s (5.1× slower) |   12.4 MB/s (13× slower) |
 | Numeric references     |  4.0 KiB |     275 MB/s | 38.4 MB/s (7.2× slower) | 33.2 MB/s (8.3× slower) |  51.1 MB/s (5.4× slower) |
 
 ### Encoding

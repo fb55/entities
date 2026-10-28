@@ -103,11 +103,7 @@ const commonReferences = [
 
 const specialCharacters = ["&", "<", ">", '"', "'", "AT&T", "a<b", '"quoted"'];
 
-/**
- * All HTML entity names, shuffled so lookups don't benefit from ordering.
- * Skips `lang` and `rang`, which html-entities still decodes to their HTML 4
- * code points.
- */
+/** All HTML entity names, shuffled so lookups don't benefit from ordering. */
 const allNamedReferences = (() => {
     const names = Object.keys(
         JSON.parse(
@@ -116,7 +112,7 @@ const allNamedReferences = (() => {
                 "utf8",
             ),
         ),
-    ).filter((name) => name !== "lang" && name !== "rang");
+    );
     return shuffle(names, random(7))
         .map((name) => `&${name};`)
         .join(" ");
@@ -155,6 +151,13 @@ const markup = (() => {
     return out;
 })();
 
+/**
+ * html-entities still decodes `&lang;` and `&rang;` to their HTML 4 code
+ * points (U+2329, U+232A) instead of U+27E8 and U+27E9.
+ */
+const normalizeAngleBrackets = (text: string) =>
+    text.replaceAll("\u2329", "\u27E8").replaceAll("\u232A", "\u27E9");
+
 /** Encoded and escaped output must decode back to the input. */
 function checkRoundTrip(input: string, output: string): void {
     if (entities.decodeHTML(output) !== input) {
@@ -189,7 +192,7 @@ const operations: Record<string, Operation> = {
             numeric: { label: "Numeric references", text: numericReferences },
         },
         check(_input, output, reference) {
-            if (output !== reference) {
+            if (normalizeAngleBrackets(output) !== reference) {
                 throw new Error("Output differs from `entities`");
             }
         },
