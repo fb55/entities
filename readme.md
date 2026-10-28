@@ -112,8 +112,9 @@ This is helpful for decoding entities in legacy environments.
 
 > Why should I use `entities` instead of alternative modules?
 
-As of October 2026, `entities` is faster than other modules. Still, this is
-not a differentiated space and other modules can catch up.
+As of October 2026, `entities` is faster than other modules in nearly all of
+the benchmarks above. Still, this is not a differentiated space and other
+modules can catch up.
 
 **More importantly**, you might already have `entities` in your dependency graph
 (as a dependency of eg. `cheerio`, or `htmlparser2`), and including it directly
