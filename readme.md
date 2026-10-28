@@ -39,33 +39,33 @@ entities.decodeHTML("asdf &amp; &yuml; &uuml; &apos;"); // "asdf & ÿ ü '"
 ## Performance
 
 Benchmarked in October 2026 with Node v26.9.0 on AMD Ryzen 7 5800X3D using
-`tinybench` 6.2.1 (median of three runs).
+`tinybench` 6.2.2 (median of three runs).
 Higher ops/s is better; `avg (ns)` is the mean time per operation.
 
 ### Decoding
 
 | Library        | Version | ops/s     | avg (ns) | ±%   | slower |
 | -------------- | ------- | --------- | -------- | ---- | ------ |
-| entities       | 8.1.0   | 7,078,447 | 144.63   | 1.49 | —      |
-| html-entities  | 2.6.0   | 1,789,087 | 576.33   | 2.49 | 74.7%  |
-| he             | 2.0.0   | 1,321,673 | 797.93   | 4.70 | 81.3%  |
-| parse-entities | 4.0.2   |   782,771 | 1,291.03 | 0.12 | 88.9%  |
+| entities       | 9.0.0   | 7,166,122 | 143.06   | 1.84 | —      |
+| html-entities  | 2.6.0   | 1,841,816 | 555.83   | 2.08 | 74.3%  |
+| he             | 2.0.0   | 1,342,742 | 777.00   | 4.21 | 81.3%  |
+| parse-entities | 4.0.2   |   791,202 | 1,277.50 | 0.16 | 89.0%  |
 
 ### Encoding
 
 | Library       | Version | ops/s     | avg (ns) | ±%   | slower |
 | ------------- | ------- | --------- | -------- | ---- | ------ |
-| entities      | 8.1.0   | 3,347,934 | 308.15   | 2.36 | —      |
-| html-entities | 2.6.0   | 1,163,800 | 878.89   | 2.45 | 65.2%  |
-| he            | 2.0.0   |   412,329 | 2,452.05 | 0.30 | 87.7%  |
+| entities      | 9.0.0   | 3,391,253 | 303.36   | 2.01 | —      |
+| html-entities | 2.6.0   | 1,196,692 | 845.38   | 0.05 | 64.7%  |
+| he            | 2.0.0   |   416,576 | 2,422.30 | 0.21 | 87.7%  |
 
 ### Escaping
 
 | Library       | Version | ops/s     | avg (ns) | ±%   | slower |
 | ------------- | ------- | --------- | -------- | ---- | ------ |
-| entities      | 8.1.0   | 5,156,151 | 198.19   | 0.52 | —      |
-| he            | 2.0.0   | 2,745,905 | 380.32   | 3.71 | 46.7%  |
-| html-entities | 2.6.0   | 2,463,884 | 415.09   | 1.86 | 52.2%  |
+| entities      | 9.0.0   | 4,941,235 | 206.17   | 0.47 | —      |
+| he            | 2.0.0   | 2,710,987 | 373.95   | 0.18 | 45.1%  |
+| html-entities | 2.6.0   | 2,476,290 | 412.55   | 1.51 | 49.9%  |
 
 Note: Micro-benchmarks may vary across machines and Node versions.
 
