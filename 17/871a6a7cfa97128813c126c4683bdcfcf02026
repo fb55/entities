@@ -1,0 +1,56 @@
+package.json
+  s_74e3feba4805c5::t_d537337f737e2f 45-46,64,67-68,70,73-74
+eslint.config.mjs
+  s_74e3feba4805c5::t_d537337f737e2f 19
+src/escape.ts
+  s_74e3feba4805c5::t_d537337f737e2f 154
+.github/workflows/codeql-analysis.yml
+  s_74e3feba4805c5::t_d537337f737e2f 29,34
+scripts/benchmark/package.json
+  s_74e3feba4805c5::t_d537337f737e2f 1-21
+src/escape.spec.ts
+  s_74e3feba4805c5::t_d537337f737e2f 7,10-20
+  s_74e3feba4805c5::t_134e810eb25879 21
+tsconfig.eslint.json
+  s_74e3feba4805c5::t_d537337f737e2f 9
+scripts/benchmark/benchmark.ts
+  s_74e3feba4805c5::t_d537337f737e2f 1-96
+scripts/benchmark/tsconfig.json
+  s_74e3feba4805c5::t_d537337f737e2f 1-5
+.github/dependabot.yml
+  s_74e3feba4805c5::t_d537337f737e2f 9-14,19-22
+.github/workflows/nodejs-test.yml
+  s_74e3feba4805c5::t_d537337f737e2f 26,28,38
+readme.md
+  s_74e3feba4805c5::t_d537337f737e2f 41-43,47,49-52,56-60,64-68,92
+package-lock.json
+  s_74e3feba4805c5::t_9aa301c99d7bba 12,15-16,18,21-22,49-51,65-72,76-78,93-95,110-112,130-132,150-152,170-172,190-192,207-209,1019-1021,1030-1032,1048-1050,1066-1068,1084-1086,1102-1104,1120-1122,1138-1140,1159-1161,1180-1182,1201-1203,1222-1224,1243-1245,1264-1266,1282-1284,1300-1302,1437-1439,1443,1454-1456,1461-1464,1477,1483-1485,1493-1495,1499-1502,1518-1520,1524-1525,1540-1542,1546-1547,1558-1560,1575-1577,1581-1583,1600-1602,1614-1616,1620-1623,1642-1644,1649-1651,1666-1668,1672,1684-1686,1691,1693,1699,1712-1714,1812-1814,1821,1907-1909,2147-2149,2701-2703,3287-3289,3293,3297-3299,3355-3357,3415-3417,3562-3564,3583,3585,3688-3690,3695,3705-3719,3788-3790,3846-3848,3880-3882,3890-3892,3947-3949,4017-4019,4023-4026,4048-4050,4128-4130,4136-4138,4155,4207-4209,4214-4215,4218-4219,4221-4223,4225,4240-4241,4243-4245,4306-4308,4315
+scripts/benchmark/package-lock.json
+  s_74e3feba4805c5::t_889f005038a3e3 1-178
+test/fixtures/html5lib-tests
+  s_87741111918b6a::t_c5aeb89b24f9e9 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "17871a6a7cfa97128813c126c4683bdcfcf02026",
+  "prompts": {},
+  "sessions": {
+    "s_74e3feba4805c5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b41a0da9-91fa-42dd-9755-4d30dd64d360",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    },
+    "s_87741111918b6a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0705a-0494-7552-a8e8-0605ea525a3f",
+        "model": "unknown"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    }
+  }
+}
