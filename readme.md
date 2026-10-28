@@ -72,10 +72,8 @@ the plain prose result.
 | html-entities 2.6.0      |       2.3× slower |     1.8× slower |      1.7× slower |
 | he 2.0.0                 |       2.1× slower |     1.7× slower |      1.6× slower |
 | stringify-entities 4.0.4 |       3.6× slower |     2.7× slower |      2.8× slower |
-| escape-html 1.0.3        |            ≈ same |      12× slower |      1.2× slower |
 | html-escaper 3.0.3       |       2.2× slower |     1.7× slower |      1.6× slower |
 | lodash 4.18.1            |       2.4× slower |     1.8× slower |      1.7× slower |
-| escape-goat 4.0.0        |       3.5× slower |     1.6× slower |      1.2× faster |
 
 ### Unescaping
 
@@ -88,7 +86,6 @@ the plain prose result.
 | ent 2.2.2            |       7.8× slower |      11× slower |      8.9× slower |
 | html-escaper 3.0.3   |       2.8× slower |     5.2× slower |      3.0× slower |
 | lodash 4.18.1        |       3.0× slower |     4.8× slower |      3.0× slower |
-| escape-goat 4.0.0    |       2.8× slower |     2.3× slower |      1.1× slower |
 
 Note: Micro-benchmarks may vary across machines and Node versions.
 
@@ -112,9 +109,8 @@ This is helpful for decoding entities in legacy environments.
 
 > Why should I use `entities` instead of alternative modules?
 
-As of October 2026, `entities` is faster than other modules in nearly all of
-the benchmarks above. Still, this is not a differentiated space and other
-modules can catch up.
+As of October 2026, `entities` is faster than other modules. Still, this is
+not a differentiated space and other modules can catch up.
 
 **More importantly**, you might already have `entities` in your dependency graph
 (as a dependency of eg. `cheerio`, or `htmlparser2`), and including it directly

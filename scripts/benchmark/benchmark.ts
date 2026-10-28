@@ -13,8 +13,6 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import ent from "ent";
-import { htmlEscape, htmlUnescape } from "escape-goat";
-import escapeHtml from "escape-html";
 import * as he from "he";
 import * as htmlEntities from "html-entities";
 import * as htmlEscaper from "html-escaper";
@@ -272,10 +270,8 @@ const operations: Record<string, Operation> = {
             he: (input) => he.escape(input),
             "stringify-entities": (input) =>
                 stringifyEntities(input, { escapeOnly: true }),
-            "escape-html": (input) => escapeHtml(input),
             "html-escaper": (input) => htmlEscaper.escape(input),
             lodash: (input) => lodashEscape(input),
-            "escape-goat": (input) => htmlEscape(input),
         },
         inputs: {
             short: { label: "Short text", text: shortEncodeInput },
@@ -295,7 +291,6 @@ const operations: Record<string, Operation> = {
             ent: (input) => ent.decode(input),
             "html-escaper": (input) => htmlEscaper.unescape(input),
             lodash: (input) => lodashUnescape(input),
-            "escape-goat": (input) => htmlUnescape(input),
         },
         inputs: {
             short: { label: "Short text", text: escapeBasic(shortEncodeInput) },
