@@ -440,7 +440,12 @@ if (values.worker) {
     const rates = new Map(
         [...samples].map(([id, runs]) => {
             const sorted = [...runs].sort((a, b) => a - b);
-            return [id, sorted[Math.floor(sorted.length / 2)]];
+            const middle = sorted.length >> 1;
+            const median =
+                sorted.length % 2 === 1
+                    ? sorted[middle]
+                    : (sorted[middle - 1] + sorted[middle]) / 2;
+            return [id, median];
         }),
     );
     for (const [name, operation] of Object.entries(operations)) {

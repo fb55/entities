@@ -43,7 +43,7 @@
     ],
     "scripts": {
         "prebenchmark": "npm ci --prefix scripts/benchmark",
-        "benchmark": "npm --prefix scripts/benchmark run benchmark",
+        "benchmark": "npm --prefix scripts/benchmark run benchmark --",
         "build": "npm run clean && tsc",
         "build:decode-map": "node --import=tsx scripts/write-decode-map.ts",
         "build:docs": "typedoc --hideGenerator src/index.ts",
