@@ -1,0 +1,19 @@
+scripts/benchmark/benchmark.ts
+  s_74e3feba4805c5::t_a4b73be99eccf6 161-174,232-234,255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1ee1e636f5fd81efc03dd890060035a210a7c3ac",
+  "prompts": {},
+  "sessions": {
+    "s_74e3feba4805c5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b41a0da9-91fa-42dd-9755-4d30dd64d360",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    }
+  }
+}
