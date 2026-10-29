@@ -32,92 +32,111 @@ can do that as well!</li>
 </code><button type="button">Copy</button></pre>
 
 <h2 id="performance" class="tsd-anchor-link">Performance<a href="#performance" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
-<p>Benchmarked in October 2026 with Node v26.9.0 on AMD Ryzen 7 5800X3D using
-<code>tinybench</code> 6.2.1 (median of three runs).
-Higher ops/s is better; <code>avg (ns)</code> is the mean time per operation.</p>
+<p>Benchmarked in October 2026 with Node v26.9.0 on AMD Ryzen 7 5800X3D
+(median of three runs). Other libraries are shown relative to <code>entities</code>.</p>
 <h3 id="decoding" class="tsd-anchor-link">Decoding<a href="#decoding" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <table>
 <thead>
 <tr>
 <th>Library</th>
-<th>Version</th>
-<th>ops/s</th>
-<th>avg (ns)</th>
-<th>±%</th>
-<th>slower</th>
+<th style="text-align:right">Short text (49 B)</th>
+<th style="text-align:right">Plain prose (4.0 KiB)</th>
+<th style="text-align:right">Prose with references (4.0 KiB)</th>
+<th style="text-align:right">All named references (19.9 KiB)</th>
+<th style="text-align:right">Numeric references (4.0 KiB)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>entities</td>
-<td>8.1.0</td>
-<td>7,078,447</td>
-<td>144.63</td>
-<td>1.49</td>
-<td>—</td>
+<td style="text-align:right">578 MB/s</td>
+<td style="text-align:right">131,381 MB/s</td>
+<td style="text-align:right">1,425 MB/s</td>
+<td style="text-align:right">161 MB/s</td>
+<td style="text-align:right">272 MB/s</td>
 </tr>
 <tr>
-<td>html-entities</td>
-<td>2.6.0</td>
-<td>1,789,087</td>
-<td>576.33</td>
-<td>2.49</td>
-<td>74.7%</td>
+<td>html-entities 2.6.0</td>
+<td style="text-align:right">5.5× slower</td>
+<td style="text-align:right">61× slower</td>
+<td style="text-align:right">4.8× slower</td>
+<td style="text-align:right">2.7× slower</td>
+<td style="text-align:right">7.1× slower</td>
 </tr>
 <tr>
-<td>he</td>
-<td>2.0.0</td>
-<td>1,321,673</td>
-<td>797.93</td>
-<td>4.70</td>
-<td>81.3%</td>
+<td>he 2.0.0</td>
+<td style="text-align:right">7.8× slower</td>
+<td style="text-align:right">61× slower</td>
+<td style="text-align:right">7.5× slower</td>
+<td style="text-align:right">5.0× slower</td>
+<td style="text-align:right">8.0× slower</td>
 </tr>
 <tr>
-<td>parse-entities</td>
-<td>4.0.2</td>
-<td>782,771</td>
-<td>1,291.03</td>
-<td>0.12</td>
-<td>88.9%</td>
+<td>parse-entities 4.0.2</td>
+<td style="text-align:right">14× slower</td>
+<td style="text-align:right">1,040× slower</td>
+<td style="text-align:right">30× slower</td>
+<td style="text-align:right">13× slower</td>
+<td style="text-align:right">5.0× slower</td>
+</tr>
+<tr>
+<td>ent 2.2.2</td>
+<td style="text-align:right">10× slower</td>
+<td style="text-align:right">61× slower</td>
+<td style="text-align:right">10× slower</td>
+<td style="text-align:right">6.9× slower</td>
+<td style="text-align:right">11× slower</td>
 </tr>
 </tbody>
 </table>
+<p><code>entities</code> returns input without <code>&amp;</code> after a single <code>indexOf</code> scan, hence
+the plain prose result.</p>
 <h3 id="encoding" class="tsd-anchor-link">Encoding<a href="#encoding" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <table>
 <thead>
 <tr>
 <th>Library</th>
-<th>Version</th>
-<th>ops/s</th>
-<th>avg (ns)</th>
-<th>±%</th>
-<th>slower</th>
+<th style="text-align:right">Short text (48 B)</th>
+<th style="text-align:right">ASCII prose (4.0 KiB)</th>
+<th style="text-align:right">Accented prose (4.0 KiB)</th>
+<th style="text-align:right">CJK and emoji (4.0 KiB)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>entities</td>
-<td>8.1.0</td>
-<td>3,347,934</td>
-<td>308.15</td>
-<td>2.36</td>
-<td>—</td>
+<td style="text-align:right">195 MB/s</td>
+<td style="text-align:right">1,107 MB/s</td>
+<td style="text-align:right">251 MB/s</td>
+<td style="text-align:right">127 MB/s</td>
 </tr>
 <tr>
-<td>html-entities</td>
-<td>2.6.0</td>
-<td>1,163,800</td>
-<td>878.89</td>
-<td>2.45</td>
-<td>65.2%</td>
+<td>html-entities 2.6.0</td>
+<td style="text-align:right">3.0× slower</td>
+<td style="text-align:right">1.1× slower</td>
+<td style="text-align:right">1.6× slower</td>
+<td style="text-align:right">2.7× slower</td>
 </tr>
 <tr>
-<td>he</td>
-<td>2.0.0</td>
-<td>412,329</td>
-<td>2,452.05</td>
-<td>0.30</td>
-<td>87.7%</td>
+<td>he 2.0.0</td>
+<td style="text-align:right">9.4× slower</td>
+<td style="text-align:right">2.0× slower</td>
+<td style="text-align:right">4.3× slower</td>
+<td style="text-align:right">4.4× slower</td>
+</tr>
+<tr>
+<td>stringify-entities 4.0.4</td>
+<td style="text-align:right">8.0× slower</td>
+<td style="text-align:right">1.7× slower</td>
+<td style="text-align:right">3.8× slower</td>
+<td style="text-align:right">5.6× slower</td>
+</tr>
+<tr>
+<td>ent 2.2.2</td>
+<td style="text-align:right">14× slower</td>
+<td style="text-align:right">98× slower</td>
+<td style="text-align:right">23× slower</td>
+<td style="text-align:right">5.3× slower</td>
 </tr>
 </tbody>
 </table>
@@ -126,37 +145,102 @@ Higher ops/s is better; <code>avg (ns)</code> is the mean time per operation.</p
 <thead>
 <tr>
 <th>Library</th>
-<th>Version</th>
-<th>ops/s</th>
-<th>avg (ns)</th>
-<th>±%</th>
-<th>slower</th>
+<th style="text-align:right">Short text (48 B)</th>
+<th style="text-align:right">Prose (4.0 KiB)</th>
+<th style="text-align:right">Markup (4.1 KiB)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>entities</td>
-<td>8.1.0</td>
-<td>5,156,151</td>
-<td>198.19</td>
-<td>0.52</td>
-<td>—</td>
+<td style="text-align:right">326 MB/s</td>
+<td style="text-align:right">4,447 MB/s</td>
+<td style="text-align:right">304 MB/s</td>
 </tr>
 <tr>
-<td>he</td>
-<td>2.0.0</td>
-<td>2,745,905</td>
-<td>380.32</td>
-<td>3.71</td>
-<td>46.7%</td>
+<td>html-entities 2.6.0</td>
+<td style="text-align:right">2.3× slower</td>
+<td style="text-align:right">1.8× slower</td>
+<td style="text-align:right">1.7× slower</td>
 </tr>
 <tr>
-<td>html-entities</td>
-<td>2.6.0</td>
-<td>2,463,884</td>
-<td>415.09</td>
-<td>1.86</td>
-<td>52.2%</td>
+<td>he 2.0.0</td>
+<td style="text-align:right">2.1× slower</td>
+<td style="text-align:right">1.7× slower</td>
+<td style="text-align:right">1.6× slower</td>
+</tr>
+<tr>
+<td>stringify-entities 4.0.4</td>
+<td style="text-align:right">3.6× slower</td>
+<td style="text-align:right">2.7× slower</td>
+<td style="text-align:right">2.8× slower</td>
+</tr>
+<tr>
+<td>html-escaper 3.0.3</td>
+<td style="text-align:right">2.2× slower</td>
+<td style="text-align:right">1.7× slower</td>
+<td style="text-align:right">1.6× slower</td>
+</tr>
+<tr>
+<td>lodash 4.18.1</td>
+<td style="text-align:right">2.4× slower</td>
+<td style="text-align:right">1.8× slower</td>
+<td style="text-align:right">1.7× slower</td>
+</tr>
+</tbody>
+</table>
+<h3 id="unescaping" class="tsd-anchor-link">Unescaping<a href="#unescaping" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<table>
+<thead>
+<tr>
+<th>Library</th>
+<th style="text-align:right">Short text (62 B)</th>
+<th style="text-align:right">Prose (4.1 KiB)</th>
+<th style="text-align:right">Markup (5.7 KiB)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>entities</td>
+<td style="text-align:right">329 MB/s</td>
+<td style="text-align:right">4,552 MB/s</td>
+<td style="text-align:right">410 MB/s</td>
+</tr>
+<tr>
+<td>html-entities 2.6.0</td>
+<td style="text-align:right">3.7× slower</td>
+<td style="text-align:right">5.7× slower</td>
+<td style="text-align:right">3.7× slower</td>
+</tr>
+<tr>
+<td>he 2.0.0</td>
+<td style="text-align:right">5.2× slower</td>
+<td style="text-align:right">8.4× slower</td>
+<td style="text-align:right">5.8× slower</td>
+</tr>
+<tr>
+<td>parse-entities 4.0.2</td>
+<td style="text-align:right">8.0× slower</td>
+<td style="text-align:right">75× slower</td>
+<td style="text-align:right">13× slower</td>
+</tr>
+<tr>
+<td>ent 2.2.2</td>
+<td style="text-align:right">7.8× slower</td>
+<td style="text-align:right">11× slower</td>
+<td style="text-align:right">8.9× slower</td>
+</tr>
+<tr>
+<td>html-escaper 3.0.3</td>
+<td style="text-align:right">2.8× slower</td>
+<td style="text-align:right">5.2× slower</td>
+<td style="text-align:right">3.0× slower</td>
+</tr>
+<tr>
+<td>lodash 4.18.1</td>
+<td style="text-align:right">3.0× slower</td>
+<td style="text-align:right">4.8× slower</td>
+<td style="text-align:right">3.0× slower</td>
 </tr>
 </tbody>
 </table>
@@ -240,7 +324,8 @@ coordinate the fix and disclosure.</p>
 <ul>
 <li><a href="#decoding"><span>Decoding</span></a></li>
 <li><a href="#encoding"><span>Encoding</span></a></li>
-<li><a href="#escaping"><span>Escaping</span></a></li></ul></li>
+<li><a href="#escaping"><span>Escaping</span></a></li>
+<li><a href="#unescaping"><span>Unescaping</span></a></li></ul></li>
 <li><a href="#faq"><span>FAQ</span></a></li>
 <li><a href="#acknowledgements"><span>Acknowledgements</span></a></li>
 <li><a href="#security-contact-information"><span>Security contact information</span></a></li></ul></div></details></div>
