@@ -1,0 +1,21 @@
+package-lock.json
+  s_74e3feba4805c5::t_52ee5685ac2309 3,9
+package.json
+  s_74e3feba4805c5::t_51f50db85657d0 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a007e7256d47924f43389e3eaf66d2825f6773ef",
+  "prompts": {},
+  "sessions": {
+    "s_74e3feba4805c5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b41a0da9-91fa-42dd-9755-4d30dd64d360",
+        "model": "unknown"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    }
+  }
+}
