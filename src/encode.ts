@@ -172,6 +172,11 @@ const numericReference = (cp: number) => `&#${cp};`;
  *
  * If a character has no equivalent entity, a numeric decimal reference
  * (eg. `&#252;`) will be used.
+ *
+ * The C1 controls that HTML remaps through Windows-1252 (eg. U+0080, which
+ * `&#128;` would turn into `€`) are left as they are, since no reference
+ * decodes back to them. The output can therefore contain these non-ASCII
+ * characters.
  * @param input Input string to encode.
  */
 export function encodeHTML(input: string): string {
@@ -184,6 +189,11 @@ export function encodeHTML(input: string): string {
  *
  * If a character has no equivalent entity, a numeric decimal reference
  * (eg. `&#252;`) will be used.
+ *
+ * The C1 controls that HTML remaps through Windows-1252 (eg. U+0080, which
+ * `&#128;` would turn into `€`) are left as they are, since no reference
+ * decodes back to them. The output can therefore contain these non-ASCII
+ * characters.
  * @param input Input string to encode.
  */
 export function encodeNonAsciiHTML(input: string): string {
