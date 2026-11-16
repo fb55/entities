@@ -29,18 +29,18 @@ export enum EncodingMode {
      * escaping within HTML, and characters that aren't ASCII characters will
      * be escaped.
      *
-     * Exception: the C1 controls that HTML remaps through Windows-1252
-     * (eg. U+0080, which `&#128;` would turn into `€`) are left as they are,
-     * since no reference decodes back to them.
+     * Exception: at `EntityLevel.HTML`, the C1 controls that HTML remaps
+     * through Windows-1252 (eg. U+0080, which `&#128;` would turn into `€`)
+     * are left as they are, since no reference decodes back to them.
      */
     ASCII,
     /**
      * Encode all characters that have an equivalent entity, as well as all
      * characters that are not ASCII characters.
      *
-     * Exception: the C1 controls that HTML remaps through Windows-1252
-     * (eg. U+0080, which `&#128;` would turn into `€`) are left as they are,
-     * since no reference decodes back to them.
+     * Exception: at `EntityLevel.HTML`, the C1 controls that HTML remaps
+     * through Windows-1252 (eg. U+0080, which `&#128;` would turn into `€`)
+     * are left as they are, since no reference decodes back to them.
      */
     Extensive,
     /**
