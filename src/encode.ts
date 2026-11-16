@@ -1,3 +1,4 @@
+import { replaceCodePoint } from "./decode-codepoint.js";
 import { XML_BITSET_VALUE, xmlEncodeRegex } from "./escape.js";
 import htmlTrieData from "./generated/encode-html.js";
 
@@ -318,6 +319,16 @@ function encodeHTMLTrieRe(
             }
 
             if (node == null) {
+                if (char <= 0x9f && replaceCodePoint(char) !== char) {
+                    /*
+                     * HTML parsers read a reference to this C1 control as
+                     * its Windows-1252 character (`&#128;` is U+20AC), and
+                     * no other reference gives it back. Keep it as is.
+                     */
+                    out += input[index];
+                    last = index += 1;
+                    continue;
+                }
                 // No named entity exists; emit a decimal numeric reference.
                 const cp = input.codePointAt(index)!;
                 out += numericReference(cp);
