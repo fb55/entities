@@ -66,7 +66,13 @@
         "enabled": true
     },
     "files": {
-        "includes": ["**", "!maps/*.json", "!maps", "!**/.*"],
+        "includes": [
+            "**",
+            "!maps/*.json",
+            "!maps",
+            "!**/.*",
+            "!test/fixtures/html5lib-tests"
+        ],
         "ignoreUnknown": true
     },
     "overrides": [
