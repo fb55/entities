@@ -26,26 +26,26 @@ structures in turn. Long-name classes use the alternative described below.
 
 2. **Probe + key table → the matching _slot_.** For each candidate length L,
    shortest first, the decoder checks a single character: is `input[start +
-   L]` a `;`? For `uuml`, L = 4 and `input[start + 4]` is `;` — a hit. *Only
-   then* does it build the exact 32-bit key (first two characters, last two
+   L]` a `;`? For `uuml`, L = 4 and `input[start + 4]` is `;` — a hit. _Only
+   then_ does it build the exact 32-bit key (first two characters, last two
    characters, length) and look that up in the cuckoo table `keys`: two
    candidate buckets, two slots each, at most four comparisons. The key is
    exact, not a lossy hash, so a key match already proves four characters and
    the length; only the middle characters (positions 2..L-3) are compared,
-   and names of length ≤ 4 skip even that. The result is a *slot* index.
+   and names of length ≤ 4 skip even that. The result is a _slot_ index.
 
 3. **Slot → replacement.** The slot indexes `slotValue`, a packed
    `(offset, length)` into the `values` string; that slice (`ü`) is emitted.
 
 So the two “lookups” are distinct: step 1 is a direct-indexed table yielding
-candidate *lengths*; step 2 is the hash table yielding the one matching
+candidate _lengths_; step 2 is the hash table yielding the one matching
 entity; step 3 is the value. It is a two-choice cuckoo table, **not a perfect
 hash** — different names are even allowed to collide on a key, since the
 middle-character check in step 2 disambiguates them.
 
 **Legacy entities** (semicolon-optional, like `&copy`) ride along in step 1:
 the class word marks which lengths may match without a `;`. When the `;`
-probe at such a length *fails*, that failure is itself the legacy signal, so
+probe at such a length _fails_, that failure is itself the legacy signal, so
 the decoder runs the step-2 key lookup right there and stashes the candidate
 in a local — emitting it only after the loop, because a longer
 `;`-terminated match at any length would win.
@@ -61,12 +61,12 @@ dependent loads regardless of name length.
 
 ## Shipped form: front-coded names
 
-Entity names are sorted and *front-coded*: each name stores only the length
+Entity names are sorted and _front-coded_: each name stores only the length
 of the prefix it shares with its predecessor plus the differing suffix
 (`Aacute`, `aacute`, `Abreve` → `Aacute`, `(1, "breve")`, …). Sorted front
 coding is a classic dictionary-compression technique ([incremental
 encoding](https://en.wikipedia.org/wiki/Incremental_encoding)); see also
-Witten, Moffat & Bell, *Managing Gigabytes*, 2nd ed., Morgan Kaufmann, 1999
+Witten, Moffat & Bell, _Managing Gigabytes_, 2nd ed., Morgan Kaufmann, 1999
 (the lexicon-compression discussion). Case-sensitive sort order measurably
 beats all alternatives here because HTML's case-twin names (`Auml`/`auml`)
 front-code against each other.
@@ -86,15 +86,15 @@ The generator escapes replacement characters above U+00FF in the JavaScript
 source, keeping the source itself one-byte too. Parsing restores the original
 UTF-16 values; lookup tables and bundles are unaffected by this spelling.
 
-| section | encoding |
-| --- | --- |
-| header | bias 0x30: name count (2 chars, hi/lo 6 bits), suffixes length (2), cuckoo bucket count (2) |
-| meta | bias 0x23, two chars per name: `prefixLen \| legacy << 5`, `suffixLen \| (valueLen - 1) << 5` — the bias keeps every char printable, so none needs JSON escaping |
-| choices | one bit per name, six per char, bias 0x30 — see below |
+| section | encoding                                                                                                                                                         |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| header  | bias 0x30: name count (2 chars, hi/lo 6 bits), suffixes length (2), cuckoo bucket count (2)                                                                      |
+| meta    | bias 0x23, two chars per name: `prefixLen \| legacy << 5`, `suffixLen \| (valueLen - 1) << 5` — the bias keeps every char printable, so none needs JSON escaping |
+| choices | one bit per name, six per char, bias 0x30 — see below                                                                                                            |
 
 ## Lookup: exact 32-bit keys in a two-choice (cuckoo) table
 
-Every name maps to an *exact* key packing five fields:
+Every name maps to an _exact_ key packing five fields:
 
 ```
 c0:7 | c1:7 | c[len-2]:7 | remap6(c[len-1]):6 | len:5
@@ -129,20 +129,20 @@ Keys live in a table of `B` buckets × 2 slots. Each key has two candidate
 buckets derived from two multiplicative hashes; build time decides which one
 each name uses and ships that single bit (the "choices" section). This is
 [cuckoo hashing](https://en.wikipedia.org/wiki/Cuckoo_hashing) (Pagh &
-Rodler, "Cuckoo Hashing", *Journal of Algorithms* 51(2), 2004) with bucket
+Rodler, "Cuckoo Hashing", _Journal of Algorithms_ 51(2), 2004) with bucket
 size 2, which supports high load factors (Dietzfelbinger & Weidling,
 "Balanced allocation and dictionaries with tightly packed constant size
-bins", *Theoretical Computer Science* 380(1–2), 2007); the underlying
+bins", _Theoretical Computer Science_ 380(1–2), 2007); the underlying
 load-balancing phenomenon is the "power of two choices" (Azar, Broder,
-Karlin & Upfal, "Balanced Allocations", *SIAM Journal on Computing* 29(1),
+Karlin & Upfal, "Balanced Allocations", _SIAM Journal on Computing_ 29(1),
 1999). The placement is found with augmenting paths (Berge, "Two Theorems in
-Graph Theory", *PNAS* 43, 1957), which provably finds an assignment whenever
+Graph Theory", _PNAS_ 43, 1957), which provably finds an assignment whenever
 one exists.
 
 A lookup therefore does at most 4 key comparisons across 2 cache lines — no
 probe chains — and the two bucket computations are independent ALU, unlike
 displacement-based perfect hashing (cf. Belazzougui, Botelho &
-Dietzfelbinger, "Hash, Displace, and Compress", *ESA* 2009), whose extra
+Dietzfelbinger, "Hash, Displace, and Compress", _ESA_ 2009), whose extra
 displacement load sits on the critical path. That serial load is why a
 measured CHD variant lost to this design despite its smaller table.
 
@@ -173,7 +173,7 @@ XML's five names need at most four
 lowercase ASCII letters, so its partial name fits in a 28-bit integer.
 
 In the short-name path, legacy names need no terminator: a failed `;` probe at a
-legacy-marked length *is* the legacy condition, so the loop performs the
+legacy-marked length _is_ the legacy condition, so the loop performs the
 lookup right there and records the candidate in a local. It is only emitted
 after the loop, because HTML matches references greedily and a terminated
 exact match at any length beats it (the two can never overlap: the `;` an
