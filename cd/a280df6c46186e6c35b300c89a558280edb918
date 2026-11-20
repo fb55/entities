@@ -1,0 +1,31 @@
+scripts/README.md
+  s_c2318a14e915de::t_c4e70945a1da98 29-30,35,41,48,64,69,89-93,97,132,135,137,139,145,176
+SECURITY.md
+  s_c2318a14e915de::t_932ee706083a62 43
+biome.json
+  s_f04439c205703f::t_2af49be7c87b22 69-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cda280df6c46186e6c35b300c89a558280edb918",
+  "prompts": {},
+  "sessions": {
+    "s_c2318a14e915de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "44319f54-96b3-4c8d-aaec-f56eac44aeb8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    },
+    "s_f04439c205703f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5c17631c-2155-450d-842a-84306ca72bb1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}
