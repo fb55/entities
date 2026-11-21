@@ -46,7 +46,7 @@
         "benchmark": "npm --prefix scripts/benchmark run benchmark --",
         "build": "npm run clean && tsc",
         "build:decode-map": "node --import=tsx scripts/write-decode-map.ts",
-        "build:docs": "npm run build && typeref",
+        "build:docs": "npm run build && node -e \"fs.rmSync('docs', { recursive: true, force: true })\" && typeref",
         "build:encode-trie": "node --import=tsx scripts/write-encode-map.ts",
         "clean": "node -e \"fs.rmSync('dist', { recursive: true, force: true })\"",
         "format": "npm run format:es && npm run format:biome",
