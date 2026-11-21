@@ -10,7 +10,7 @@
     document.addEventListener("prerenderingchange", restore, { once: true });
   }
   addEventListener("pagehide", () => sessionStorage.setItem(key, String(site.scrollTop)));
-} catch {}</script><main id="Main" tabindex="-1"><article><header class="page-header"><p class="kind" data-kind="Function">Function</p><h1>encodeNonAsciiHTML</h1></header><div class="signature-block"><pre class="signature"><code><span class="k">function</span> <span class="n">encodeNonAsciiHTML</span>(<span class="p">input</span>: <span class="t">string</span>): <span class="t">string</span></code></pre><p class="source">Defined in <a href="https://github.com/fb55/entities/blob/c7c7dff517c50e204a3bf5113ff74ec154a5ff2d/src/encode.ts#L188">encode.ts:188</a></p><p>Encodes all non-ASCII characters, as well as characters not valid in HTML
+} catch {}</script><main id="Main" tabindex="-1"><article><header class="page-header"><p class="kind" data-kind="Function">Function</p><h1>encodeNonAsciiHTML</h1></header><div class="signature-block"><pre class="signature"><code><span class="k">function</span> <span class="n">encodeNonAsciiHTML</span>(<span class="p">input</span>: <span class="t">string</span>): <span class="t">string</span></code></pre><p class="source">Defined in <a href="https://github.com/fb55/entities/blob/16ecb176ce357159d13463319017ae1e01baf13b/src/encode.ts#L188">encode.ts:188</a></p><p>Encodes all non-ASCII characters, as well as characters not valid in HTML
 documents using HTML entities. This function will not encode characters that
 are valid in HTML documents, such as <code>#</code>.</p>
 <p>If a character has no equivalent entity, a numeric decimal reference
