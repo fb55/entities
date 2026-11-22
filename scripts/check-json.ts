@@ -40,22 +40,33 @@ for (const [field, value] of Object.entries(manifest)) {
     if (field !== "files") checkEmptyFields(value, field);
 }
 
-const objectKeys: Set<string>[] = [];
-visit(readFileSync(new URL("../package.json", import.meta.url), "utf8"), {
-    onObjectBegin() {
-        objectKeys.push(new Set());
-    },
-    onObjectProperty(key, _offset, _length, line) {
-        const keys = objectKeys.at(-1)!;
-        if (keys.has(key)) {
-            errorMessages.push(`Duplicate key on line ${line + 1}: ${key}`);
-        }
-        keys.add(key);
-    },
-    onObjectEnd() {
-        objectKeys.pop();
-    },
-});
+for (const file of [
+    "package.json",
+    "package-lock.json",
+    "tsconfig.json",
+    "tsconfig.build.json",
+    "scripts/benchmark/package.json",
+    "scripts/benchmark/package-lock.json",
+    "scripts/benchmark/tsconfig.json",
+    "scripts/benchmark/oxlint.json",
+]) {
+    const objectKeys: Set<string>[] = [];
+    visit(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), {
+        onObjectBegin() {
+            objectKeys.push(new Set());
+        },
+        onObjectProperty(key, _offset, _length, line) {
+            const keys = objectKeys.at(-1)!;
+            if (keys.has(key)) {
+                errorMessages.push(`${file}:${line + 1}: Duplicate key ${key}`);
+            }
+            keys.add(key);
+        },
+        onObjectEnd() {
+            objectKeys.pop();
+        },
+    });
+}
 
 if (funding !== undefined) {
     errorMessages.push(...validateFunding(funding).errorMessages);
@@ -85,5 +96,5 @@ for (const field of [
 }
 
 if (errorMessages.length > 0) {
-    throw new Error(`Invalid package.json\n${errorMessages.join("\n")}`);
+    throw new Error(`Invalid project JSON\n${errorMessages.join("\n")}`);
 }

@@ -51,7 +51,7 @@
         "clean": "node -e \"fs.rmSync('dist', { recursive: true, force: true })\"",
         "format": "npm run lint:ox -- --fix && npm run lint:benchmark -- --fix && npm run format:ox",
         "format:ox": "node --import=tsx node_modules/oxfmt/bin/oxfmt",
-        "lint": "npm run lint:ox && npm run lint:benchmark && npm run lint:ts && npm run format:ox -- --check && node --import=tsx scripts/check-package.ts",
+        "lint": "npm run lint:ox && npm run lint:benchmark && npm run lint:ts && npm run format:ox -- --check && node --import=tsx scripts/check-json.ts",
         "lint:benchmark": "npm run lint:ox -- -c scripts/benchmark/oxlint.json scripts/benchmark",
         "lint:ox": "node --import=tsx node_modules/oxlint/bin/oxlint",
         "lint:ts": "tsc && tsc -p tsconfig.build.json --noEmit",

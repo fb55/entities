@@ -21,7 +21,8 @@ export default defineConfig({
         "promise",
         "vitest",
     ],
-    // Every rule, except those turned off below.
+    // There is no built-in rule for function-local regex allocation.
+    // Enable all stable rule categories.
     categories: {
         correctness: "error",
         suspicious: "error",
