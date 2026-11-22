@@ -1,0 +1,20 @@
+scripts/check-json.ts
+  s_7baafe23b9d646::t_5509c0bb6458e9 3-13,20-21,26,81-96,108-109,113-116,120-129
+  s_7baafe23b9d646::t_528520f3aecb3f 110-112,117-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f5d7c93e05de0f7973520367d36765cbd6e53f36",
+  "prompts": {},
+  "sessions": {
+    "s_7baafe23b9d646": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a203e7-e638-7d72-9589-da8639afd88d",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    }
+  }
+}
