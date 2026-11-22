@@ -1,0 +1,45 @@
+src/decode-stream.spec.ts
+  s_5e5289e8dd9777::t_8267cc0d4105b6 2
+src/escape.spec.ts
+  s_5e5289e8dd9777::t_8267cc0d4105b6 2
+scripts/benchmark/benchmark.ts
+  s_5e5289e8dd9777::t_8267cc0d4105b6 15,25
+src/index.spec.ts
+  s_5e5289e8dd9777::t_8267cc0d4105b6 2
+scripts/write-decode-map.ts
+  s_5e5289e8dd9777::t_8267cc0d4105b6 23
+src/decode-codepoint.spec.ts
+  s_5e5289e8dd9777::t_8267cc0d4105b6 2
+scripts/write-encode-map.ts
+  s_5e5289e8dd9777::t_8267cc0d4105b6 2
+oxfmt.config.ts
+  s_5e5289e8dd9777::t_2555747991e288 6-7
+src/decode.spec.ts
+  s_5e5289e8dd9777::t_8267cc0d4105b6 2
+src/html5lib.spec.ts
+  s_5e5289e8dd9777::t_8267cc0d4105b6 2,4
+src/encode.spec.ts
+  s_5e5289e8dd9777::t_8267cc0d4105b6 2
+oxlint.config.ts
+  s_5e5289e8dd9777::t_2555747991e288 88,142,151-152,252,265
+  s_5e5289e8dd9777::t_5181e139b501bc 141
+  s_5e5289e8dd9777::t_0ad7f54875909e 140
+package.json
+  s_5e5289e8dd9777::t_8267cc0d4105b6 10,14-15,21-25,27-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b8bb0526cd40a595cce5befcf44effc006716157",
+  "prompts": {},
+  "sessions": {
+    "s_5e5289e8dd9777": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a204e0-0c42-7f01-8c02-8dea1ed8b73a",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    }
+  }
+}
