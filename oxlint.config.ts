@@ -66,6 +66,7 @@ export default defineConfig({
             "error",
             { ignoreArrowShorthand: true },
         ],
+        "typescript/no-unnecessary-condition": "error",
         "typescript/switch-exhaustiveness-check": [
             "error",
             { considerDefaultExhaustiveForUnions: true },
