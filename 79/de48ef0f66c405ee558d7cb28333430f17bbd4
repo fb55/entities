@@ -1,0 +1,19 @@
+scripts/check-package.ts
+  s_7baafe23b9d646::t_c4ff93c5d3beee 20-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "79de48ef0f66c405ee558d7cb28333430f17bbd4",
+  "prompts": {},
+  "sessions": {
+    "s_7baafe23b9d646": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a203e7-e638-7d72-9589-da8639afd88d",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    }
+  }
+}
