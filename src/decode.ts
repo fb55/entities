@@ -229,7 +229,8 @@ const numericDigits: Uint8Array = /* #__PURE__ */ ((): Uint8Array => {
  * @param input Input string.
  * @param offset Index right after the `#`.
  * @param isStrict Whether a terminating semicolon is required.
- * @returns The consumed length (including `&` and `#`) packed with the code point, or 0 on a miss.
+ * @returns The code point packed with the consumed length or an overflow
+ *   marker, or 0 on a miss. Use `unpackConsumed` for the full length.
  */
 function parseNumericEntity(
     input: string,
