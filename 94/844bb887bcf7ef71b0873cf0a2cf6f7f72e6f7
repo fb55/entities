@@ -1,0 +1,23 @@
+oxlint.config.ts
+  s_7baafe23b9d646::t_9eaa6c9b886ad6 24-25
+package.json
+  s_7baafe23b9d646::t_f0e27e2452f270 54
+scripts/check-json.ts
+  s_7baafe23b9d646::t_f0e27e2452f270 43-69,99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "94844bb887bcf7ef71b0873cf0a2cf6f7f72e6f7",
+  "prompts": {},
+  "sessions": {
+    "s_7baafe23b9d646": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a203e7-e638-7d72-9589-da8639afd88d",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    }
+  }
+}
