@@ -1,0 +1,40 @@
+scripts/check-package.ts
+  s_7baafe23b9d646::t_f82f4820a6d303 2,13-16
+  s_7baafe23b9d646::t_6a5ebfaeeba84c 5-12
+  s_7baafe23b9d646::t_cc10577c356abb 1,3,17,20
+  s_7baafe23b9d646::t_c379319873832c 4,18-19
+SECURITY.md
+  s_7baafe23b9d646::t_e2c8a41d0aa738 43
+tsconfig.build.json
+  s_7baafe23b9d646::t_816f052e15ca40 8
+oxlint.config.ts
+  s_7baafe23b9d646::t_f82f4820a6d303 34
+package.json
+  s_7baafe23b9d646::t_cc10577c356abb 53,56
+  s_7baafe23b9d646::t_76f5a5aa853a1e 52,54-55,57
+  s_7baafe23b9d646::t_9d08d18c362d09 67
+oxfmt.config.ts
+  s_7baafe23b9d646::t_816f052e15ca40 8
+scripts/benchmark/benchmark.ts
+  s_7baafe23b9d646::t_c379319873832c 460-462,501
+scripts/benchmark/oxlint.json
+  s_7baafe23b9d646::t_c379319873832c 1-13
+package-lock.json
+  s_7baafe23b9d646::t_9027c6e44157c7 16,3186-3198,3506-3515,4416-4431,4666-4681,4733-4742,4816-4828,4871-4906,5160-5180
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8319ad10047255ac6d0b732699b9cc037c3e3e31",
+  "prompts": {},
+  "sessions": {
+    "s_7baafe23b9d646": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a203e7-e638-7d72-9589-da8639afd88d",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    }
+  }
+}
