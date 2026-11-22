@@ -457,9 +457,9 @@ if (values.worker) {
                 try {
                     check(text, run(text), reference);
                 } catch (error) {
-                    throw new Error(`${jobId(job)} failed output validation`, {
-                        cause: error,
-                    });
+                    throw new Error(
+                        `${jobId(job)}: ${(error as Error).message}`,
+                    );
                 }
                 jobs.push(job);
             }
@@ -498,7 +498,6 @@ if (values.worker) {
 
     const rates = new Map(
         [...samples].map(([id, runs]) => {
-            // oxlint-disable-next-line unicorn/no-array-sort -- The samples are consumed here.
             const sorted = [...runs].sort((a, b) => a - b);
             const middle = sorted.length >> 1;
             const median =
