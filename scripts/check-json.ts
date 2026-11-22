@@ -1,19 +1,29 @@
 import { readFileSync } from "node:fs";
 import { visit } from "jsonc-parser";
-import { validate, validateFunding } from "package-json-validator";
+import {
+    validate,
+    validateBrowser,
+    validateDevEngines,
+    validateFunding,
+    validateGypfile,
+    validateLibc,
+    validateMain,
+    validatePackageManager,
+    validatePeerDependenciesMeta,
+} from "package-json-validator";
 import manifest from "../package.json" with { type: "json" };
 
 const fields: {
     dependencies?: Record<string, unknown>;
     devDependencies?: Record<string, unknown>;
     peerDependencies?: Record<string, unknown>;
-    funding?: unknown;
-} = manifest;
+    peerDependenciesMeta?: Record<string, unknown>;
+} & Record<string, unknown> = manifest;
 const {
     dependencies = {},
     devDependencies = {},
     peerDependencies = {},
-    funding,
+    peerDependenciesMeta = {},
 } = fields;
 
 const { errorMessages } = validate(manifest, true);
@@ -68,8 +78,22 @@ for (const file of [
     });
 }
 
-if (funding !== undefined) {
-    errorMessages.push(...validateFunding(funding).errorMessages);
+// These fields have validators that are separate from the bulk check.
+for (const [field, validator] of Object.entries({
+    browser: validateBrowser,
+    devEngines: validateDevEngines,
+    funding: validateFunding,
+    gypfile: validateGypfile,
+    libc: validateLibc,
+    module: validateMain,
+    packageManager: validatePackageManager,
+    peerDependenciesMeta: validatePeerDependenciesMeta,
+})) {
+    if (Object.hasOwn(fields, field)) {
+        for (const message of validator(fields[field]).errorMessages) {
+            errorMessages.push(`${field}: ${message}`);
+        }
+    }
 }
 for (const name of Object.keys(dependencies)) {
     if (
@@ -80,6 +104,28 @@ for (const name of Object.keys(dependencies)) {
             `Dependency also declared in a dev or peer group: ${name}`,
         );
     }
+}
+for (const name of Object.keys(peerDependencies)) {
+    if (!Object.hasOwn(devDependencies, name)) {
+        errorMessages.push(
+            `Peer dependency missing from devDependencies: ${name}`,
+        );
+    }
+}
+for (const name of Object.keys(peerDependenciesMeta)) {
+    if (!Object.hasOwn(peerDependencies, name)) {
+        errorMessages.push(
+            `Peer metadata has no corresponding peer dependency: ${name}`,
+        );
+    }
+}
+
+if (
+    fields["private"] !== true &&
+    !Object.hasOwn(manifest, "author") &&
+    !Object.hasOwn(manifest, "contributors")
+) {
+    errorMessages.push("Missing author or contributors");
 }
 
 for (const field of [
