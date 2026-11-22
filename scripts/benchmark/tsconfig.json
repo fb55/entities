@@ -1,5 +1,5 @@
 {
-    "extends": "../../tsconfig.eslint.json",
+    "extends": "../../tsconfig.json",
     "include": ["benchmark.ts"],
     "exclude": []
 }

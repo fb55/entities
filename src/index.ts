@@ -129,7 +129,7 @@ export function encode(
                 level === EntityLevel.HTML ? encodeNonAsciiHTML : encodeXML
             )(input);
         }
-        // biome-ignore lint/complexity/noUselessSwitchCase: we get an error for the switch not being exhaustive
+        // oxlint-disable-next-line unicorn/no-useless-switch-case -- List every enum member and keep the runtime fallback.
         case EncodingMode.Extensive:
         default: {
             return (level === EntityLevel.HTML ? encodeHTML : encodeXML)(input);
@@ -148,10 +148,7 @@ export {
     XmlEntityDecoder,
 } from "./decode.js";
 
-export {
-    encodeHTML,
-    encodeNonAsciiHTML,
-} from "./encode.js";
+export { encodeHTML, encodeNonAsciiHTML } from "./encode.js";
 export {
     encodeXML,
     escape,

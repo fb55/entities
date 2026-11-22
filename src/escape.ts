@@ -29,7 +29,6 @@ export const XML_BITSET_VALUE = 0x50_00_00_c4; // 32..63 -> 34 ("),38 (&),39 (')
  * Shared with `encodeNonAsciiHTML` in `encode.ts`. Because the regex is
  * stateful (`g` flag), every call site must set `lastIndex` before use.
  */
-// eslint-disable-next-line unicorn/prefer-unicode-code-point-escapes -- the `\u{...}` form requires the `u` flag, which we deliberately omit so lone surrogates match by code unit
 export const xmlEncodeRegex: RegExp = /["&'<>\u0080-\uFFFF]/g;
 
 /**
@@ -102,6 +101,7 @@ export function encodeXML(input: string): string {
     }
 
     if (out === undefined) return input;
+    // oxlint-disable-next-line typescript/no-deprecated -- Preserve the existing hot-path substring operation.
     if (last < length) out += input.substr(last);
     return out;
 }

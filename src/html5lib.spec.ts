@@ -1,4 +1,3 @@
-// eslint-disable-line unicorn/name-replacements -- html5lib is the proper name of the upstream test suite.
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {

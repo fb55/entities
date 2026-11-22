@@ -196,6 +196,7 @@ export function initDecodeData(packed: readonly [string, string]): DecodeData {
         }
 
         const pair = pairIndex(name.charCodeAt(0), name.charCodeAt(1));
+        // oxlint-disable-next-line oxc/bad-bitwise-operator -- Merge the length flag into the prefix bitset.
         lengthBits[pair] |= length <= 16 ? 1 << (length - 2) : 0x80_00;
         if ((meta0 & 0x20) !== 0) {
             lengthBits[pair] |= 1 << (length - 2 + 16);

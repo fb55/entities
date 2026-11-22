@@ -14,7 +14,7 @@ import htmlTrieData from "./generated/encode-html.js";
  */
 type EncodeTrieNode =
     | string
-    | { value: string | null; next: Map<number, EncodeTrieNode> };
+    | { value: string | null; next: Map<number, string> };
 
 /**
  * Flat lookup table for ASCII entity values (code points 0–127).
@@ -86,7 +86,7 @@ const htmlTrie: Map<number, EncodeTrieNode> = (() => {
 
         if (data.charCodeAt(cursor) === 123 /* '{' */) {
             cursor++; // Skip '{'
-            const next = new Map<number, EncodeTrieNode>();
+            const next = new Map<number, string>();
             let childKey = -1;
             while (data.charCodeAt(cursor) !== 125 /* '}' */) {
                 childKey += readGap() + 1;
@@ -156,10 +156,9 @@ const XML_BITSET = /* #__PURE__ */ new Uint32Array([0, XML_BITSET_VALUE, 0, 0]);
  * adjacent characters. The XML equivalent is `xmlEncodeRegex`, shared with
  * `escape.ts`.
  */
-// eslint-disable-next-line unicorn/prefer-unicode-code-point-escapes -- the `\u{...}` form requires the `u` flag, which we deliberately omit so lone surrogates match by code unit
 const HTML_ENCODE_RE = /[\t\n\f!-/:-@[-`{-}\u0080-\uFFFF]/g;
 
-const numericReference = (cp: number) => `&#${cp};`;
+const numericReference = (cp: number): string => `&#${cp};`;
 
 /**
  * Encodes all characters in the input using HTML entities. This includes
@@ -332,6 +331,7 @@ function encodeHTMLTrieRe(
 
     // If nothing needed encoding, return the original string (avoids allocation).
     if (out == null) return input;
+    // oxlint-disable-next-line typescript/no-deprecated -- Preserve the existing hot-path substring operation.
     if (last < length) out += input.substr(last);
     return out;
 }

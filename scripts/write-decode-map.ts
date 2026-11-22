@@ -127,7 +127,7 @@ function buildDecodeData(
      * `prefer-simple-sort-comparator`, whose suggested subtraction is invalid
      * for strings.
      */
-    // eslint-disable-next-line unicorn/no-array-sort -- `toSorted` is absent from the es2022 lib target; sorting this fresh `Object.keys` array in place is safe
+    // oxlint-disable-next-line unicorn/no-array-sort -- Sort a fresh array in place for ES2022.
     const names = Object.keys(entities).sort(
         (a, b) => Number(a > b) - Number(a < b),
     );
@@ -200,7 +200,7 @@ function buildDecodeData(
     const frequencyRank = new Map(
         FREQUENT_NAMES.map((name, rank) => [name, rank]),
     );
-    // eslint-disable-next-line unicorn/no-array-sort, unicorn/prefer-iterator-to-array -- `toSorted`/`Iterator#toArray` are absent from the es2022 lib target; sorting this fresh array in place is safe
+    // oxlint-disable-next-line unicorn/no-array-sort -- Sort a fresh array in place for ES2022.
     const insertionOrder = [...names.keys()].sort((a, b) => {
         const rankA = frequencyRank.get(names[a]) ?? -1;
         const rankB = frequencyRank.get(names[b]) ?? -1;
@@ -262,13 +262,11 @@ function writeDataModule(
 ): void {
     // Literal replacements would widen the entire generated source in V8.
     const serialized = JSON.stringify(data).replaceAll(
-        // eslint-disable-next-line unicorn/prefer-unicode-code-point-escapes -- escape UTF-16 units, including surrogate halves
         /[\u0100-\uFFFF]/g,
         (char) =>
             String.raw`\u${char.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0")}`,
     );
     const out = `// Generated using scripts/write-decode-map.ts
-/* eslint-disable unicorn/prefer-unicode-code-point-escapes -- Fixed-width escapes keep generated source compact. */
 
 /**
  * Serialized decode data; the format is documented in
@@ -276,7 +274,7 @@ function writeDataModule(
  * codes <= 0xFF: header, front-coded name suffixes, per-name metadata,
  * cuckoo choice bits); \`[1]\` holds the replacement values.
  */
-// biome-ignore format: generated data
+// oxfmt-ignore
 export const ${exportName}: readonly [string, string] = ${serialized};
 `;
     writeFileSync(

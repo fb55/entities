@@ -1,25 +1,21 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import html from "../maps/entities.json" with { type: "json" };
 import legacy from "../maps/legacy.json" with { type: "json" };
+import xml from "../maps/xml.json" with { type: "json" };
 import * as entities from "./index.js";
 
-const levels = ["xml", "entities"];
+const levelDocuments = [
+    { name: "xml", level: entities.EntityLevel.XML, document: xml },
+    { name: "entities", level: entities.EntityLevel.HTML, document: html },
+];
+const levels = levelDocuments.map(({ level }) => level);
 
 describe("Documents", () => {
-    const levelDocuments = levels
-        .map((name) => new URL(`../maps/${name}.json`, import.meta.url))
-        .map((url) => JSON.parse(readFileSync(url, "utf8")))
-        .map((document, index) => ({
-            name: levels[index],
-            level: index,
-            document,
-        }));
-
     describe.each(levelDocuments)("$name", ({ level, document }) => {
         describe("Decode", () => {
             it("should decode all entities", () => {
                 for (const [entity, value] of Object.entries(document)) {
-                    for (let l = level; l < levels.length; l++) {
+                    for (const l of levels.slice(level)) {
                         expect(entities.decode(`&${entity};`, l)).toBe(value);
                         expect(
                             entities.decode(`&${entity};`, { level: l }),
@@ -32,7 +28,7 @@ describe("Documents", () => {
         describe("Decode strict", () => {
             it("should decode all entities", () => {
                 for (const [entity, value] of Object.entries(document)) {
-                    for (let l = level; l < levels.length; l++) {
+                    for (const l of levels.slice(level)) {
                         expect(
                             entities.decode(`&${entity};`, {
                                 level: l,
@@ -46,8 +42,8 @@ describe("Documents", () => {
 
         describe("Encode", () => {
             it("should roundtrip all entities", () => {
-                for (const value of Object.values<string>(document)) {
-                    for (let l = level; l < levels.length; l++) {
+                for (const value of Object.values(document)) {
+                    for (const l of levels.slice(level)) {
                         const encoded = entities.encode(value, l);
                         const decoded = entities.decode(encoded, l);
                         expect(decoded).toBe(value);

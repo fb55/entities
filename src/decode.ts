@@ -277,7 +277,6 @@ function parseNumericEntity(
         return 0;
     }
     if (consumed >= NUMERIC_CONSUMED_OVERFLOW) {
-        // eslint-disable-next-line unicorn/no-top-level-assignment-in-function -- deliberate side channel, read immediately by unpackConsumed
         longNumericConsumed = consumed;
         consumed = NUMERIC_CONSUMED_OVERFLOW;
     }
@@ -499,7 +498,6 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
             const length = 33 - Math.clz32(low);
             const end = start + length;
             // Longer probes cannot match either; lengths are ascending.
-            // eslint-disable-next-line unicorn/no-break-in-nested-loop -- keep the bounded probe loop inline
             if (end > inputLength) break;
             const isTerminated =
                 end < inputLength && input.charCodeAt(end) === CHAR_SEMI;
@@ -509,15 +507,12 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
                     (isLegacyAllowed && ((bits >>> (length + 14)) & 1) !== 0)
                 )
             )
-                // eslint-disable-next-line unicorn/no-break-in-nested-loop -- skip impossible candidates in the inline probe loop
                 continue;
             // Share the lookup call site, including after legacy-only inputs.
             const slot = findSlotHtml(input, start, length);
-            // eslint-disable-next-line unicorn/no-break-in-nested-loop -- skip failed candidates in the inline probe loop
             if (slot < 0) continue;
             if (isTerminated) {
                 matched = (slot << 6) | 32 | (length + 1);
-                // eslint-disable-next-line unicorn/no-break-in-nested-loop -- an exact match ends the probe loop
                 break;
             }
             if ((htmlSlotValue[slot] & 2) !== 0) {
@@ -604,7 +599,6 @@ export function decodeXML(xmlString: string): string {
                         : String.fromCodePoint(replaceCodePointXML(codePoint));
             }
         } else {
-            /* eslint-disable unicorn/no-break-in-nested-loop -- Keep XML name dispatch inline with the decode loop. */
             switch (c1) {
                 // &lt; / &gt;
                 case 0x6c:
@@ -657,7 +651,6 @@ export function decodeXML(xmlString: string): string {
                     break;
                 }
             }
-            /* eslint-enable unicorn/no-break-in-nested-loop */
         }
         if (consumed > 0) {
             if (lastIndex < offset)
