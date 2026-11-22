@@ -1,0 +1,19 @@
+src/decode.ts
+  s_5e5289e8dd9777::t_790f6183341212 232-233
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "88433f63a34151ccfffdd83dae82b30259008d43",
+  "prompts": {},
+  "sessions": {
+    "s_5e5289e8dd9777": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a204e0-0c42-7f01-8c02-8dea1ed8b73a",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    }
+  }
+}
