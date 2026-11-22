@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import * as entities from "./index.js";
 
 describe("escape HTML", () => {

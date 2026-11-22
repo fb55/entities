@@ -1,4 +1,5 @@
 import { writeFileSync } from "node:fs";
+
 import htmlMap from "../maps/entities.json" with { type: "json" };
 
 interface TrieNode {

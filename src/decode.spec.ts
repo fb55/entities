@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import entityMap from "../maps/entities.json" with { type: "json" };
 import legacyMap from "../maps/legacy.json" with { type: "json" };
 import xmlMap from "../maps/xml.json" with { type: "json" };

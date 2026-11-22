@@ -12,6 +12,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+
 import ent from "ent";
 import * as he from "he";
 import * as htmlEntities from "html-entities";
@@ -21,6 +22,7 @@ import lodashUnescape from "lodash/unescape.js";
 import { parseEntities } from "parse-entities";
 import { stringifyEntities } from "stringify-entities";
 import { Bench } from "tinybench";
+
 import * as entities from "../../src/index.js";
 
 type Run = (input: string) => string;

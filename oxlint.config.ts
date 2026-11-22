@@ -85,11 +85,7 @@ export default defineConfig({
         // Code-unit regexes must match lone surrogates, including in the fixtures.
         ...off("require-unicode-regexp"),
         // `null` and `undefined` are part of the trie and lookup representations.
-        ...off(
-            "unicorn/no-null",
-            "no-undefined",
-            "unicorn/no-useless-undefined",
-        ),
+        ...off("unicorn/no-null", "no-undefined"),
         // Modern syntax and the runtime's features are fine.
         ...off(
             "oxc/no-async-await",
@@ -101,9 +97,7 @@ export default defineConfig({
             "no-nested-ternary",
             "unicorn/no-nested-ternary",
             "unicorn/no-array-reduce",
-            "no-await-in-loop",
             "promise/avoid-new",
-            "promise/prefer-await-to-then",
             "node/no-top-level-await",
             "node/no-sync",
             "import/no-nodejs-modules",
@@ -143,33 +137,24 @@ export default defineConfig({
         ...off("unicorn/number-literal-case"),
         // Keep existing substring calls in the scanners.
         ...off("unicorn/prefer-string-slice"),
-        // TypeScript has the types (and infers them for readonly values and assertions).
+        // Adding return tags changes the emitted JavaScript and its source maps.
+        ...off("jsdoc/require-returns"),
+        // TypeScript supplies the types and infers them for readonly parameters.
         ...off(
             "jsdoc/require-param-type",
             "jsdoc/require-returns-type",
-            "jsdoc/require-returns",
             "jsdoc/require-yields-type",
             "jsdoc/require-throws-type",
             "typescript/prefer-readonly-parameter-types",
-            "typescript/no-unsafe-type-assertion",
             "typescript/no-non-null-assertion",
-            "typescript/promise-function-async",
         ),
-        // Method signatures, mapped types, `{}` and type aliases are chosen for how they check and infer.
-        ...off(
-            "typescript/method-signature-style",
-            "typescript/consistent-indexed-object-style",
-            "typescript/consistent-type-definitions",
-            "typescript/ban-types",
-            "no-redeclare",
-        ),
+        // Method signatures are chosen for how they check and infer.
+        ...off("typescript/method-signature-style"),
         // Preserve existing constructor parameter properties and enum numbering.
         ...off(
             "typescript/parameter-properties",
             "typescript/prefer-enum-initializers",
         ),
-        // Functions converting values declare the types they convert.
-        ...off("unicorn/prefer-native-coercion-functions"),
         // Tests: tables of cases, assertions in helpers, and `toBe(true)` (stricter than `toBeTruthy()`).
         ...off(
             "vitest/prefer-expect-assertions",
@@ -264,6 +249,7 @@ export default defineConfig({
         },
         {
             // Vendored tokenizer cases are registered dynamically, with different CI and local missing-fixture handling.
+            // The fixture JSON is asserted to match the tokenizer test schema.
             files: ["src/html5lib.spec.ts"],
             rules: {
                 ...off(
@@ -276,6 +262,7 @@ export default defineConfig({
                     "node/no-process-env",
                     "no-console",
                     "prefer-named-capture-group",
+                    "typescript/no-unsafe-type-assertion",
                 ),
                 "typescript/strict-boolean-expressions": [
                     "error",

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import html from "../maps/entities.json" with { type: "json" };
 import legacy from "../maps/legacy.json" with { type: "json" };
 import xml from "../maps/xml.json" with { type: "json" };

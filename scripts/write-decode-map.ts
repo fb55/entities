@@ -20,6 +20,7 @@
  */
 
 import { writeFileSync } from "node:fs";
+
 import entityMap from "../maps/entities.json" with { type: "json" };
 import legacyMap from "../maps/legacy.json" with { type: "json" };
 import {

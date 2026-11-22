@@ -3,23 +3,30 @@
     "version": "9.0.0",
     "description": "Encode & decode XML and HTML entities with ease & speed",
     "keywords": [
-        "html entities",
         "entity decoder",
         "entity encoding",
         "html decoding",
         "html encoding",
+        "html entities",
         "xml decoding",
         "xml encoding"
     ],
+    "license": "BSD-2-Clause",
+    "author": "Felix Boehm <me@feedic.com>",
     "repository": {
         "type": "git",
         "url": "https://github.com/fb55/entities.git"
     },
     "funding": "https://github.com/fb55/entities?sponsor=1",
-    "license": "BSD-2-Clause",
-    "author": "Felix Boehm <me@feedic.com>",
-    "sideEffects": false,
+    "files": [
+        "dist",
+        "src",
+        "!**/*.spec.ts"
+    ],
     "type": "module",
+    "sideEffects": false,
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
     "exports": {
         ".": {
             "types": "./dist/index.d.ts",
@@ -34,13 +41,6 @@
             "default": "./dist/escape.js"
         }
     },
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "files": [
-        "dist",
-        "src",
-        "!**/*.spec.ts"
-    ],
     "scripts": {
         "prebenchmark": "npm ci --prefix scripts/benchmark",
         "benchmark": "npm --prefix scripts/benchmark run benchmark --",
