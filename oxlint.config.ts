@@ -1,4 +1,22 @@
+import { builtinModules } from "node:module";
 import { defineConfig } from "oxlint";
+import manifest from "./package.json" with { type: "json" };
+
+const dependencyGroups: {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+    optionalDependencies?: Record<string, string>;
+    peerDependencies?: Record<string, string>;
+} = manifest;
+const declaredPackages = [
+    manifest.name,
+    ...Object.keys({
+        ...dependencyGroups.dependencies,
+        ...dependencyGroups.devDependencies,
+        ...dependencyGroups.optionalDependencies,
+        ...dependencyGroups.peerDependencies,
+    }),
+];
 
 /**
  * Rules turned off (each group says why they do not fit this code).
@@ -35,6 +53,25 @@ export default defineConfig({
     // The benchmark has its own lint configuration and TypeScript project.
     ignorePatterns: ["scripts/benchmark/", "test/fixtures/html5lib-tests/"],
     rules: {
+        "no-restricted-imports": [
+            "error",
+            {
+                patterns: [
+                    {
+                        group: [
+                            "**",
+                            "!./**",
+                            "!../**",
+                            "!node:*{,/**}",
+                            ...builtinModules.map((name) => `!${name}{,/**}`),
+                            ...declaredPackages.map((name) => `!${name}{,/**}`),
+                        ],
+                        message:
+                            "Declare tooling dependencies in package.json before importing them.",
+                    },
+                ],
+            },
+        ],
         eqeqeq: ["error", "smart"],
         "one-var": ["error", "never"],
         "func-style": ["error", "declaration", { allowArrowFunctions: true }],

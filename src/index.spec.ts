@@ -5,17 +5,29 @@ import xml from "../maps/xml.json" with { type: "json" };
 import * as entities from "./index.js";
 
 const levelDocuments = [
-    { name: "xml", level: entities.EntityLevel.XML, document: xml },
-    { name: "entities", level: entities.EntityLevel.HTML, document: html },
-];
-const levels = levelDocuments.map(({ level }) => level);
+    {
+        name: "xml",
+        levels: [entities.EntityLevel.XML, entities.EntityLevel.HTML],
+        document: xml,
+    },
+    {
+        name: "entities",
+        levels: [entities.EntityLevel.HTML],
+        document: html,
+    },
+] as const;
 
 describe("Documents", () => {
-    describe.each(levelDocuments)("$name", ({ level, document }) => {
+    it("preserves the numeric entity levels", () => {
+        expect(entities.EntityLevel.XML).toBe(0);
+        expect(entities.EntityLevel.HTML).toBe(1);
+    });
+
+    describe.each(levelDocuments)("$name", ({ levels, document }) => {
         describe("Decode", () => {
             it("should decode all entities", () => {
                 for (const [entity, value] of Object.entries(document)) {
-                    for (const l of levels.slice(level)) {
+                    for (const l of levels) {
                         expect(entities.decode(`&${entity};`, l)).toBe(value);
                         expect(
                             entities.decode(`&${entity};`, { level: l }),
@@ -28,7 +40,7 @@ describe("Documents", () => {
         describe("Decode strict", () => {
             it("should decode all entities", () => {
                 for (const [entity, value] of Object.entries(document)) {
-                    for (const l of levels.slice(level)) {
+                    for (const l of levels) {
                         expect(
                             entities.decode(`&${entity};`, {
                                 level: l,
@@ -43,7 +55,7 @@ describe("Documents", () => {
         describe("Encode", () => {
             it("should roundtrip all entities", () => {
                 for (const value of Object.values(document)) {
-                    for (const l of levels.slice(level)) {
+                    for (const l of levels) {
                         const encoded = entities.encode(value, l);
                         const decoded = entities.decode(encoded, l);
                         expect(decoded).toBe(value);
@@ -54,7 +66,7 @@ describe("Documents", () => {
             it("should only encode non-ASCII values if asked", () =>
                 expect(
                     entities.encode("Great #'s of 🎁", {
-                        level,
+                        level: levels[0],
                         mode: entities.EncodingMode.ASCII,
                     }),
                 ).toBe("Great #&apos;s of &#127873;"));
