@@ -1,0 +1,23 @@
+scripts/benchmark/benchmark.ts
+  s_7baafe23b9d646::t_aeef9b2d6c6082 460-462
+oxlint.config.ts
+  s_7baafe23b9d646::t_aeef9b2d6c6082 35
+package.json
+  s_7baafe23b9d646::t_aeef9b2d6c6082 52,54,56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e124daee9351d98a4133ed17b236d922cd7ba7a4",
+  "prompts": {},
+  "sessions": {
+    "s_7baafe23b9d646": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a203e7-e638-7d72-9589-da8639afd88d",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    }
+  }
+}
