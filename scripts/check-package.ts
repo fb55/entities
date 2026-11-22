@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { visit } from "jsonc-parser";
 import { validate, validateFunding } from "package-json-validator";
 import manifest from "../package.json" with { type: "json" };
 
@@ -15,6 +17,23 @@ const {
 } = fields;
 
 const { errorMessages } = validate(manifest, true);
+const objectKeys: Set<string>[] = [];
+visit(readFileSync(new URL("../package.json", import.meta.url), "utf8"), {
+    onObjectBegin() {
+        objectKeys.push(new Set());
+    },
+    onObjectProperty(key, _offset, _length, line) {
+        const keys = objectKeys.at(-1)!;
+        if (keys.has(key)) {
+            errorMessages.push(`Duplicate key on line ${line + 1}: ${key}`);
+        }
+        keys.add(key);
+    },
+    onObjectEnd() {
+        objectKeys.pop();
+    },
+});
+
 if (funding !== undefined) {
     errorMessages.push(...validateFunding(funding).errorMessages);
 }

@@ -184,10 +184,24 @@ export default defineConfig({
     },
     overrides: [
         {
-            // The library also runs in browsers.
+            // The published library runs in browsers and has no runtime dependencies.
             files: ["src/**/*.ts"],
             excludeFiles: ["**/*.spec.ts"],
-            rules: { "import/no-nodejs-modules": "error" },
+            rules: {
+                "import/no-nodejs-modules": "error",
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        patterns: [
+                            {
+                                regex: "^[^.]",
+                                message:
+                                    "Use a relative import in the dependency-free library.",
+                            },
+                        ],
+                    },
+                ],
+            },
         },
         {
             // The formatter preserves the generated literals as written.
