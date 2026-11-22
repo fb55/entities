@@ -1,0 +1,13 @@
+{
+    "categories": {
+        "correctness": "error",
+        "suspicious": "error"
+    },
+    "options": {
+        "typeAware": false,
+        "reportUnusedDisableDirectives": "error"
+    },
+    "rules": {
+        "no-shadow": ["error", { "allow": ["text"] }]
+    }
+}

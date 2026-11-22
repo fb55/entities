@@ -31,6 +31,7 @@ export default defineConfig({
         restriction: "error",
     },
     options: { typeAware: true, reportUnusedDisableDirectives: "error" },
+    // The benchmark has its own lint configuration and TypeScript project.
     ignorePatterns: ["scripts/benchmark/", "test/fixtures/html5lib-tests/"],
     rules: {
         eqeqeq: ["error", "smart"],

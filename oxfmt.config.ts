@@ -5,5 +5,5 @@ export default defineConfig({
     tabWidth: 4,
     sortImports: false,
     sortPackageJson: false,
-    ignorePatterns: [".*", "*.md", "maps/", "test/fixtures/html5lib-tests/"],
+    ignorePatterns: [".*", "maps/", "test/fixtures/html5lib-tests/"],
 });

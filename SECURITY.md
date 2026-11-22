@@ -40,7 +40,7 @@ Security issues we are particularly interested in:
   appropriate context-aware sanitization. This library decodes/encodes
   entities; it is not an HTML sanitizer.
 - Behavior that matches the [WHATWG HTML named character reference
-spec](https://html.spec.whatwg.org/multipage/parsing.html#character-reference-state),
+  spec](https://html.spec.whatwg.org/multipage/parsing.html#character-reference-state),
   even if surprising. Spec deviations are bugs and may be security-relevant;
   spec-conformant quirks generally are not.
 - Social engineering attacks against maintainers.

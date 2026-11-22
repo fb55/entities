@@ -5,6 +5,7 @@
         "isolatedDeclarations": true,
         "rootDir": "src",
         "outDir": "dist",
+        "lib": ["ES2022"],
         "types": []
     },
     "include": ["src"],
