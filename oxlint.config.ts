@@ -137,8 +137,6 @@ export default defineConfig({
         ...off("unicorn/number-literal-case"),
         // Keep existing substring calls in the scanners.
         ...off("unicorn/prefer-string-slice"),
-        // Adding return tags changes the emitted JavaScript and its source maps.
-        ...off("jsdoc/require-returns"),
         // TypeScript supplies the types and infers them for readonly parameters.
         ...off(
             "jsdoc/require-param-type",
@@ -207,13 +205,9 @@ export default defineConfig({
             },
         },
         {
-            // Declaration emit requires the explicit RegExp type.
-            files: ["src/escape.ts"],
-            rules: off("typescript/no-inferrable-types"),
-        },
-        {
+            // Generator scripts use console output and document their purpose and data formats.
             files: ["scripts/*.ts"],
-            rules: off("no-console"),
+            rules: off("no-console", "jsdoc/require-returns"),
         },
         {
             // The generator treats an empty alias as absent.
@@ -226,11 +220,6 @@ export default defineConfig({
             },
         },
         {
-            // Keep the existing internal marker in the emitted declaration.
-            files: ["src/encode.ts"],
-            rules: off("jsdoc/empty-tags"),
-        },
-        {
             // Test tables use namespace imports, inferred mocks and concise assertion callbacks.
             files: ["**/*.spec.ts"],
             rules: off(
@@ -238,6 +227,7 @@ export default defineConfig({
                 "typescript/explicit-module-boundary-types",
                 "typescript/strict-void-return",
                 "import/no-namespace",
+                "jsdoc/require-returns",
                 "vitest/require-mock-type-parameters",
                 "vitest/padding-around-test-blocks",
                 "vitest/no-hooks",

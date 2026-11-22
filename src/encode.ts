@@ -171,6 +171,7 @@ const numericReference = (cp: number): string => `&#${cp};`;
  * If a character has no equivalent entity, a numeric decimal reference
  * (eg. `&#252;`) will be used.
  * @param input Input string to encode.
+ * @returns The input with named HTML references where available and decimal references for other characters that require encoding.
  */
 export function encodeHTML(input: string): string {
     return encodeHTMLTrieRe(HTML_BITSET, HTML_ENCODE_RE, input);
@@ -183,16 +184,17 @@ export function encodeHTML(input: string): string {
  * If a character has no equivalent entity, a numeric decimal reference
  * (eg. `&#252;`) will be used.
  * @param input Input string to encode.
+ * @returns The input with XML special characters and non-ASCII characters encoded using HTML references.
  */
 export function encodeNonAsciiHTML(input: string): string {
     return encodeHTMLTrieRe(XML_BITSET, xmlEncodeRegex, input);
 }
 
 /**
- * Whether `code` (a UTF-16 code unit) must be encoded: any non-ASCII unit, or
- * an ASCII unit flagged in `bitset`.
+ * Check a UTF-16 code unit against the encoder's escape set.
  * @param bitset Bitset of ASCII characters to encode.
  * @param code Code unit to test.
+ * @returns Whether the unit is non-ASCII or its ASCII bit is set.
  */
 function isEncodable(bitset: Uint32Array, code: number): boolean {
     return code >= 0x80 || ((bitset[code >>> 5] >>> code) & 1) === 1;
@@ -210,7 +212,11 @@ function isEncodable(bitset: Uint32Array, code: number): boolean {
  * always measured from where they start, so every window-exhausting gap
  * enters long-gap mode and no gap length pays both scans repeatedly.
  */
-/** @internal Exported for tests; not re-exported from the package entry. */
+/**
+ * Exported for tests. The package entry point omits it.
+ *
+ * @internal
+ */
 export const INLINE_SCAN_WINDOW = 16;
 const LONG_GAP_THRESHOLD = 8;
 

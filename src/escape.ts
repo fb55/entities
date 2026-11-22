@@ -1,6 +1,6 @@
 /**
- * Get the named reference for an XML special character or U+00A0.
  * @param char Code unit matched by one of the escape regexes.
+ * @returns The named reference for the matched XML special character or non-breaking space.
  */
 function getEscape(char: number): string {
     return char === 34
@@ -29,13 +29,13 @@ export const XML_BITSET_VALUE = 0x50_00_00_c4; // 32..63 -> 34 ("),38 (&),39 (')
  * Shared with `encodeNonAsciiHTML` in `encode.ts`. Because the regex is
  * stateful (`g` flag), every call site must set `lastIndex` before use.
  */
+// oxlint-disable-next-line typescript/no-inferrable-types -- Isolated declarations require a type annotation on this exported regex.
 export const xmlEncodeRegex: RegExp = /["&'<>\u0080-\uFFFF]/g;
 
 /**
- * Whether `code` (a UTF-16 code unit) is escaped by {@link encodeXML}: a
- * non-ASCII unit, or one of the five XML specials flagged in
- * `XML_BITSET_VALUE` (which is only meaningful for code units 32-63).
+ * Check a UTF-16 code unit against the escape set used by {@link encodeXML}.
  * @param code Code unit to test.
+ * @returns Whether the unit is non-ASCII or one of the five XML special characters.
  */
 function isXmlEscapable(code: number): boolean {
     return (
@@ -51,6 +51,7 @@ function isXmlEscapable(code: number): boolean {
  * If a character has no equivalent entity, a numeric decimal reference
  * (eg. `&#252;`) will be used.
  * @param input Input string to encode.
+ * @returns The input with named references for XML special characters and decimal references for non-ASCII characters.
  */
 export function encodeXML(input: string): string {
     const { length } = input;
@@ -122,6 +123,7 @@ export const escape: typeof encodeXML = encodeXML;
  * @param re Global regex matching exactly the characters to escape
  *   (`"`, `&`, `'`, `<`, `>`, `\u00A0` at most).
  * @param data String to escape.
+ * @returns The input with matched characters replaced by their named references.
  */
 function escapeWithRegex(re: RegExp, data: string): string {
     re.lastIndex = 0;
@@ -146,6 +148,7 @@ const xmlEscapeRegex = /["&'<>]/g;
  *
  * Note that the output will be character-set dependent.
  * @param data String to escape.
+ * @returns The input with XML special characters escaped and other characters left as-is.
  */
 export function escapeUTF8(data: string): string {
     return escapeWithRegex(xmlEscapeRegex, data);
@@ -157,6 +160,7 @@ const attributeEscapeRegex = /["&<>\u{A0}]/gu;
  * Encodes all characters that have to be escaped in HTML attributes,
  * following {@link https://html.spec.whatwg.org/multipage/parsing.html#escapingString}.
  * @param data String to escape.
+ * @returns A string escaped for a double-quoted HTML attribute value.
  */
 export function escapeAttribute(data: string): string {
     return escapeWithRegex(attributeEscapeRegex, data);
@@ -168,6 +172,7 @@ const textEscapeRegex = /[&<>\u{A0}]/gu;
  * Encodes all characters that have to be escaped in HTML text,
  * following {@link https://html.spec.whatwg.org/multipage/parsing.html#escapingString}.
  * @param data String to escape.
+ * @returns A string with ampersands, angle brackets, and non-breaking spaces escaped for HTML text.
  */
 export function escapeText(data: string): string {
     return escapeWithRegex(textEscapeRegex, data);

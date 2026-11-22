@@ -71,6 +71,7 @@ export interface DecodingOptions {
  * Decodes a string with entities.
  * @param input String to decode.
  * @param options Decoding options.
+ * @returns The input with references recognized by the selected entity set and decoding mode replaced by their characters.
  */
 export function decode(
     input: string,
@@ -106,6 +107,7 @@ export interface EncodingOptions {
  * Encodes a string with entities.
  * @param input String to encode.
  * @param options Encoding options.
+ * @returns The input with characters escaped or encoded according to the selected encoding mode and entity set.
  */
 export function encode(
     input: string,

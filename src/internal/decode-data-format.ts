@@ -38,15 +38,15 @@ export const CHAR_REMAP: Uint8Array = ((): Uint8Array => {
 })();
 
 /**
- * The exact 32-bit key for a name occurring at `nameStart` with `length`
- * chars. Covers the first two and last two characters plus the length;
- * middle characters are verified separately against the names blob.
+ * Compute the key for a candidate name. Middle characters are verified
+ * separately against the names blob.
  *
  * The hot decoder inlines this computation; tests assert both stay in sync
  * by looking every entity up through the public API.
  * @param text Text containing the name.
  * @param nameStart Index of the name's first character.
  * @param length Length of the name.
+ * @returns A 32-bit key packing the first two and last two characters and the length.
  */
 export function exactKey(
     text: string,
@@ -63,29 +63,31 @@ export function exactKey(
 }
 
 /**
- * The 10-bit (c0,c1) class index used by the probe front end. The function
- * was chosen by exhaustive search over load-free mixers for minimal
- * candidate-set collisions on the real entity set.
+ * Mix the first two characters of a candidate name. This mixer minimizes
+ * candidate-set collisions for the entity set without a lookup.
  * @param c0 First char code of the candidate name.
  * @param c1 Second char code.
+ * @returns The 10-bit index into the table of candidate name lengths.
  */
 export function pairIndex(c0: number, c1: number): number {
     return (((c0 * 3) << 3) ^ c1) & (PAIR_TABLE_SIZE - 1);
 }
 
 /**
- * First candidate bucket for a key in a table of `buckets` buckets.
+ * Hash a key using the first bucket multiplier.
  * @param key Exact key.
  * @param buckets Bucket count.
+ * @returns The bucket index to probe first.
  */
 export function bucketOne(key: number, buckets: number): number {
     return ((Math.imul(key, BUCKET_HASH_1) >>> 16) * buckets) >>> 16;
 }
 
 /**
- * Second candidate bucket for a key.
+ * Hash a key using the second bucket multiplier.
  * @param key Exact key.
  * @param buckets Bucket count.
+ * @returns The fallback bucket index if the first bucket has no match.
  */
 export function bucketTwo(key: number, buckets: number): number {
     return ((Math.imul(key, BUCKET_HASH_2) >>> 16) * buckets) >>> 16;
@@ -126,6 +128,7 @@ export interface DecodeData {
 /**
  * Build the lookup structures from a serialized dataset.
  * @param packed Serialized decode data, see `decode-data-format.ts`.
+ * @returns The hash table, prefix length bitsets, packed middles, and replacement values used to decode HTML entities.
  */
 export function initDecodeData(packed: readonly [string, string]): DecodeData {
     const [data, values] = packed;
