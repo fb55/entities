@@ -17,6 +17,29 @@ const {
 } = fields;
 
 const { errorMessages } = validate(manifest, true);
+
+/**
+ * Report empty objects and arrays in a manifest field.
+ * @param value The field value.
+ * @param field The field path.
+ */
+function checkEmptyFields(value: unknown, field: string): void {
+    if (typeof value !== "object" || value === null) return;
+
+    const entries: [string, unknown][] = Object.entries(value);
+    if (entries.length === 0) {
+        errorMessages.push(`Empty field: ${field}`);
+    }
+    for (const [key, child] of entries) {
+        checkEmptyFields(child, `${field}[${JSON.stringify(key)}]`);
+    }
+}
+
+for (const [field, value] of Object.entries(manifest)) {
+    // An empty files list is valid for npm.
+    if (field !== "files") checkEmptyFields(value, field);
+}
+
 const objectKeys: Set<string>[] = [];
 visit(readFileSync(new URL("../package.json", import.meta.url), "utf8"), {
     onObjectBegin() {
