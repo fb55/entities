@@ -1,0 +1,30 @@
+scripts/write-encode-map.ts
+  s_83405ecd1299fb::t_1a4ed644c1b74b 60,81
+  s_83405ecd1299fb::t_0664634a16fa9f 71
+src/html5lib.spec.ts
+  s_83405ecd1299fb::t_1a4ed644c1b74b 1-3,59,142,204,214,216,218,231,237,241
+tsconfig.json
+  s_83405ecd1299fb::t_0664634a16fa9f 4
+scripts/write-decode-map.ts
+  s_83405ecd1299fb::t_0664634a16fa9f 131,203
+src/decode.ts
+  s_83405ecd1299fb::t_1a4ed644c1b74b 346,605,1293
+src/decode.spec.ts
+  s_83405ecd1299fb::t_0664634a16fa9f 377
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8ad9ef619c56e9bc32510e4a4f71216cde955f1d",
+  "prompts": {},
+  "sessions": {
+    "s_83405ecd1299fb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a2061d-98d2-7f00-a02f-547eb71dc085",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    }
+  }
+}
