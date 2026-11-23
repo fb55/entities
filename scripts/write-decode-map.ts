@@ -273,6 +273,7 @@ function writeDataModule(
  * codes <= 0xFF: header, front-coded name suffixes, per-name metadata,
  * cuckoo choice bits); \`[1]\` holds the replacement values.
  */
+// Keep the serialized array in the generator's single-line layout.
 // oxfmt-ignore
 export const ${exportName}: readonly [string, string] = ${serialized};
 `;
