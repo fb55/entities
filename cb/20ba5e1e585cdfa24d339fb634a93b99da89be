@@ -1,0 +1,19 @@
+oxlint.config.ts
+  s_0800dd85863a86::t_0e50a406e2682b 130-132,154-155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cb20ba5e1e585cdfa24d339fb634a93b99da89be",
+  "prompts": {},
+  "sessions": {
+    "s_0800dd85863a86": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a20627-01f9-7a51-9d72-8eee241ff9e0",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    }
+  }
+}
