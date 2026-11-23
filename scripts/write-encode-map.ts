@@ -57,7 +57,6 @@ function getTrie(map: Record<string, string>): Map<number, TrieNode> {
         const lastCP = decoded.codePointAt(index)!;
         const value = lastMap.get(lastCP) ?? {};
         // Use the shortest alias, preserving map order for equal-length names.
-        // oxlint-disable-next-line typescript/strict-boolean-expressions -- Treat an empty alias as absent.
         if (!value.value || entity.length < value.value.length) {
             value.value = entity;
         }
@@ -78,7 +77,6 @@ function serializeTrie(trie: Map<number, TrieNode>): string {
             const diff = key - lastKey - 1;
             if (diff !== 0) out += diff.toString(10);
         }
-        // oxlint-disable-next-line typescript/strict-boolean-expressions -- Treat an empty alias as absent.
         if (node.value) out += `${node.value};`;
         if (node.next) {
             out += `{${serializeTrie(node.next)}}`;

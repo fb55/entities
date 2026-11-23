@@ -102,8 +102,7 @@ export function encodeXML(input: string): string {
     }
 
     if (out === undefined) return input;
-    // oxlint-disable-next-line typescript/no-deprecated -- Preserve the existing hot-path substring operation.
-    if (last < length) out += input.substr(last);
+    if (last < length) out += input.slice(last);
     return out;
 }
 

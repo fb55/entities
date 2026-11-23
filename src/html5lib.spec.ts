@@ -1,5 +1,4 @@
-/* oxlint-disable vitest/no-conditional-tests -- Fixture suites are registered when their data is available. */
-/* oxlint-disable typescript/no-unsafe-type-assertion -- The vendored tokenizer schema defines the JSON and token payload types. */
+/* oxlint-disable typescript/no-unsafe-type-assertion -- The vendored tokenizer schema defines the fixture JSON and the payload shape for each token type. */
 
 import { existsSync, readFileSync } from "node:fs";
 
@@ -56,8 +55,7 @@ const FIXTURE_FILES = [
 ];
 
 /** Template used by the fixtures for attribute-value entity tests. */
-// oxlint-disable-next-line prefer-named-capture-group -- Backreference the opening quote and read the attribute value by index.
-const ATTRIBUTE_TEMPLATE = /^<h a=(["']?)(.*)\1>$/s;
+const ATTRIBUTE_TEMPLATE = /^<h a=(?<quote>["']?)(?<value>.*)\k<quote>>$/s;
 
 /**
  * Guards against a submodule update silently causing the filter to exclude
@@ -114,10 +112,10 @@ const fixtureDirectory = new URL(
     import.meta.url,
 );
 
-interface FixtureCase {
-    description: string;
-    run: () => void;
-}
+type FixtureCase = [
+    description: string,
+    data: { input: string; expected: string; mode: DecodingMode },
+];
 
 /**
  * Applies the mechanical filter documented above and maps each included
@@ -139,8 +137,9 @@ function collectCases(tests: TokenizerTest[]): FixtureCase[] {
         }
 
         const unescape = (value: string): string =>
-            // oxlint-disable-next-line typescript/strict-boolean-expressions -- An omitted doubleEscaped flag is equivalent to false.
-            test.doubleEscaped ? (JSON.parse(`"${value}"`) as string) : value;
+            test.doubleEscaped === true
+                ? (JSON.parse(`"${value}"`) as string)
+                : value;
         const input = unescape(test.input);
 
         if (
@@ -152,44 +151,31 @@ function collectCases(tests: TokenizerTest[]): FixtureCase[] {
                 .map(([, data]) => unescape(data as string))
                 .join("");
 
-            cases.push({
-                description: test.description,
-                run: () => {
-                    expect(decodeHTML(input)).toBe(expected);
-                    expect(decodeStreaming(input, DecodingMode.Legacy)).toBe(
-                        expected,
-                    );
-                },
-            });
+            cases.push([
+                test.description,
+                { input, expected, mode: DecodingMode.Legacy },
+            ]);
         } else if (
             test.output.length === 1 &&
             test.output[0][0] === "StartTag"
         ) {
-            const match = ATTRIBUTE_TEMPLATE.exec(input);
+            const attributeValue =
+                ATTRIBUTE_TEMPLATE.exec(input)?.groups?.["value"];
             const attributes = test.output[0][2] as Record<string, string>;
             if (
-                match &&
+                attributeValue !== undefined &&
                 test.output[0][1] === "h" &&
                 Object.keys(attributes).length === 1 &&
                 "a" in attributes
             ) {
-                const attributeValue = match[2];
-                const expected = unescape(attributes["a"]);
-
-                cases.push({
-                    description: test.description,
-                    run: () => {
-                        expect(decodeHTMLAttribute(attributeValue)).toBe(
-                            expected,
-                        );
-                        expect(
-                            decodeStreaming(
-                                attributeValue,
-                                DecodingMode.Attribute,
-                            ),
-                        ).toBe(expected);
+                cases.push([
+                    test.description,
+                    {
+                        input: attributeValue,
+                        expected: unescape(attributes["a"]),
+                        mode: DecodingMode.Attribute,
                     },
-                });
+                ]);
             }
         }
     }
@@ -197,30 +183,31 @@ function collectCases(tests: TokenizerTest[]): FixtureCase[] {
     return cases;
 }
 
+// oxlint-disable-next-line vitest/no-conditional-tests -- Fixture registration reads files from an optional local submodule.
 if (existsSync(fixtureDirectory)) {
     describe("html5lib-tests tokenizer entity fixtures", () => {
         let includedCount = 0;
 
-        // oxlint-disable-next-line vitest/prefer-each -- Load each file and register a suite only when it has matching cases.
-        for (const file of FIXTURE_FILES) {
+        const suites = FIXTURE_FILES.map((file) => {
             const { tests } = JSON.parse(
                 readFileSync(new URL(`${file}.test`, fixtureDirectory), "utf8"),
             ) as { tests: TokenizerTest[] };
 
             const cases = collectCases(tests);
             includedCount += cases.length;
+            return { file, cases };
+        }).filter(({ cases }) => cases.length > 0);
 
-            if (cases.length > 0) {
-                // oxlint-disable-next-line vitest/valid-title -- Use the fixture filename as the suite title.
-                describe(file, () => {
-                    // oxlint-disable-next-line vitest/prefer-each -- Each generated case has its own assertion callback.
-                    for (const { description, run } of cases) {
-                        // oxlint-disable-next-line vitest/valid-title, vitest/expect-expect -- The fixture supplies the title and the generated callback contains the assertions.
-                        it(description, run);
-                    }
-                });
-            }
-        }
+        describe.each(suites)("$file", ({ cases }) => {
+            it.each(cases)("%s", (_description, { input, expected, mode }) => {
+                const decode =
+                    mode === DecodingMode.Attribute
+                        ? decodeHTMLAttribute
+                        : decodeHTML;
+                expect(decode(input)).toBe(expected);
+                expect(decodeStreaming(input, mode)).toBe(expected);
+            });
+        });
 
         it("should not have filtered out most tests", () => {
             expect(includedCount).toBeGreaterThanOrEqual(
@@ -228,7 +215,7 @@ if (existsSync(fixtureDirectory)) {
             );
         });
     });
-    // oxlint-disable-next-line node/no-process-env, typescript/strict-boolean-expressions -- A nonempty CI environment flag makes the fixtures mandatory.
+    // oxlint-disable-next-line node/no-process-env, vitest/no-conditional-tests -- CI requires the fixtures, while local checkouts may omit the submodule.
 } else if (process.env["CI"]) {
     throw new Error(
         "html5lib-tests fixtures are missing. Run `git submodule update --init` to fetch them.",
@@ -238,8 +225,6 @@ if (existsSync(fixtureDirectory)) {
     console.warn(
         "Skipping html5lib-tests fixtures: submodule not initialized. Run `git submodule update --init` to enable them.",
     );
-    // oxlint-disable-next-line vitest/prefer-todo, vitest/no-disabled-tests -- Report the unavailable fixtures as skipped.
-    it.skip("html5lib-tests submodule not initialized", () => {
-        // Skipped: fixtures are unavailable.
-    });
+    // oxlint-disable-next-line vitest/no-disabled-tests, vitest/prefer-todo -- The tests are implemented and run as soon as a local checkout has the fixture submodule.
+    it.skip("html5lib-tests submodule not initialized");
 }

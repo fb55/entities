@@ -337,7 +337,6 @@ function encodeHTMLTrieRe(
 
     // If nothing needed encoding, return the original string (avoids allocation).
     if (out == null) return input;
-    // oxlint-disable-next-line typescript/no-deprecated -- Preserve the existing hot-path substring operation.
-    if (last < length) out += input.substr(last);
+    if (last < length) out += input.slice(last);
     return out;
 }

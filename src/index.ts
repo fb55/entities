@@ -131,8 +131,6 @@ export function encode(
                 level === EntityLevel.HTML ? encodeNonAsciiHTML : encodeXML
             )(input);
         }
-        // oxlint-disable-next-line unicorn/no-useless-switch-case -- List every enum member and keep the runtime fallback.
-        case EncodingMode.Extensive:
         default: {
             return (level === EntityLevel.HTML ? encodeHTML : encodeXML)(input);
         }

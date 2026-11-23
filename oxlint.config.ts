@@ -40,6 +40,7 @@ export default defineConfig({
         "func-style": ["error", "declaration", { allowArrowFunctions: true }],
         "prefer-arrow-callback": ["error", { allowNamedFunctions: true }],
         "prefer-destructuring": ["error", { object: true, array: false }],
+        "class-methods-use-this": ["error", { ignoreOverrideMethods: true }],
         "capitalized-comments": [
             "error",
             "always",
@@ -68,6 +69,10 @@ export default defineConfig({
             { ignoreArrowShorthand: true },
         ],
         "typescript/no-unnecessary-condition": "error",
+        "typescript/strict-boolean-expressions": [
+            "error",
+            { allowNullableString: true },
+        ],
         "typescript/switch-exhaustiveness-check": [
             "error",
             { considerDefaultExhaustiveForUnions: true },
