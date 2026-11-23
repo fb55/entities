@@ -374,8 +374,7 @@ describe.each(implementations)(
                         prefixes.add(name.slice(0, end));
                     }
                 }
-                // oxlint-disable-next-line unicorn/no-array-sort -- Sort a fresh array in place for ES2022.
-                const legacyNames = Object.entries(legacyMap).sort(
+                const legacyNames = Object.entries(legacyMap).toSorted(
                     ([left], [right]) => right.length - left.length,
                 );
                 for (const prefix of prefixes) {

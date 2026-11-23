@@ -193,31 +193,9 @@ export default defineConfig({
             rules: off("import/no-anonymous-default-export"),
         },
         {
-            // The XML decoder shares the base class contract and handles only five names.
-            files: ["src/decode.ts"],
-            rules: {
-                ...off("default-case"),
-                "class-methods-use-this": [
-                    "error",
-                    { exceptMethods: ["endNamedEntity"] },
-                ],
-                "no-shadow": ["error", { allow: ["length"] }],
-            },
-        },
-        {
             // Generator scripts use console output and document their purpose and data formats.
             files: ["scripts/*.ts"],
             rules: off("no-console", "jsdoc/require-returns"),
-        },
-        {
-            // The generator treats an empty alias as absent.
-            files: ["scripts/write-encode-map.ts"],
-            rules: {
-                "typescript/strict-boolean-expressions": [
-                    "error",
-                    { allowNullableString: true },
-                ],
-            },
         },
         {
             // Test tables use namespace imports, inferred mocks and concise assertion callbacks.
@@ -236,29 +214,6 @@ export default defineConfig({
                 "vitest/prefer-called-times",
                 "vitest/no-conditional-expect",
             ),
-        },
-        {
-            // Vendored tokenizer cases are registered dynamically, with different CI and local missing-fixture handling.
-            // The fixture JSON is asserted to match the tokenizer test schema.
-            files: ["src/html5lib.spec.ts"],
-            rules: {
-                ...off(
-                    "vitest/prefer-each",
-                    "vitest/no-conditional-tests",
-                    "vitest/valid-title",
-                    "vitest/expect-expect",
-                    "vitest/prefer-todo",
-                    "vitest/no-disabled-tests",
-                    "node/no-process-env",
-                    "no-console",
-                    "prefer-named-capture-group",
-                    "typescript/no-unsafe-type-assertion",
-                ),
-                "typescript/strict-boolean-expressions": [
-                    "error",
-                    { allowNullableBoolean: true, allowNullableString: true },
-                ],
-            },
         },
     ],
 });

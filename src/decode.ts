@@ -343,6 +343,7 @@ function findLongClassMatch(
             Math.min(31, input.length - start),
         );
         if (packed >= 0) {
+            // oxlint-disable-next-line no-shadow -- The fallback has its own match length.
             const length = packed & 7;
             if (
                 mode !== DecodingMode.Attribute ||
@@ -601,6 +602,7 @@ export function decodeXML(xmlString: string): string {
                         : String.fromCodePoint(replaceCodePointXML(codePoint));
             }
         } else {
+            // oxlint-disable-next-line default-case -- Only the five predefined XML names can match.
             switch (c1) {
                 // &lt; / &gt;
                 case 0x6c:
@@ -1288,8 +1290,8 @@ export class XmlEntityDecoder extends EntityDecoderBase {
         return -1;
     }
 
+    // oxlint-disable-next-line class-methods-use-this -- The XML decoder shares the base class contract and an unterminated name never matches.
     protected endNamedEntity(): number {
-        // XML has no legacy entities; an unterminated name never matches.
         return 0;
     }
 }

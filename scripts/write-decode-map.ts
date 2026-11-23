@@ -128,8 +128,7 @@ function buildDecodeData(
      * `prefer-simple-sort-comparator`, whose suggested subtraction is invalid
      * for strings.
      */
-    // oxlint-disable-next-line unicorn/no-array-sort -- Sort a fresh array in place for ES2022.
-    const names = Object.keys(entities).sort(
+    const names = Object.keys(entities).toSorted(
         (a, b) => Number(a > b) - Number(a < b),
     );
 
@@ -201,8 +200,7 @@ function buildDecodeData(
     const frequencyRank = new Map(
         FREQUENT_NAMES.map((name, rank) => [name, rank]),
     );
-    // oxlint-disable-next-line unicorn/no-array-sort -- Sort a fresh array in place for ES2022.
-    const insertionOrder = [...names.keys()].sort((a, b) => {
+    const insertionOrder = [...names.keys()].toSorted((a, b) => {
         const rankA = frequencyRank.get(names[a]) ?? -1;
         const rankB = frequencyRank.get(names[b]) ?? -1;
         return rankA - rankB || a - b;

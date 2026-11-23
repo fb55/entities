@@ -1,3 +1,6 @@
+/* oxlint-disable vitest/no-conditional-tests -- Fixture suites are registered when their data is available. */
+/* oxlint-disable typescript/no-unsafe-type-assertion -- The vendored tokenizer schema defines the JSON and token payload types. */
+
 import { existsSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
@@ -53,6 +56,7 @@ const FIXTURE_FILES = [
 ];
 
 /** Template used by the fixtures for attribute-value entity tests. */
+// oxlint-disable-next-line prefer-named-capture-group -- Backreference the opening quote and read the attribute value by index.
 const ATTRIBUTE_TEMPLATE = /^<h a=(["']?)(.*)\1>$/s;
 
 /**
@@ -135,6 +139,7 @@ function collectCases(tests: TokenizerTest[]): FixtureCase[] {
         }
 
         const unescape = (value: string): string =>
+            // oxlint-disable-next-line typescript/strict-boolean-expressions -- An omitted doubleEscaped flag is equivalent to false.
             test.doubleEscaped ? (JSON.parse(`"${value}"`) as string) : value;
         const input = unescape(test.input);
 
@@ -196,6 +201,7 @@ if (existsSync(fixtureDirectory)) {
     describe("html5lib-tests tokenizer entity fixtures", () => {
         let includedCount = 0;
 
+        // oxlint-disable-next-line vitest/prefer-each -- Load each file and register a suite only when it has matching cases.
         for (const file of FIXTURE_FILES) {
             const { tests } = JSON.parse(
                 readFileSync(new URL(`${file}.test`, fixtureDirectory), "utf8"),
@@ -205,8 +211,11 @@ if (existsSync(fixtureDirectory)) {
             includedCount += cases.length;
 
             if (cases.length > 0) {
+                // oxlint-disable-next-line vitest/valid-title -- Use the fixture filename as the suite title.
                 describe(file, () => {
+                    // oxlint-disable-next-line vitest/prefer-each -- Each generated case has its own assertion callback.
                     for (const { description, run } of cases) {
+                        // oxlint-disable-next-line vitest/valid-title, vitest/expect-expect -- The fixture supplies the title and the generated callback contains the assertions.
                         it(description, run);
                     }
                 });
@@ -219,14 +228,17 @@ if (existsSync(fixtureDirectory)) {
             );
         });
     });
+    // oxlint-disable-next-line node/no-process-env, typescript/strict-boolean-expressions -- A nonempty CI environment flag makes the fixtures mandatory.
 } else if (process.env["CI"]) {
     throw new Error(
         "html5lib-tests fixtures are missing. Run `git submodule update --init` to fetch them.",
     );
 } else {
+    // oxlint-disable-next-line no-console -- Tell local contributors how to fetch the missing fixtures.
     console.warn(
         "Skipping html5lib-tests fixtures: submodule not initialized. Run `git submodule update --init` to enable them.",
     );
+    // oxlint-disable-next-line vitest/prefer-todo, vitest/no-disabled-tests -- Report the unavailable fixtures as skipped.
     it.skip("html5lib-tests submodule not initialized", () => {
         // Skipped: fixtures are unavailable.
     });
