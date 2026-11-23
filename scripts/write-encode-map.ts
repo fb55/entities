@@ -1,4 +1,5 @@
 import { writeFileSync } from "node:fs";
+
 import htmlMap from "../maps/entities.json" with { type: "json" };
 
 interface TrieNode {
@@ -29,7 +30,7 @@ console.log(`Done!  Data: ${serialized.length} chars`);
  * are stored as flat entries at their code point, instead of as children of
  * the high surrogate (U+D835).  This eliminates the large D835 surrogate
  * block and reduces the serialized data size significantly.
- * @param map
+ * @param map Entity names and their decoded values.
  */
 function getTrie(map: Record<string, string>): Map<number, TrieNode> {
     const trie = new Map<number, TrieNode>();
@@ -44,12 +45,11 @@ function getTrie(map: Record<string, string>): Map<number, TrieNode> {
             const cpLength = cp > 0xff_ff ? 2 : 1;
 
             // Check if this is the last code point in the sequence.
-            // eslint-disable-next-line unicorn/no-break-in-nested-loop
             if (index + cpLength >= decoded.length) break;
 
             const next = lastMap.get(cp) ?? {};
             lastMap.set(cp, next);
-            lastMap = next.next ??= new Map();
+            lastMap = next.next ??= new Map<number, TrieNode>();
             index += cpLength;
         }
 
@@ -67,10 +67,7 @@ function getTrie(map: Record<string, string>): Map<number, TrieNode> {
 }
 
 function serializeTrie(trie: Map<number, TrieNode>): string {
-    // @ts-expect-error `toSorted` requires a lib bump.
-    const entries = [...trie].toSorted(
-        (a: [number, TrieNode], b: [number, TrieNode]) => a[0] - b[0],
-    );
+    const entries = [...trie].toSorted((a, b) => a[0] - b[0]);
     let out = "";
     let lastKey = -1;
     for (const [key, node] of entries) {

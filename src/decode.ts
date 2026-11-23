@@ -39,6 +39,7 @@ const TO_LOWER_BIT = 0b10_0000;
  * Unsigned subtraction trick: (code - lo) >>> 0 wraps negatives to large
  * values, so a single `<=` covers the entire [lo..hi] range check.
  * @param code Code point to check.
+ * @returns Whether the code point is an ASCII decimal digit.
  */
 function isNumber(code: number): boolean {
     return (code - CHAR_ZERO) >>> 0 <= 9;
@@ -51,11 +52,12 @@ function isAlphaNumeric(code: number): boolean {
 }
 
 /**
- * Checks if the given character is a valid end character for an entity in an attribute.
+ * Check the character following a semicolon-less named reference in an attribute.
  *
  * Attribute values that aren't terminated properly aren't parsed, and shouldn't lead to a parser error.
  * See the example in https://html.spec.whatwg.org/multipage/parsing.html#named-character-reference-state
  * @param code Code point to check.
+ * @returns Whether an ASCII letter, digit, or equals sign prevents the match.
  */
 function isEntityInAttributeInvalidEnd(code: number): boolean {
     return code === CHAR_EQUALS || isAlphaNumeric(code);
@@ -94,9 +96,9 @@ const htmlSlotValue = /* #__PURE__ */ ((): Uint16Array =>
 const htmlValues = /* #__PURE__ */ ((): string => htmlDecode.values)();
 
 /**
- * The replacement string for a packed `slotValue` entry. Most values need
- * just one UTF-16 code unit.
+ * Read the replacement text from the shared HTML value string.
  * @param packed Replacement offset, legacy flag, and length from `htmlSlotValue`.
+ * @returns The one or two UTF-16 code units stored at the entry's offset.
  */
 function emitHtmlValue(packed: number): string {
     const off = packed >> 2;
@@ -106,11 +108,11 @@ function emitHtmlValue(packed: number): string {
 }
 
 /**
- * Find the slot matching `text[start..start+length)`, or -1. A match proves
- * every character of the span (exact key + middle comparison).
+ * Probe for a name using its exact key and middle characters.
  * @param text Input text.
  * @param start Start of the span in `text`.
  * @param length Length of the span.
+ * @returns The slot whose name matches the entire span, or -1 if there is no match.
  */
 function findSlotHtml(text: string, start: number, length: number): number {
     const c0 = text.charCodeAt(start);
@@ -154,6 +156,7 @@ function findSlotHtml(text: string, start: number, length: number): number {
  * @param text Input text.
  * @param start Start of the span in `text`.
  * @param length Length of the span.
+ * @returns Whether the slot's packed middle characters match the input span.
  */
 function isMidMatchHtml(
     slot: number,
@@ -198,6 +201,7 @@ let longNumericConsumed = 0;
  * Recover the consumed count before the next numeric parse can overwrite
  * `longNumericConsumed`. This avoids allocating a tuple for each reference.
  * @param packed Packed result of `parseNumericEntity`.
+ * @returns The full number of characters consumed, including the leading ampersand.
  */
 function unpackConsumed(packed: number): number {
     const consumed = packed >>> NUMERIC_CONSUMED_SHIFT;
@@ -221,13 +225,12 @@ const numericDigits: Uint8Array = /* #__PURE__ */ ((): Uint8Array => {
 
 /**
  * Parse a numeric entity starting right after the `#`. In legacy mode the
- * terminating semicolon is optional. Returns the number of characters
- * consumed (counting the `&` and `#`) packed with the code point (see
- * the packing constants above), or 0 if there is no valid numeric entity at this
- * position.
+ * terminating semicolon is optional.
  * @param input Input string.
  * @param offset Index right after the `#`.
  * @param isStrict Whether a terminating semicolon is required.
+ * @returns The code point packed with the consumed length or an overflow
+ *   marker, or 0 on a miss. Use `unpackConsumed` for the full length.
  */
 function parseNumericEntity(
     input: string,
@@ -277,7 +280,6 @@ function parseNumericEntity(
         return 0;
     }
     if (consumed >= NUMERIC_CONSUMED_OVERFLOW) {
-        // eslint-disable-next-line unicorn/no-top-level-assignment-in-function -- deliberate side channel, read immediately by unpackConsumed
         longNumericConsumed = consumed;
         consumed = NUMERIC_CONSUMED_OVERFLOW;
     }
@@ -286,12 +288,11 @@ function parseNumericEntity(
 
 /**
  * Find the longest legacy (semicolon-less) match for the name starting at
- * `start`, using the per-class legacy length bits. Returns
- * `slot << 3 | matchLength`, or -1 if there is no match. Only called after
- * the exact probes failed (the miss path).
+ * `start`, using the per-class legacy length bits after the exact probes fail.
  * @param input Input text.
  * @param start Start of the name.
  * @param maxLength Number of available run characters.
+ * @returns The match as `(slot << 3) | matchLength`, or -1 on a miss.
  */
 function findLegacySlot(
     input: string,
@@ -320,10 +321,10 @@ function findLegacySlot(
 /**
  * Match a class containing long names without probing all its shorter lengths.
  * The 32-character window bounds the scan even for invalid or unterminated runs.
- * Returns `(slot << 6) | consumed`, excluding the `&`, or -1 on a miss.
  * @param input Input containing the candidate name.
  * @param start Start of the name.
  * @param mode Decoding mode, including the rules for legacy matches.
+ * @returns The match as `(slot << 6) | consumed`, where `consumed` excludes the ampersand, or -1 on a miss.
  */
 function findLongClassMatch(
     input: string,
@@ -342,13 +343,15 @@ function findLongClassMatch(
             Math.min(31, input.length - start),
         );
         if (packed >= 0) {
-            const length = packed & 7;
+            const legacyLength = packed & 7;
             if (
                 mode !== DecodingMode.Attribute ||
-                start + length >= input.length ||
-                !isEntityInAttributeInvalidEnd(input.charCodeAt(start + length))
+                start + legacyLength >= input.length ||
+                !isEntityInAttributeInvalidEnd(
+                    input.charCodeAt(start + legacyLength),
+                )
             )
-                return ((packed >> 3) << 6) | length;
+                return ((packed >> 3) << 6) | legacyLength;
         }
     }
     return -1;
@@ -356,12 +359,11 @@ function findLongClassMatch(
 
 /**
  * Match one of XML's five predefined entities (name plus the terminating
- * semicolon) at `start`. Returns `(consumedLength << 7) | codePoint` where
- * `consumedLength` counts the name and the semicolon, or -1 if nothing
- * matches. All five patterns are decided within five characters of `start`,
- * so the entity set ships no decode data.
+ * semicolon) at `start`. All five patterns are decided within five characters
+ * of `start`, so the entity set ships no decode data.
  * @param input Input text.
  * @param start Index of the name's first character (right after the `&`).
+ * @returns The match as `(consumedLength << 7) | codePoint`, with the semicolon counted in `consumedLength`, or -1 on a miss.
  */
 function matchXmlEntity(input: string, start: number): number {
     /*
@@ -414,11 +416,11 @@ function matchXmlEntity(input: string, start: number): number {
 }
 
 /**
- * The next `&` to resume from after emitting a replacement, given the index
- * just past it. A leaf the decoders call after every emit: the common
- * adjacent-entity case (`&amp;&lt;`) skips the `indexOf` C++ call.
+ * Locate the next candidate after emitting a replacement. Adjacent entities
+ * such as `&amp;&lt;` skip the `indexOf` call.
  * @param input Input text.
  * @param last Index just past the entity that was emitted.
+ * @returns The index of the next ampersand at or after `last`, or -1 if none remains.
  */
 function nextOffset(input: string, last: number): number {
     if (last >= input.length) return -1;
@@ -431,6 +433,7 @@ function nextOffset(input: string, last: number): number {
  * Synchronous HTML decoder, shared by all three decoding modes.
  * @param input String to decode.
  * @param mode Decoding mode for named entities.
+ * @returns The input with recognized HTML references replaced, preserving unrecognized text.
  */
 function decodeHtmlText(input: string, mode: DecodingMode): string {
     const isLegacyAllowed = mode !== DecodingMode.Strict;
@@ -499,7 +502,6 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
             const length = 33 - Math.clz32(low);
             const end = start + length;
             // Longer probes cannot match either; lengths are ascending.
-            // eslint-disable-next-line unicorn/no-break-in-nested-loop -- keep the bounded probe loop inline
             if (end > inputLength) break;
             const isTerminated =
                 end < inputLength && input.charCodeAt(end) === CHAR_SEMI;
@@ -509,15 +511,12 @@ function decodeHtmlText(input: string, mode: DecodingMode): string {
                     (isLegacyAllowed && ((bits >>> (length + 14)) & 1) !== 0)
                 )
             )
-                // eslint-disable-next-line unicorn/no-break-in-nested-loop -- skip impossible candidates in the inline probe loop
                 continue;
             // Share the lookup call site, including after legacy-only inputs.
             const slot = findSlotHtml(input, start, length);
-            // eslint-disable-next-line unicorn/no-break-in-nested-loop -- skip failed candidates in the inline probe loop
             if (slot < 0) continue;
             if (isTerminated) {
                 matched = (slot << 6) | 32 | (length + 1);
-                // eslint-disable-next-line unicorn/no-break-in-nested-loop -- an exact match ends the probe loop
                 break;
             }
             if ((htmlSlotValue[slot] & 2) !== 0) {
@@ -604,7 +603,6 @@ export function decodeXML(xmlString: string): string {
                         : String.fromCodePoint(replaceCodePointXML(codePoint));
             }
         } else {
-            /* eslint-disable unicorn/no-break-in-nested-loop -- Keep XML name dispatch inline with the decode loop. */
             switch (c1) {
                 // &lt; / &gt;
                 case 0x6c:
@@ -656,8 +654,10 @@ export function decodeXML(xmlString: string): string {
                     }
                     break;
                 }
+                default: {
+                    break;
+                }
             }
-            /* eslint-enable unicorn/no-break-in-nested-loop */
         }
         if (consumed > 0) {
             if (lastIndex < offset)
@@ -1152,6 +1152,7 @@ export class HtmlEntityDecoder extends EntityDecoderBase {
  * alphanumerics while scanning, so no outer-character range check is needed.
  * @param buffer Reusable character buffer.
  * @param length Number of characters to match.
+ * @returns The slot matching the buffered name, or -1 if no slot matches.
  */
 function findBufferedHtmlSlot(buffer: Uint8Array, length: number): number {
     const key =
@@ -1201,9 +1202,10 @@ function isBufferedMiddle(
 }
 
 /**
- * Find the longest legacy name in the buffer, packed as `(slot << 3) | length`.
+ * Find the longest legacy name starting at the beginning of the buffer.
  * @param buffer Reusable character buffer.
  * @param length Number of buffered characters.
+ * @returns The match as `(slot << 3) | matchLength`, or -1 on a miss.
  */
 function findBufferedLegacySlot(buffer: Uint8Array, length: number): number {
     let legacy = (htmlLengthBits[pairIndex(buffer[0], buffer[1])] >>> 16) & 31;
@@ -1219,8 +1221,9 @@ function findBufferedLegacySlot(buffer: Uint8Array, length: number): number {
 }
 
 /**
- * Match an XML name packed in seven-bit groups, or return -1.
+ * Match an XML name packed in seven-bit groups.
  * @param name Packed name accumulated across chunks.
+ * @returns The predefined entity's code point, or -1 for an unknown name.
  */
 function xmlCodePoint(name: number): number {
     switch (name) {
@@ -1290,8 +1293,7 @@ export class XmlEntityDecoder extends EntityDecoderBase {
         return -1;
     }
 
-    protected endNamedEntity(): number {
-        // XML has no legacy entities; an unterminated name never matches.
+    protected override endNamedEntity(): number {
         return 0;
     }
 }

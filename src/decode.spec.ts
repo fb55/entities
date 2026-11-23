@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import entityMap from "../maps/entities.json" with { type: "json" };
 import legacyMap from "../maps/legacy.json" with { type: "json" };
 import xmlMap from "../maps/xml.json" with { type: "json" };
@@ -94,12 +95,10 @@ const implementations: [string, DecoderImpl][] = [
 
 describe.each(implementations)(
     "Decode test: %s",
-    (_name, {
-        decodeHTML,
-        decodeHTMLStrict,
-        decodeHTMLAttribute,
-        decodeXML,
-    }) => {
+    (
+        _name,
+        { decodeHTML, decodeHTMLStrict, decodeHTMLAttribute, decodeXML },
+    ) => {
         /*
          * Cases where the XML and HTML decoders agree. Run through both
          * `decodeXML` and `decodeHTML` so the two implementations cover the
@@ -254,14 +253,20 @@ describe.each(implementations)(
                         expect(decodeXML(input)).toBe("beforeAB&after");
                         const unterminated = entity.slice(0, -1);
                         for (const suffix of ["", "X", "&amp;"]) {
-                            const input = unterminated + suffix;
+                            const incompleteInput = unterminated + suffix;
                             const tail = suffix === "&amp;" ? "&" : suffix;
-                            expect(decodeHTML(input)).toBe(`A${tail}`);
-                            expect(decodeHTMLAttribute(input)).toBe(`A${tail}`);
-                            expect(decodeHTMLStrict(input)).toBe(
+                            expect(decodeHTML(incompleteInput)).toBe(
+                                `A${tail}`,
+                            );
+                            expect(decodeHTMLAttribute(incompleteInput)).toBe(
+                                `A${tail}`,
+                            );
+                            expect(decodeHTMLStrict(incompleteInput)).toBe(
                                 unterminated + tail,
                             );
-                            expect(decodeXML(input)).toBe(unterminated + tail);
+                            expect(decodeXML(incompleteInput)).toBe(
+                                unterminated + tail,
+                            );
                         }
                     }
                 },
@@ -369,8 +374,7 @@ describe.each(implementations)(
                         prefixes.add(name.slice(0, end));
                     }
                 }
-                // eslint-disable-next-line unicorn/no-array-sort -- toSorted is outside the configured TypeScript library
-                const legacyNames = Object.entries(legacyMap).sort(
+                const legacyNames = Object.entries(legacyMap).toSorted(
                     ([left], [right]) => right.length - left.length,
                 );
                 for (const prefix of prefixes) {
@@ -662,13 +666,13 @@ describe("HtmlEntityDecoder", () => {
             ["mismatch after one correct run char", "zigXarr"],
             ["mismatch after two correct run chars", "zigrXrr"],
         ])("%s rejects without emitting", (_name, input) => {
-            const callback = vi.fn<(cp: number, consumed: number) => void>();
-            const d = new entities.HtmlEntityDecoder(callback);
+            const onCodePoint = vi.fn<(cp: number, consumed: number) => void>();
+            const d = new entities.HtmlEntityDecoder(onCodePoint);
             d.startEntity(entities.DecodingMode.Strict);
             const written = d.write(input, 0);
             expect(written).toBeLessThanOrEqual(0);
             if (written === -1) expect(d.end()).toBe(0);
-            expect(callback).not.toHaveBeenCalled();
+            expect(onCodePoint).not.toHaveBeenCalled();
         });
     });
 

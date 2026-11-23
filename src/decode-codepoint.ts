@@ -11,8 +11,9 @@ const c1: number[] = [
 ];
 
 /**
- * True for NUL, UTF-16 surrogates, and values past U+10FFFF.
+ * Check whether a numeric entity needs the Unicode replacement character.
  * @param codePoint Unicode code point to check.
+ * @returns Whether the value is NUL, a UTF-16 surrogate, or above U+10FFFF.
  */
 function isInvalidCodePoint(codePoint: number): boolean {
     return (
@@ -28,6 +29,7 @@ function isInvalidCodePoint(codePoint: number): boolean {
  * (128-159) are remapped to their Windows-1252 equivalents, following the
  * HTML spec. All other code points are returned unchanged.
  * @param codePoint Unicode code point to convert.
+ * @returns The code point to emit for an HTML numeric reference.
  */
 export function replaceCodePoint(codePoint: number): number {
     if (isInvalidCodePoint(codePoint)) {
@@ -47,6 +49,7 @@ export function replaceCodePoint(codePoint: number): number {
  * applied.
  * @see https://www.w3.org/TR/xml/#NT-CharRef
  * @param codePoint Unicode code point to convert.
+ * @returns U+FFFD for invalid values, or the original code point otherwise.
  */
 export function replaceCodePointXML(codePoint: number): number {
     return isInvalidCodePoint(codePoint) ? 0xff_fd : codePoint;
@@ -61,6 +64,7 @@ export function replaceCodePointXML(codePoint: number): number {
  * handling) and fit a single charCode. 0xd760 = 0xD800 (the first surrogate)
  * - 0xA0.
  * @param codePoint Unicode code point to convert.
+ * @returns The HTML replacement as one or two UTF-16 code units.
  */
 export function codePointToString(codePoint: number): string {
     return (codePoint - 1) >>> 0 < 0x7f || (codePoint - 0xa0) >>> 0 < 0xd7_60

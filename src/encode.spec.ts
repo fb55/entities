@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { INLINE_SCAN_WINDOW } from "./encode.js";
 import * as entities from "./index.js";
 
