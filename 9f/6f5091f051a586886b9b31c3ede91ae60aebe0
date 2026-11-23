@@ -1,0 +1,21 @@
+scripts/write-decode-map.ts
+  s_0800dd85863a86::t_49c2f081c197b7 276
+src/generated/decode-data-html.ts
+  s_0800dd85863a86::t_5da148f67584ca 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9f6f5091f051a586886b9b31c3ede91ae60aebe0",
+  "prompts": {},
+  "sessions": {
+    "s_0800dd85863a86": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a20627-01f9-7a51-9d72-8eee241ff9e0",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Felix Boehm <188768+fb55@users.noreply.github.com>"
+    }
+  }
+}
