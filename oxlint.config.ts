@@ -127,9 +127,10 @@ export default defineConfig({
         ...off("complexity", "max-depth", "curly", "no-multi-assign"),
         // Nullish equality is allowed by eqeqeq's smart mode.
         ...off("no-eq-null"),
-        // Keep the existing import and export order and module structure.
+        // Oxfmt sorts imports, so a separate lint rule could conflict with it.
+        ...off("sort-imports"),
+        // Preserve the module structure, export order, and type import style.
         ...off(
-            "sort-imports",
             "import/consistent-type-specifier-style",
             "import/no-named-export",
             "import/no-default-export",
@@ -149,8 +150,9 @@ export default defineConfig({
             "jsdoc/require-yields-type",
             "jsdoc/require-throws-type",
             "typescript/prefer-readonly-parameter-types",
-            "typescript/no-non-null-assertion",
         ),
+        // Encoder bounds checks and generated entity data guarantee the asserted values exist.
+        ...off("typescript/no-non-null-assertion"),
         // Method signatures are chosen for how they check and infer.
         ...off("typescript/method-signature-style"),
         // Preserve existing constructor parameter properties and enum numbering.
