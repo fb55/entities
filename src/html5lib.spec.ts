@@ -1,5 +1,3 @@
-/* oxlint-disable typescript/no-unsafe-type-assertion -- The vendored tokenizer schema defines the fixture JSON and the payload shape for each token type. */
-
 import { existsSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
@@ -136,10 +134,11 @@ function collectCases(tests: TokenizerTest[]): FixtureCase[] {
             continue;
         }
 
-        const unescape = (value: string): string =>
-            test.doubleEscaped === true
-                ? (JSON.parse(`"${value}"`) as string)
-                : value;
+        const unescape = (value: string): string => {
+            if (test.doubleEscaped !== true) return value;
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- The fixture stores the escaped contents of a JSON string.
+            return JSON.parse(`"${value}"`) as string;
+        };
         const input = unescape(test.input);
 
         if (
@@ -148,6 +147,7 @@ function collectCases(tests: TokenizerTest[]): FixtureCase[] {
             !input.includes("\r")
         ) {
             const expected = test.output
+                // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Each Character token carries a string payload in the fixture schema.
                 .map(([, data]) => unescape(data as string))
                 .join("");
 
@@ -161,6 +161,7 @@ function collectCases(tests: TokenizerTest[]): FixtureCase[] {
         ) {
             const attributeValue =
                 ATTRIBUTE_TEMPLATE.exec(input)?.groups?.["value"];
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- The StartTag token's third tuple element is its attribute map.
             const attributes = test.output[0][2] as Record<string, string>;
             if (
                 attributeValue !== undefined &&
@@ -189,6 +190,7 @@ if (existsSync(fixtureDirectory)) {
         let includedCount = 0;
 
         const suites = FIXTURE_FILES.map((file) => {
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- The vendored tokenizer files use this fixture schema.
             const { tests } = JSON.parse(
                 readFileSync(new URL(`${file}.test`, fixtureDirectory), "utf8"),
             ) as { tests: TokenizerTest[] };
@@ -215,12 +217,14 @@ if (existsSync(fixtureDirectory)) {
             );
         });
     });
-    // oxlint-disable-next-line node/no-process-env, vitest/no-conditional-tests -- CI requires the fixtures, while local checkouts may omit the submodule.
-} else if (process.env["CI"]) {
-    throw new Error(
-        "html5lib-tests fixtures are missing. Run `git submodule update --init` to fetch them.",
-    );
 } else {
+    // oxlint-disable-next-line node/no-process-env -- CI requires the fixtures, while local checkouts may omit the submodule.
+    if (process.env["CI"]) {
+        throw new Error(
+            "html5lib-tests fixtures are missing. Run `git submodule update --init` to fetch them.",
+        );
+    }
+
     // oxlint-disable-next-line no-console -- Tell local contributors how to fetch the missing fixtures.
     console.warn(
         "Skipping html5lib-tests fixtures: submodule not initialized. Run `git submodule update --init` to enable them.",
