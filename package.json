@@ -64,7 +64,7 @@
         "@biomejs/biome": "^2.6.8",
         "@eslint/compat": "^2.1.1",
         "@feedic/eslint-config": "^0.5.0",
-        "@types/node": "^26.6.6",
+        "@types/node": "^26.6.7",
         "@typescript/native": "npm:typescript@^7.0.2",
         "eslint": "^10.15.0",
         "eslint-config-biome": "^2.1.3",
