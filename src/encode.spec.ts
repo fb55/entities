@@ -118,6 +118,39 @@ describe("encodeNonAsciiHTML", () => {
         ));
 });
 
+describe("C1 control characters", () => {
+    /*
+     * HTML parsers remap numeric references to most of U+0080-U+009F using
+     * the Windows-1252 table (e.g. `&#128;` reads as U+20AC), so those
+     * characters cannot be written as references.
+     */
+    const c1 = Array.from({ length: 32 }, (_, index) =>
+        String.fromCharCode(0x80 + index),
+    );
+
+    it.each(c1)("should round-trip %j through decodeHTML", (char) => {
+        const input = `a${char}b`;
+        expect(entities.decodeHTML(entities.encodeHTML(input))).toBe(input);
+        expect(entities.decodeHTML(entities.encodeNonAsciiHTML(input))).toBe(
+            input,
+        );
+    });
+
+    it("should leave remapped C1 characters unencoded", () => {
+        expect(entities.encodeHTML("\u{80}\u{9F}")).toBe("\u{80}\u{9F}");
+        expect(entities.encodeNonAsciiHTML("<\u{80}>")).toBe("&lt;\u{80}&gt;");
+    });
+
+    it("should still encode C1 characters that are not remapped", () => {
+        expect(entities.encodeHTML("\u{81}\u{8D}\u{8F}\u{90}\u{9D}")).toBe(
+            "&#129;&#141;&#143;&#144;&#157;",
+        );
+    });
+
+    it("should still encode C1 characters as references in XML", () =>
+        expect(entities.encodeXML("\u{80}")).toBe("&#128;"));
+});
+
 describe("scan-path consistency (regex jump vs inline scan)", () => {
     /*
      * The scan uses a bitset to test single characters inline and a regex to

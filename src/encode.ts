@@ -1,3 +1,4 @@
+import { replaceCodePoint } from "./decode-codepoint.js";
 import { XML_BITSET_VALUE, xmlEncodeRegex } from "./escape.js";
 import htmlTrieData from "./generated/encode-html.js";
 
@@ -171,6 +172,11 @@ const numericReference = (cp: number) => `&#${cp};`;
  *
  * If a character has no equivalent entity, a numeric decimal reference
  * (eg. `&#252;`) will be used.
+ *
+ * The C1 controls that HTML remaps through Windows-1252 (eg. U+0080, which
+ * `&#128;` would turn into `€`) are left as they are, since no reference
+ * decodes back to them. The output can therefore contain these non-ASCII
+ * characters.
  * @param input Input string to encode.
  */
 export function encodeHTML(input: string): string {
@@ -183,6 +189,11 @@ export function encodeHTML(input: string): string {
  *
  * If a character has no equivalent entity, a numeric decimal reference
  * (eg. `&#252;`) will be used.
+ *
+ * The C1 controls that HTML remaps through Windows-1252 (eg. U+0080, which
+ * `&#128;` would turn into `€`) are left as they are, since no reference
+ * decodes back to them. The output can therefore contain these non-ASCII
+ * characters.
  * @param input Input string to encode.
  */
 export function encodeNonAsciiHTML(input: string): string {
@@ -318,6 +329,16 @@ function encodeHTMLTrieRe(
             }
 
             if (node == null) {
+                if (char <= 0x9f && replaceCodePoint(char) !== char) {
+                    /*
+                     * HTML parsers read a reference to this C1 control as
+                     * its Windows-1252 character (`&#128;` is U+20AC), and
+                     * no other reference gives it back. Keep it as is.
+                     */
+                    out += input[index];
+                    last = index += 1;
+                    continue;
+                }
                 // No named entity exists; emit a decimal numeric reference.
                 const cp = input.codePointAt(index)!;
                 out += numericReference(cp);
